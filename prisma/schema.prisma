@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Project {
+  id        String      @id @default(uuid())
+  name      String      @unique
+  createdAt DateTime    @default(now())
+
+  // ✅ เก็บ ProjectMeta ทั้งก้อน (JSON / jsonb ใน Postgres)
+  meta      Json?
+
+  // relations
+  reports   DailyReport[]
+}
+
+model DailyReport {
+  id        String   @id @default(uuid())
+  projectId String
+  date      DateTime
+  createdAt DateTime @default(now())
+
+  // relations
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  issues    Issue[]
+
+  @@index([projectId])
+  @@index([date])
+}
+
+model Issue {
+  id        String   @id @default(uuid())
+  reportId  String
+  detail    String
+  imageUrl  String?
+  createdAt DateTime @default(now())
+
+  // relations
+  report    DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
