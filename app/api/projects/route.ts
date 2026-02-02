@@ -1,6 +1,7 @@
 // app/api/projects/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import type { Project } from "@prisma/client";
 
 export const runtime = "nodejs";
 
@@ -45,14 +46,15 @@ const emptyMeta: Omit<ProjectMeta, "id" | "projectName"> = {
   supervisors: [],
 };
 
+type Row = Pick<Project, "id" | "name" | "createdAt" | "meta">;
+
 export async function GET() {
-  const rows = await prisma.project.findMany({
+  const rows: Row[] = await prisma.project.findMany({
     select: { id: true, name: true, createdAt: true, meta: true },
     orderBy: { createdAt: "desc" },
   });
 
-  const projects: ProjectMeta[] = rows.map((p) => {
-    // ✅ ไม่ใช้ Prisma namespace แล้ว เพื่อให้ build บน Vercel ผ่านชัวร์
+  const projects: ProjectMeta[] = rows.map((p: Row) => {
     const m = (p.meta ?? {}) as unknown as ProjectMetaDb;
 
     return {
