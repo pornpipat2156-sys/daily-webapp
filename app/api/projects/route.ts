@@ -1,7 +1,6 @@
 // app/api/projects/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
 
@@ -53,14 +52,14 @@ export async function GET() {
   });
 
   const projects: ProjectMeta[] = rows.map((p) => {
-    const m = (p.meta ?? {}) as Prisma.JsonObject as unknown as ProjectMetaDb;
+    // ✅ ไม่ใช้ Prisma namespace แล้ว เพื่อให้ build บน Vercel ผ่านชัวร์
+    const m = (p.meta ?? {}) as unknown as ProjectMetaDb;
 
     return {
       id: p.id,
       projectName: p.name,
       ...emptyMeta,
       ...m,
-      // กัน supervisors ไม่ใช่ array
       supervisors: Array.isArray(m.supervisors) ? (m.supervisors as string[]) : [],
     };
   });
