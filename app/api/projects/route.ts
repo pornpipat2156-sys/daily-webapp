@@ -1,7 +1,6 @@
 // app/api/projects/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import type { Project } from "@prisma/client";
 
 export const runtime = "nodejs";
 
@@ -46,13 +45,19 @@ const emptyMeta: Omit<ProjectMeta, "id" | "projectName"> = {
   supervisors: [],
 };
 
-type Row = Pick<Project, "id" | "name" | "createdAt" | "meta">;
+// ✅ กำหนดชนิดข้อมูลที่เราคาดว่าจะได้จาก DB เอง (ไม่พึ่ง @prisma/client types)
+type Row = {
+  id: string;
+  name: string;
+  createdAt: Date;
+  meta: unknown | null;
+};
 
 export async function GET() {
-  const rows: Row[] = await prisma.project.findMany({
+  const rows = (await prisma.project.findMany({
     select: { id: true, name: true, createdAt: true, meta: true },
     orderBy: { createdAt: "desc" },
-  });
+  })) as unknown as Row[];
 
   const projects: ProjectMeta[] = rows.map((p: Row) => {
     const m = (p.meta ?? {}) as unknown as ProjectMetaDb;
