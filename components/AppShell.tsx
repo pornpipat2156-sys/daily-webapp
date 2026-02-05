@@ -17,18 +17,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
-  // ✅ หน้า preview ต้อง "ห้ามตัด overflow" ไม่งั้น iOS จะตัดครึ่งตอน scale
-  const isPreview =
-    pathname === "/daily-report/preview" ||
-    pathname.startsWith("/daily-report/preview/") ||
-    pathname.endsWith("/preview");
-
   return (
     <div className="min-h-dvh bg-background text-foreground">
       {/* ===== Top bar ===== */}
       <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-3 sm:px-6">
-          {/* Mobile menu button */}
           <button
             type="button"
             className="md:hidden rounded-lg border px-3 py-2 text-sm"
@@ -49,65 +42,56 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* ===== Content grid ===== */}
-      <div
-        className={[
-          "mx-auto grid grid-cols-1 gap-3 py-3 sm:px-6 md:grid-cols-[auto_1fr]",
-          // ✅ หน้า preview ให้ใช้พื้นที่เต็ม + ลด padding เพื่อให้ scale คำนวณได้พอดี
-          isPreview ? "max-w-none px-2" : "max-w-7xl px-3",
-        ].join(" ")}
-      >
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-3 px-3 py-3 sm:px-6 md:grid-cols-[auto_1fr]">
         {/* ===== Sidebar (Desktop) ===== */}
-        {!isPreview && (
-          <aside
-            className={[
-              "hidden md:flex md:flex-col md:sticky md:top-16 md:h-[calc(100dvh-4rem)]",
-              "rounded-2xl border bg-card",
-              collapsed ? "w-20" : "w-72",
-            ].join(" ")}
-          >
-            <div className="flex items-center justify-between p-3">
-              <div className="text-sm font-semibold">TABS</div>
-              <button
-                type="button"
-                className="rounded-lg border px-2 py-1 text-xs"
-                onClick={() => setCollapsed((v) => !v)}
-                aria-label="Collapse sidebar"
-              >
-                {collapsed ? "»" : "«"}
-              </button>
-            </div>
+        <aside
+          className={[
+            "hidden md:flex md:flex-col md:sticky md:top-16 md:h-[calc(100dvh-4rem)]",
+            "rounded-2xl border bg-card",
+            collapsed ? "w-20" : "w-72",
+          ].join(" ")}
+        >
+          <div className="flex items-center justify-between p-3">
+            <div className="text-sm font-semibold">TABS</div>
+            <button
+              type="button"
+              className="rounded-lg border px-2 py-1 text-xs"
+              onClick={() => setCollapsed((v) => !v)}
+              aria-label="Collapse sidebar"
+            >
+              {collapsed ? "»" : "«"}
+            </button>
+          </div>
 
-            <nav className="flex-1 space-y-2 px-2 pb-2">
-              {nav.map((item) => {
-                const active = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={[
-                      "block rounded-xl border px-3 py-2 text-sm",
-                      active ? "bg-foreground text-background border-foreground" : "hover:bg-muted",
-                      collapsed ? "text-[0px] py-3" : "",
-                    ].join(" ")}
-                    title={collapsed ? item.label : undefined}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
+          <nav className="flex-1 space-y-2 px-2 pb-2">
+            {nav.map((item) => {
+              const active = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={[
+                    "block rounded-xl border px-3 py-2 text-sm",
+                    active ? "bg-foreground text-background border-foreground" : "hover:bg-muted",
+                    collapsed ? "text-[0px] py-3" : "",
+                  ].join(" ")}
+                  title={collapsed ? item.label : undefined}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
 
-            <div className="m-3 rounded-xl border bg-muted p-3">
-              <div className="text-xs font-semibold">Role</div>
-              <div className="text-sm">USER</div>
-            </div>
-          </aside>
-        )}
+          <div className="m-3 rounded-xl border bg-muted p-3">
+            <div className="text-xs font-semibold">Role</div>
+            <div className="text-sm">USER</div>
+          </div>
+        </aside>
 
         {/* ===== Sidebar (Mobile Drawer) ===== */}
-        {mobileOpen && !isPreview && (
+        {mobileOpen && (
           <div className="fixed inset-0 z-50 md:hidden">
-            {/* backdrop */}
             <button
               type="button"
               className="absolute inset-0 bg-black/40"
@@ -115,7 +99,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               aria-label="Close menu"
             />
 
-            {/* panel */}
             <div className="absolute left-0 top-0 h-full w-[82%] max-w-[320px] bg-background border-r p-3">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold">TABS</div>
@@ -156,14 +139,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         )}
 
         {/* ===== Main ===== */}
-        <main
-          className={[
-            // ✅ หน้าอื่นยังป้องกันล้นเหมือนเดิม
-            isPreview ? "overflow-visible" : "overflow-x-hidden",
-          ].join(" ")}
-        >
-          <div className={isPreview ? "overflow-visible" : "overflow-x-hidden"}>{children}</div>
-        </main>
+        <main className="min-w-0">{children}</main>
       </div>
     </div>
   );
