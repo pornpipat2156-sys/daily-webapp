@@ -360,9 +360,6 @@ export default function PreviewPage() {
       <div className="mx-auto max-w-[1200px] px-3 md:px-6 py-4">
         {/* Top actions (ไม่พิมพ์) */}
         <div className="flex items-center justify-between mb-3 print:hidden">
-          <div className="print:hidden mt-2 text-xs opacity-60">
-            PREVIEW BUILD: v2026-02-06-02
-          </div>
           <button className="rounded-lg border px-3 py-2" onClick={() => router.push("/daily-report")}>
             ← กลับไปแก้ไข
           </button>
@@ -392,10 +389,6 @@ export default function PreviewPage() {
             padding: 14px;
             font-size: 13px;
             line-height: 1.2;
-            -webkit-text-size-adjust: 100%;
-            text-size-adjust: 100%;
-            text-rendering: geometricPrecision;
-
           }
 
           .box { border: 2px solid #111; border-radius: 12px; overflow: hidden; }
