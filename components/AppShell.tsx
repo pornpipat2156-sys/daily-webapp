@@ -8,6 +8,7 @@ const nav = [
   { href: "/daily-report", label: "รายงานประจำวัน" },
   { href: "/commentator", label: "แสดงความคิดเห็น" },
   { href: "/summation", label: "การตรวจสอบและการอนุมัติ" },
+  { href: "/input", label: "การสรุปผลข้อมูล" },
   { href: "/contact", label: "ติดต่อ" },
 ];
 

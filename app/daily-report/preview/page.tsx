@@ -183,29 +183,20 @@ export default function PreviewPage() {
   const [wOvertime, setWOvertime] = useState<string>("-");
   const [wxLoading, setWxLoading] = useState(false);
 
-  // Responsive scale สำหรับ A4
+  // ✅ Responsive scale สำหรับ A4 (แก้ iOS “ตัดครึ่ง” ด้วย zoom)
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
-  const [scaledWidth, setScaledWidth] = useState(A4_WIDTH_PX);
 
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
 
     const ro = new ResizeObserver(() => {
-  // ✅ ความกว้างจริงของพื้นที่แสดงผล (ตัด padding/scrollbar ออก)
-  const w = el.getBoundingClientRect().width;
-
-  // ✅ เผื่อขอบนิดนึง กันชนขอบจอมือถือ
-  const safeW = Math.max(0, w - 8);
-
-  const s = Math.min(1, safeW / A4_WIDTH_PX);
-  const ss = Number.isFinite(s) ? s : 1;
-
-  setScale(ss);
-  setScaledWidth(Math.round(A4_WIDTH_PX * ss));
-});
-
+      const w = el.getBoundingClientRect().width;
+      const safeW = Math.max(0, w - 12); // กันชิดขอบจอ
+      const s = Math.min(1, safeW / A4_WIDTH_PX);
+      setScale(Number.isFinite(s) ? s : 1);
+    });
 
     ro.observe(el);
     return () => ro.disconnect();
@@ -256,7 +247,6 @@ export default function PreviewPage() {
     };
   }, [data]);
 
-  // hasIssues จริง: ต้องมี detail หรือรูปอย่างใดอย่างหนึ่ง
   const hasIssues = useMemo(() => {
     const list = data?.issues || [];
     return list.some((x) => (x.detail || "").trim() || (x.imageDataUrl || "").trim());
@@ -313,10 +303,7 @@ export default function PreviewPage() {
           <div className="rounded-xl border bg-card p-4">
             <div className="font-semibold">ไม่พบข้อมูลสำหรับ Preview</div>
             <div className="text-sm opacity-70 mt-1">ให้กลับไปหน้า Daily report แล้วกด Submit ใหม่</div>
-            <button
-              className="mt-3 rounded-lg border px-4 py-2"
-              onClick={() => router.push("/daily-report")}
-            >
+            <button className="mt-3 rounded-lg border px-4 py-2" onClick={() => router.push("/daily-report")}>
               กลับไปกรอกใหม่
             </button>
           </div>
@@ -383,15 +370,35 @@ export default function PreviewPage() {
 
         <style>{`
           /* ---------- Document look ---------- */
-          .a4Wrap { overflow-x: hidden;
-                    overflow-y: visible; }
+          .a4Wrap {
+            width: 100%;
+            overflow-x: hidden;
+            overflow-y: visible;
+            -webkit-overflow-scrolling: touch;
+          }
+
+          /* กล่องที่ถูกย่อ/ขยาย */
+          .a4Zoom {
+            width: ${A4_WIDTH_PX}px;
+            margin: 0 auto;
+            transform-origin: top left;
+            --scale: 1;
+          }
+
+          /* ✅ fallback เฉพาะ browser ที่ "ไม่รองรับ zoom" */
+          @supports not (zoom: 1) {
+            .a4Zoom {
+              transform: scale(var(--scale));
+            }
+          }
+
           .a4 {
             background: #fff;
             color: #111;
             border: 2px solid #111;
             border-radius: 14px;
             padding: 14px;
-            font-size: 13px;        /* ✅ ให้ฐานตัวอักษรนิ่ง */
+            font-size: 13px;
             line-height: 1.2;
           }
 
@@ -406,7 +413,7 @@ export default function PreviewPage() {
           table { width: 100%; border-collapse: collapse; table-layout: fixed; }
           th, td { overflow-wrap: anywhere; word-break: break-word; }
 
-          /* ✅ หัวข้อหลัก/ย่อยให้สม่ำเสมอ */
+          /* ✅ หัวข้อหลัก/ย่อย */
           .hMain { font-weight: 800; font-size: 18px; letter-spacing: 0.2px; }
           .hSub  { font-weight: 600; font-size: 13px; }
 
@@ -440,10 +447,18 @@ export default function PreviewPage() {
           }
         `}</style>
 
-        {/* Responsive Scale Wrapper */}
+        {/* ✅ Responsive (แก้ iOS ตัดครึ่ง): ใช้ zoom + fallback */}
         <div ref={wrapRef} className="a4Wrap">
-          <div style={{ width: scaledWidth }} className="mx-auto">
-          <div style={{ width: A4_WIDTH_PX, transform: `scale(${scale})`, transformOrigin: "top left" }}>
+          <div
+            className="a4Zoom"
+            style={
+              {
+                zoom: scale,
+                ["--scale" as any]: scale,
+                transform: "translateZ(0)",
+              } as any
+            }
+          >
             <div className="a4" id="printArea">
               {/* ===================== Header ===================== */}
               <div className="box">
@@ -605,8 +620,12 @@ export default function PreviewPage() {
                             ))}
                             <tr>
                               <td className="c" />
-                              <td colSpan={2}><span className="font-semibold">รวม</span></td>
-                              <td className="c numTab"><span className="font-semibold">{contractorTotal}</span></td>
+                              <td colSpan={2}>
+                                <span className="font-semibold">รวม</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{contractorTotal}</span>
+                              </td>
                             </tr>
                           </tbody>
                         </table>
@@ -648,10 +667,18 @@ export default function PreviewPage() {
                             ))}
                             <tr>
                               <td className="c" />
-                              <td><span className="font-semibold">รวม</span></td>
-                              <td className="c numTab"><span className="font-semibold">{subTotals.morning}</span></td>
-                              <td className="c numTab"><span className="font-semibold">{subTotals.afternoon}</span></td>
-                              <td className="c numTab"><span className="font-semibold">{subTotals.overtime}</span></td>
+                              <td>
+                                <span className="font-semibold">รวม</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{subTotals.morning}</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{subTotals.afternoon}</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{subTotals.overtime}</span>
+                              </td>
                             </tr>
                           </tbody>
                         </table>
@@ -693,10 +720,18 @@ export default function PreviewPage() {
                             ))}
                             <tr>
                               <td className="c" />
-                              <td><span className="font-semibold">รวม</span></td>
-                              <td className="c numTab"><span className="font-semibold">{equipTotals.morning}</span></td>
-                              <td className="c numTab"><span className="font-semibold">{equipTotals.afternoon}</span></td>
-                              <td className="c numTab"><span className="font-semibold">{equipTotals.overtime}</span></td>
+                              <td>
+                                <span className="font-semibold">รวม</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{equipTotals.morning}</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{equipTotals.afternoon}</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{equipTotals.overtime}</span>
+                              </td>
                             </tr>
                           </tbody>
                         </table>
@@ -783,7 +818,6 @@ export default function PreviewPage() {
                             <div className="text-sm whitespace-pre-wrap">{it.detail || " "}</div>
                           </td>
 
-                          {/* ช่องความเห็น (จะกรอกในแท็บ Commentator) */}
                           <td className="cell issueRowMin">
                             <div className="text-sm opacity-60"> </div>
                           </td>
@@ -808,7 +842,6 @@ export default function PreviewPage() {
                 </div>
               </div>
             </div>
-          </div>
           </div>
         </div>
 
