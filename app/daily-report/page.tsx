@@ -450,7 +450,7 @@ export default function DailyReportPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-3 sm:px-6 lg:px-8">
-      <h1 className="text-3xl font-semibold mb-4">Daily report (กรอกโดย User)</h1>
+      <h1 className="text-3xl font-semibold mb-4">Daily report</h1>
 
       {/* โครงการ (DB) */}
       <div className="rounded-xl border bg-card p-4 mb-6">
@@ -587,7 +587,7 @@ export default function DailyReportPage() {
                 </div>
               ))}
 
-              <div className="text-sm font-semibold">รวม (CONTRACTORS): {contractorTotal}</div>
+              <div className="text-sm font-semibold">รวม: {contractorTotal}</div>
             </div>
           </div>
 
@@ -666,7 +666,7 @@ export default function DailyReportPage() {
               ))}
 
               <div className="text-sm font-semibold">
-                รวม (SUB): เช้า {subTotals.morning} | บ่าย {subTotals.afternoon} | ล่วงเวลา {subTotals.overtime}
+                รวม: เช้า {subTotals.morning} | บ่าย {subTotals.afternoon} | ล่วงเวลา {subTotals.overtime}
               </div>
             </div>
           </div>
@@ -746,7 +746,7 @@ export default function DailyReportPage() {
               ))}
 
               <div className="text-sm font-semibold">
-                รวม (EQUIP): เช้า {equipTotals.morning} | บ่าย {equipTotals.afternoon} | ล่วงเวลา {equipTotals.overtime}
+                รวม: เช้า {equipTotals.morning} | บ่าย {equipTotals.afternoon} | ล่วงเวลา {equipTotals.overtime}
               </div>
             </div>
           </div>
@@ -755,7 +755,7 @@ export default function DailyReportPage() {
         {/* WORK PERFORMED */}
         <div className="rounded-xl border bg-card p-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED TODAY)</h2>
+            <h2 className="text-lg font-semibold">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)</h2>
             <button
               type="button"
               className="rounded-lg border px-3 py-2 text-sm hover:opacity-90"
@@ -816,9 +816,7 @@ export default function DailyReportPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="text-xs opacity-70">วัสดุนำเข้า 
-                    <span className="block">(MATERIAL DELIVERED TO SITE)</span>
-                  </label>
+                  <label className="text-xs opacity-70">วัสดุนำเข้า (MATERIAL DELIVERED)</label>
                   <input
                     className="w-full rounded-lg border px-3 py-2 bg-background"
                     value={r.materialDelivered}
@@ -847,7 +845,7 @@ export default function DailyReportPage() {
         {/* ISSUES */}
         <div className="rounded-xl border bg-card p-4">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">ปัญหาและอุปสรรค (ไม่บังคับ)</h2>
+            <h2 className="text-lg font-semibold">ปัญหาและอุปสรรค </h2>
             <button
               type="button"
               className="rounded-lg border px-3 py-2 text-sm hover:opacity-90"
@@ -906,7 +904,7 @@ export default function DailyReportPage() {
 
                     <div>
                       <label className="block text-sm font-semibold mb-2">
-                        รายละเอียด {hasImage ? "(บังคับเมื่อแนบรูป)" : "(ล็อกจนกว่าจะมีรูป)"}
+                        รายละเอียด {hasImage ? "(บังคับเมื่อแนบรูป)" : "(แนบรูปก่อนถึงจะกรอกรายละเอียดได้)"}
                       </label>
                       <textarea
                         className="w-full min-h-36 rounded-lg border px-3 py-2 bg-background disabled:opacity-50"
@@ -931,7 +929,7 @@ export default function DailyReportPage() {
         <div className="rounded-xl border bg-card p-4">
           <h2 className="text-lg font-semibold mb-3">บันทึกความปลอดภัย</h2>
           <div className="mt-2">
-            <label className="block text-sm font-semibold mb-1">บันทึกด้านความปลอดภัยในการทำงาน (กรอกโดย User)</label>
+            <label className="block text-sm font-semibold mb-1">บันทึกด้านความปลอดภัยในการทำงาน</label>
             <textarea
               className="w-full min-h-28 rounded-lg border px-3 py-2 bg-background"
               value={safetyNote}
