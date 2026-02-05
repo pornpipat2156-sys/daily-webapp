@@ -328,7 +328,7 @@ export default function DailyReportPage() {
   }
 
   return (
-    <div className="max-w-5xl">
+    <div className="mx-auto w-full max-w-5xl px-3 sm:px-6 lg:px-8">
       <h1 className="text-2xl font-semibold mb-4">Daily report (กรอกโดย User)</h1>
 
       {/* โครงการ (DB) */}
@@ -338,7 +338,7 @@ export default function DailyReportPage() {
             <label className="block text-sm font-medium mb-1">ชื่อโครงการ (เลือกเท่านั้น)</label>
 
             <select
-              className="w-full rounded-lg border px-3 py-2"
+              className="w-full sm:w-auto rounded-lg bg-black px-4 py-3 text-white hover:opacity-90 disabled:opacity-50"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
               disabled={loadingProjects || projects.length === 0}
@@ -375,7 +375,7 @@ export default function DailyReportPage() {
         </div>
 
         {project && (
-          <div className="mt-4 grid gap-2 md:grid-cols-3 text-sm">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
             <div className="rounded-lg border p-3">
               <div className="opacity-60">สัญญาจ้าง</div>
               <div className="font-semibold">{project.contractNo || "-"}</div>
