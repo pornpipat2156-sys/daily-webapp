@@ -816,7 +816,8 @@ export default function DailyReportPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="text-xs opacity-70">วัสดุนำเข้า
+                  <label className="block text-center text-xs opacity-70">
+                    วัสดุนำเข้า
                     <span className="text-xs opacity-70">(MATERIAL DELIVERED)</span>
                   </label>
                   <input
