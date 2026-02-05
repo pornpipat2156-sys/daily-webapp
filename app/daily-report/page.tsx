@@ -245,13 +245,17 @@ export default function DailyReportPage() {
   }
 
   async function updateIssueImage(id: string, file?: File) {
-    if (!file) {
-      updateRow(setIssues, id, { imageDataUrl: "" } as any);
-      return;
-    }
-    const dataUrl = await fileToDataUrl(file);
-    updateRow(setIssues, id, { imageDataUrl: dataUrl } as any);
+  // ✅ ถ้าลบรูป -> ต้องเคลียร์รายละเอียดด้วย และจะพิมพ์ไม่ได้
+  if (!file) {
+    updateRow(setIssues, id, { imageDataUrl: "", detail: "" } as any);
+    return;
   }
+
+  const dataUrl = await fileToDataUrl(file);
+  // ✅ ใส่รูปแล้ว "อนุญาต" ให้กรอกรายละเอียด (แต่ยังไม่บังคับตรงนี้)
+  updateRow(setIssues, id, { imageDataUrl: dataUrl } as any);
+}
+
 
   const contractorTotal = useMemo(
     () => contractors.reduce((s, r) => s + (Number(r.qty) || 0), 0),
@@ -273,52 +277,62 @@ export default function DailyReportPage() {
   }, [majorEquipment]);
 
   const canSubmit = useMemo(() => {
-    if (!projectId) return false;
-    if (!date) return false;
+  if (!projectId) return false;
+  if (!date) return false;
 
-    for (const it of issues) {
-      if (!it.detail.trim()) return false;
-      if (!it.imageDataUrl) return false;
-    }
-    return true;
-  }, [projectId, date, issues]);
+  // ✅ เงื่อนไขใหม่:
+  // - ถ้ามีรูป => ต้องมีรายละเอียด
+  // - ถ้าไม่มีรูป => detail จะพิมพ์ไม่ได้อยู่แล้ว
+  const hasBadIssue = issues.some((x) => x.imageDataUrl && !x.detail.trim());
+  if (hasBadIssue) return false;
+
+  return true;
+}, [projectId, date, issues]);
+
 
   function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!project) {
-      alert("❌ กรุณาเลือกโครงการก่อน");
-      return;
-    }
-
-    const badIssue = issues.find((x) => !x.detail.trim() || !x.imageDataUrl);
-    if (badIssue) {
-      alert("❌ 'ปัญหาและอุปสรรค' ต้องมีรูป + รายละเอียดทุกข้อ");
-      return;
-    }
-
-    const payload: DailyReportPayload = {
-      projectId,
-      projectMeta: project,
-
-      date,
-
-      tempMaxC,
-      tempMinC,
-
-      contractors,
-      subContractors,
-      majorEquipment,
-
-      workPerformed,
-      issues,
-
-      safetyNote,
-    };
-
-    sessionStorage.setItem("dailyReportPayload", JSON.stringify(payload));
-    router.push("/daily-report/preview");
+  if (!project) {
+    alert("❌ กรุณาเลือกโครงการก่อน");
+    return;
   }
+
+  // ✅ ถ้ามีรูปแต่ไม่มีรายละเอียด -> ไม่ให้ไปต่อ
+  const bad = issues.find((x) => x.imageDataUrl && !x.detail.trim());
+  if (bad) {
+    alert("❌ หากแนบรูปใน 'ปัญหาและอุปสรรค' ต้องกรอกรายละเอียดเสมอ");
+    return;
+  }
+
+  // ✅ ส่งเฉพาะรายการที่มีรูปเท่านั้น (เพราะถ้าไม่มีรูป detail จะกรอกไม่ได้)
+  const issuesFiltered = issues
+    .filter((x) => x.imageDataUrl)
+    .map((x) => ({ ...x, detail: x.detail.trim() }));
+
+  const payload: DailyReportPayload = {
+    projectId,
+    projectMeta: project,
+
+    date,
+
+    tempMaxC,
+    tempMinC,
+
+    contractors,
+    subContractors,
+    majorEquipment,
+
+    workPerformed,
+    issues: issuesFiltered,
+
+    safetyNote,
+  };
+
+  sessionStorage.setItem("dailyReportPayload", JSON.stringify(payload));
+  router.push("/daily-report/preview");
+}
+
 
   return (
     <div className="mx-auto w-full max-w-6xl px-3 sm:px-6 lg:px-8">
@@ -768,14 +782,14 @@ export default function DailyReportPage() {
                   <div>
                     <label className="block text-sm font-semibold mb-2">รายละเอียด (บังคับ)</label>
                     <textarea
-                      className={`${fieldBase} min-h-36`}
+                      className="w-full min-h-36 rounded-lg border px-3 py-2 disabled:opacity-50"
                       value={issue.detail}
                       onChange={(e) => updateRow(setIssues, issue.id, { detail: e.target.value } as any)}
-                      placeholder="อธิบายปัญหา/อุปสรรค..."
-                      required
+                      placeholder={issue.imageDataUrl ? "อธิบายปัญหา/อุปสรรค..." : "แนบรูปก่อน ถึงจะกรอกรายละเอียดได้"}
+                      disabled={!issue.imageDataUrl}
                     />
-                    {!issue.detail.trim() && (
-                      <div className="text-xs text-red-500 mt-2">* ต้องใส่รายละเอียด</div>
+                    {issue.imageDataUrl && !issue.detail.trim() && (
+                      <div className="text-xs text-red-600 mt-2">* แนบรูปแล้ว ต้องใส่รายละเอียด</div>
                     )}
                   </div>
                 </div>

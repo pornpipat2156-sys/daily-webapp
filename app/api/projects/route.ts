@@ -25,6 +25,12 @@ export type ProjectMeta = {
   weekNo: string;
 
   supervisors: string[];
+
+  // ✅ เพิ่ม: options สำหรับ dropdown (อยู่ใน meta jsonb)
+  contractorNameOptions?: string[];
+  contractorPositionOptions?: string[];
+  subContractorPositionOptions?: string[];
+  equipmentTypeOptions?: string[];
 };
 
 type ProjectMetaDb = Partial<Omit<ProjectMeta, "id" | "projectName">>;
@@ -44,15 +50,26 @@ const emptyMeta: Omit<ProjectMeta, "id" | "projectName"> = {
   periodNo: "",
   weekNo: "",
   supervisors: [],
+
+  // ✅ default options
+  contractorNameOptions: [],
+  contractorPositionOptions: [],
+  subContractorPositionOptions: [],
+  equipmentTypeOptions: [],
 };
 
-// ✅ กำหนดชนิดข้อมูลที่เราคาดว่าจะได้จาก DB เอง (ไม่พึ่ง @prisma/client types)
+// ✅ กำหนดชนิดข้อมูลจาก DB
 type Row = {
   id: string;
   name: string;
   createdAt: Date;
   meta: unknown | null;
 };
+
+function asStringArray(x: unknown): string[] {
+  if (!Array.isArray(x)) return [];
+  return x.filter((v) => typeof v === "string") as string[];
+}
 
 export async function GET() {
   try {
@@ -69,7 +86,14 @@ export async function GET() {
         projectName: p.name,
         ...emptyMeta,
         ...m,
-        supervisors: Array.isArray(m.supervisors) ? (m.supervisors as string[]) : [],
+
+        // ✅ กันพัง + บังคับเป็น string[]
+        supervisors: asStringArray((m as any).supervisors),
+
+        contractorNameOptions: asStringArray((m as any).contractorNameOptions),
+        contractorPositionOptions: asStringArray((m as any).contractorPositionOptions),
+        subContractorPositionOptions: asStringArray((m as any).subContractorPositionOptions),
+        equipmentTypeOptions: asStringArray((m as any).equipmentTypeOptions),
       };
     });
 
