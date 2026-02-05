@@ -41,105 +41,108 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* ===== Content grid ===== */}
-      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-3 px-3 py-3 sm:px-6 md:grid-cols-[auto_1fr]">
-        {/* ===== Sidebar (Desktop) ===== */}
-        <aside
-          className={[
-            "hidden md:flex md:flex-col md:sticky md:top-16 md:h-[calc(100dvh-4rem)]",
-            "rounded-2xl border bg-card",
-            collapsed ? "w-20" : "w-72",
-          ].join(" ")}
-        >
-          <div className="flex items-center justify-between p-3">
-            <div className="text-sm font-semibold">TABS</div>
-            <button
-              type="button"
-              className="rounded-lg border px-2 py-1 text-xs"
-              onClick={() => setCollapsed((v) => !v)}
-              aria-label="Collapse sidebar"
-            >
-              {collapsed ? "»" : "«"}
-            </button>
-          </div>
+      {/* ===== Content ===== */}
+      <div className="mx-auto max-w-7xl px-3 py-3 sm:px-6">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[auto_1fr]">
+          {/* ===== Sidebar (Desktop) ===== */}
+          <aside
+            className={[
+              "hidden md:flex md:flex-col md:sticky md:top-16 md:h-[calc(100dvh-4rem)]",
+              "rounded-2xl border bg-card",
+              collapsed ? "w-20" : "w-72",
+            ].join(" ")}
+          >
+            <div className="flex items-center justify-between p-3">
+              <div className="text-sm font-semibold">TABS</div>
+              <button
+                type="button"
+                className="rounded-lg border px-2 py-1 text-xs"
+                onClick={() => setCollapsed((v) => !v)}
+                aria-label="Collapse sidebar"
+              >
+                {collapsed ? "»" : "«"}
+              </button>
+            </div>
 
-          <nav className="flex-1 space-y-2 px-2 pb-2">
-            {nav.map((item) => {
-              const active = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={[
-                    "block rounded-xl border px-3 py-2 text-sm",
-                    active ? "bg-foreground text-background border-foreground" : "hover:bg-muted",
-                    collapsed ? "text-[0px] py-3" : "",
-                  ].join(" ")}
-                  title={collapsed ? item.label : undefined}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+            <nav className="flex-1 space-y-2 px-2 pb-2">
+              {nav.map((item) => {
+                const active = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={[
+                      "block rounded-xl border px-3 py-2 text-sm",
+                      active ? "bg-foreground text-background border-foreground" : "hover:bg-muted",
+                      collapsed ? "text-[0px] py-3" : "",
+                    ].join(" ")}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
 
-          <div className="m-3 rounded-xl border bg-muted p-3">
-            <div className="text-xs font-semibold">Role</div>
-            <div className="text-sm">USER</div>
-          </div>
-        </aside>
+            <div className="m-3 rounded-xl border bg-muted p-3">
+              <div className="text-xs font-semibold">Role</div>
+              <div className="text-sm">USER</div>
+            </div>
+          </aside>
 
-        {/* ===== Sidebar (Mobile Drawer) ===== */}
-        {mobileOpen && (
-          <div className="fixed inset-0 z-50 md:hidden">
-            <button
-              type="button"
-              className="absolute inset-0 bg-black/40"
-              onClick={() => setMobileOpen(false)}
-              aria-label="Close menu"
-            />
+          {/* ===== Sidebar (Mobile Drawer) ===== */}
+          {mobileOpen && (
+            <div className="fixed inset-0 z-50 md:hidden">
+              <button
+                type="button"
+                className="absolute inset-0 bg-black/40"
+                onClick={() => setMobileOpen(false)}
+                aria-label="Close menu"
+              />
+              <div className="absolute left-0 top-0 h-full w-[82%] max-w-[320px] bg-background border-r p-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold">TABS</div>
+                  <button
+                    type="button"
+                    className="rounded-lg border px-3 py-2 text-sm"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    ✕
+                  </button>
+                </div>
 
-            <div className="absolute left-0 top-0 h-full w-[82%] max-w-[320px] bg-background border-r p-3">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold">TABS</div>
-                <button
-                  type="button"
-                  className="rounded-lg border px-3 py-2 text-sm"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  ✕
-                </button>
-              </div>
+                <nav className="mt-4 space-y-2">
+                  {nav.map((item) => {
+                    const active = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMobileOpen(false)}
+                        className={[
+                          "block rounded-xl border px-3 py-2 text-sm",
+                          active ? "bg-foreground text-background border-foreground" : "hover:bg-muted",
+                        ].join(" ")}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </nav>
 
-              <nav className="mt-4 space-y-2">
-                {nav.map((item) => {
-                  const active = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMobileOpen(false)}
-                      className={[
-                        "block rounded-xl border px-3 py-2 text-sm",
-                        active ? "bg-foreground text-background border-foreground" : "hover:bg-muted",
-                      ].join(" ")}
-                    >
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </nav>
-
-              <div className="mt-4 rounded-xl border bg-muted p-3">
-                <div className="text-xs font-semibold">Role</div>
-                <div className="text-sm">USER</div>
+                <div className="mt-4 rounded-xl border bg-muted p-3">
+                  <div className="text-xs font-semibold">Role</div>
+                  <div className="text-sm">USER</div>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ===== Main ===== */}
-        <main className="min-w-0">{children}</main>
+          {/* ===== Main ===== */}
+          <main className="min-w-0">
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   );
