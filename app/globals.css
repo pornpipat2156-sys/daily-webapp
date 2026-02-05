@@ -100,3 +100,15 @@ body {
 .no-x-overflow {
   overflow-x: hidden;
 }
+
+/* ✅ กัน iOS Safari ปรับขนาดตัวอักษรเองจนเพี้ยน */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* กันบางกรณีที่ Safari ปรับเฉพาะ body */
+body {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
