@@ -61,7 +61,7 @@ type IssueRow = {
 
 type DailyReportPayload = {
   projectId: string;
-  projectMeta: ProjectMeta; // ✅ แนบไปเลย เพื่อให้ preview ไม่ต้อง lookup อีก
+  projectMeta: ProjectMeta;
 
   date: string;
 
@@ -113,6 +113,12 @@ async function fetchDailyTemp(yyyyMmDd: string) {
   };
 }
 
+/** ✅ class กลางสำหรับ input/select/textarea ให้ชัดทั้ง dark/light */
+const fieldBase =
+  "w-full rounded-lg border bg-background text-foreground px-3 py-2 placeholder:opacity-60 outline-none focus:ring-2 focus:ring-foreground/20";
+
+const labelBase = "text-xs opacity-90";
+
 /** ✅ select จำนวนแบบเลือกเท่านั้น */
 function QtySelect({
   value,
@@ -125,7 +131,7 @@ function QtySelect({
 }) {
   return (
     <select
-      className="w-full rounded-lg border px-3 py-2"
+      className={fieldBase}
       value={value}
       onChange={(e) => onChange(Number(e.target.value))}
     >
@@ -141,11 +147,9 @@ function QtySelect({
 export default function DailyReportPage() {
   const router = useRouter();
 
-  // ✅ projects จาก DB
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
 
-  // เลือกโครงการเท่านั้น (จาก DB)
   const [projectId, setProjectId] = useState<string>("");
 
   const project = useMemo(
@@ -155,37 +159,29 @@ export default function DailyReportPage() {
 
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
 
-  // weather auto (สำรอง)
   const [tempMaxC, setTempMaxC] = useState<number | null>(null);
   const [tempMinC, setTempMinC] = useState<number | null>(null);
 
-  // Contractors
   const [contractors, setContractors] = useState<ContractorRow[]>([
     { id: uid(), name: "", position: "", qty: 0 },
   ]);
 
-  // ✅ Sub Contractors (เช้า/บ่าย/ล่วงเวลา)
   const [subContractors, setSubContractors] = useState<SubContractorRow[]>([
     { id: uid(), position: "", morning: 0, afternoon: 0, overtime: 0 },
   ]);
 
-  // ✅ Major Equipment (เช้า/บ่าย/ล่วงเวลา)
   const [majorEquipment, setMajorEquipment] = useState<MajorEquipmentRow[]>([
     { id: uid(), type: "", morning: 0, afternoon: 0, overtime: 0 },
   ]);
 
-  // ✅ Work performed (วัสดุนำเข้า)
   const [workPerformed, setWorkPerformed] = useState<WorkRow[]>([
     { id: uid(), desc: "", location: "", qty: "", unit: "", materialDelivered: "" },
   ]);
 
-  // Issues (ต้องมีรูป+รายละเอียด)
   const [issues, setIssues] = useState<IssueRow[]>([{ id: uid(), detail: "", imageDataUrl: "" }]);
 
-  // Safety note
   const [safetyNote, setSafetyNote] = useState("");
 
-  // ✅ โหลดรายการโครงการจาก DB ครั้งเดียว
   useEffect(() => {
     let alive = true;
     async function run() {
@@ -197,7 +193,6 @@ export default function DailyReportPage() {
         if (!alive) return;
         setProjects(Array.isArray(data) ? data : []);
 
-        // set default projectId เป็นตัวแรก
         if (Array.isArray(data) && data.length > 0) {
           setProjectId((prev) => prev || data[0].id);
         }
@@ -214,7 +209,6 @@ export default function DailyReportPage() {
     };
   }, []);
 
-  // auto fetch daily weather when date changes (สำรอง)
   useEffect(() => {
     let alive = true;
     fetchDailyTemp(date)
@@ -259,7 +253,6 @@ export default function DailyReportPage() {
     updateRow(setIssues, id, { imageDataUrl: dataUrl } as any);
   }
 
-  /** ✅ รวมยอดอัตโนมัติในแต่ละตารางย่อย */
   const contractorTotal = useMemo(
     () => contractors.reduce((s, r) => s + (Number(r.qty) || 0), 0),
     [contractors]
@@ -306,7 +299,7 @@ export default function DailyReportPage() {
 
     const payload: DailyReportPayload = {
       projectId,
-      projectMeta: project, // ✅ ส่งไป preview
+      projectMeta: project,
 
       date,
 
@@ -328,17 +321,17 @@ export default function DailyReportPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-3 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-6xl px-3 sm:px-6 lg:px-8">
       <h1 className="text-2xl font-semibold mb-4">Daily report (กรอกโดย User)</h1>
 
       {/* โครงการ (DB) */}
       <div className="rounded-xl border bg-card p-4 mb-6">
         <div className="grid gap-4 md:grid-cols-2">
-          <div>
+          <div className="min-w-0">
             <label className="block text-sm font-medium mb-1">ชื่อโครงการ (เลือกเท่านั้น)</label>
 
             <select
-              className="w-full sm:w-auto rounded-lg bg-black px-4 py-3 text-white hover:opacity-90 disabled:opacity-50"
+              className={fieldBase}
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
               disabled={loadingProjects || projects.length === 0}
@@ -356,19 +349,21 @@ export default function DailyReportPage() {
               )}
             </select>
 
-            <div className="text-xs opacity-60 mt-1">* รายชื่อโครงการมาจาก DB (ผ่าน /api/projects)</div>
+            <div className="text-xs opacity-80 mt-1">
+              * รายชื่อโครงการมาจาก DB (ผ่าน /api/projects)
+            </div>
           </div>
 
-          <div>
+          <div className="min-w-0">
             <label className="block text-sm font-medium mb-1">วันที่ (Auto default วันนี้)</label>
             <input
               type="date"
-              className="w-full rounded-lg border px-3 py-2"
+              className={fieldBase}
               value={date}
               onChange={(e) => setDate(e.target.value)}
               required
             />
-            <div className="text-xs opacity-60 mt-1">
+            <div className="text-xs opacity-80 mt-1">
               (สำรอง) อุณหภูมิรายวัน: สูงสุด {tempMaxC ?? "-"}°C / ต่ำสุด {tempMinC ?? "-"}°C
             </div>
           </div>
@@ -376,16 +371,16 @@ export default function DailyReportPage() {
 
         {project && (
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
-            <div className="rounded-lg border p-3">
-              <div className="opacity-60">สัญญาจ้าง</div>
+            <div className="rounded-lg border bg-background p-3">
+              <div className="opacity-80">สัญญาจ้าง</div>
               <div className="font-semibold">{project.contractNo || "-"}</div>
             </div>
-            <div className="rounded-lg border p-3">
-              <div className="opacity-60">ผู้รับจ้าง</div>
+            <div className="rounded-lg border bg-background p-3">
+              <div className="opacity-80">ผู้รับจ้าง</div>
               <div className="font-semibold">{project.contractorName || "-"}</div>
             </div>
-            <div className="rounded-lg border p-3">
-              <div className="opacity-60">สถานที่ก่อสร้าง</div>
+            <div className="rounded-lg border bg-background p-3">
+              <div className="opacity-80">สถานที่ก่อสร้าง</div>
               <div className="font-semibold">{project.siteLocation || "-"}</div>
             </div>
           </div>
@@ -394,16 +389,16 @@ export default function DailyReportPage() {
 
       <form onSubmit={onSubmit} className="space-y-6">
         {/* PROJECT TEAM */}
-        <div className="rounded-xl border bg-white p-4">
+        <div className="rounded-xl border bg-card p-4">
           <h2 className="text-lg font-semibold mb-3">ส่วนโครงการ (PROJECT TEAM)</h2>
 
           {/* Contractors */}
           <div className="mb-5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div className="font-semibold">CONTRACTORS</div>
               <button
                 type="button"
-                className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
+                className="rounded-lg border px-3 py-2 text-sm hover:bg-muted"
                 onClick={() => addRow(setContractors, { id: uid(), name: "", position: "", qty: 0 })}
               >
                 + เพิ่มแถว
@@ -412,36 +407,40 @@ export default function DailyReportPage() {
 
             <div className="mt-3 space-y-3">
               {contractors.map((r, idx) => (
-                <div key={r.id} className="grid grid-cols-1 gap-3 md:grid-cols-12 items-end rounded-lg border p-3">
+                <div key={r.id} className="grid grid-cols-1 gap-3 md:grid-cols-12 items-end rounded-lg border bg-background p-3">
                   <div className="md:col-span-1 text-sm font-semibold">#{idx + 1}</div>
-                  <div className="md:col-span-4">
-                    <label className="text-xs opacity-70">รายชื่อ</label>
+
+                  <div className="md:col-span-4 min-w-0">
+                    <label className={labelBase}>รายชื่อ</label>
                     <input
-                      className="w-full rounded-lg border px-3 py-2"
+                      className={fieldBase}
                       value={r.name}
                       onChange={(e) => updateRow(setContractors, r.id, { name: e.target.value } as any)}
                     />
                   </div>
-                  <div className="md:col-span-4">
-                    <label className="text-xs opacity-70">ตำแหน่ง</label>
+
+                  <div className="md:col-span-4 min-w-0">
+                    <label className={labelBase}>ตำแหน่ง</label>
                     <input
-                      className="w-full rounded-lg border px-3 py-2"
+                      className={fieldBase}
                       value={r.position}
                       onChange={(e) => updateRow(setContractors, r.id, { position: e.target.value } as any)}
                     />
                   </div>
-                  <div className="md:col-span-2">
-                    <label className="text-xs opacity-70">จำนวน</label>
+
+                  <div className="md:col-span-2 min-w-0">
+                    <label className={labelBase}>จำนวน</label>
                     <QtySelect
                       value={r.qty}
                       onChange={(n) => updateRow(setContractors, r.id, { qty: n } as any)}
                     />
                   </div>
+
                   <div className="md:col-span-1">
                     {contractors.length > 1 && (
                       <button
                         type="button"
-                        className="text-sm text-red-600 hover:underline"
+                        className="text-sm text-red-500 hover:underline"
                         onClick={() => removeRow(setContractors, r.id)}
                       >
                         ลบ
@@ -457,11 +456,11 @@ export default function DailyReportPage() {
 
           {/* Sub Contractors */}
           <div className="mb-5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div className="font-semibold">SUB CONTRACTORS</div>
               <button
                 type="button"
-                className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
+                className="rounded-lg border px-3 py-2 text-sm hover:bg-muted"
                 onClick={() =>
                   addRow(setSubContractors, {
                     id: uid(),
@@ -478,36 +477,36 @@ export default function DailyReportPage() {
 
             <div className="mt-3 space-y-3">
               {subContractors.map((r, idx) => (
-                <div key={r.id} className="grid gap-2 md:grid-cols-12 items-end rounded-lg border p-3">
+                <div key={r.id} className="grid grid-cols-1 gap-3 md:grid-cols-12 items-end rounded-lg border bg-background p-3">
                   <div className="md:col-span-1 text-sm font-semibold">#{idx + 1}</div>
 
-                  <div className="md:col-span-3">
-                    <label className="text-xs opacity-70">ตำแหน่ง</label>
+                  <div className="md:col-span-3 min-w-0">
+                    <label className={labelBase}>ตำแหน่ง</label>
                     <input
-                      className="w-full rounded-lg border px-3 py-2"
+                      className={fieldBase}
                       value={r.position}
                       onChange={(e) => updateRow(setSubContractors, r.id, { position: e.target.value } as any)}
                     />
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label className="text-xs opacity-70">ช่วงเช้า (เลือกจำนวน)</label>
+                  <div className="md:col-span-2 min-w-0">
+                    <label className={labelBase}>ช่วงเช้า (เลือกจำนวน)</label>
                     <QtySelect
                       value={r.morning}
                       onChange={(n) => updateRow(setSubContractors, r.id, { morning: n } as any)}
                     />
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label className="text-xs opacity-70">ช่วงบ่าย (เลือกจำนวน)</label>
+                  <div className="md:col-span-2 min-w-0">
+                    <label className={labelBase}>ช่วงบ่าย (เลือกจำนวน)</label>
                     <QtySelect
                       value={r.afternoon}
                       onChange={(n) => updateRow(setSubContractors, r.id, { afternoon: n } as any)}
                     />
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label className="text-xs opacity-70">ล่วงเวลา (เลือกจำนวน)</label>
+                  <div className="md:col-span-2 min-w-0">
+                    <label className={labelBase}>ล่วงเวลา (เลือกจำนวน)</label>
                     <QtySelect
                       value={r.overtime}
                       onChange={(n) => updateRow(setSubContractors, r.id, { overtime: n } as any)}
@@ -518,7 +517,7 @@ export default function DailyReportPage() {
                     {subContractors.length > 1 && (
                       <button
                         type="button"
-                        className="text-sm text-red-600 hover:underline"
+                        className="text-sm text-red-500 hover:underline"
                         onClick={() => removeRow(setSubContractors, r.id)}
                       >
                         ลบ
@@ -537,11 +536,11 @@ export default function DailyReportPage() {
 
           {/* Major Equipment */}
           <div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div className="font-semibold">MAJOR EQUIPMENT</div>
               <button
                 type="button"
-                className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
+                className="rounded-lg border px-3 py-2 text-sm hover:bg-muted"
                 onClick={() =>
                   addRow(setMajorEquipment, {
                     id: uid(),
@@ -558,36 +557,36 @@ export default function DailyReportPage() {
 
             <div className="mt-3 space-y-3">
               {majorEquipment.map((r, idx) => (
-                <div key={r.id} className="grid gap-2 md:grid-cols-12 items-end rounded-lg border p-3">
+                <div key={r.id} className="grid grid-cols-1 gap-3 md:grid-cols-12 items-end rounded-lg border bg-background p-3">
                   <div className="md:col-span-1 text-sm font-semibold">#{idx + 1}</div>
 
-                  <div className="md:col-span-3">
-                    <label className="text-xs opacity-70">ชนิด</label>
+                  <div className="md:col-span-3 min-w-0">
+                    <label className={labelBase}>ชนิด</label>
                     <input
-                      className="w-full rounded-lg border px-3 py-2"
+                      className={fieldBase}
                       value={r.type}
                       onChange={(e) => updateRow(setMajorEquipment, r.id, { type: e.target.value } as any)}
                     />
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label className="text-xs opacity-70">ช่วงเช้า (เลือกจำนวน)</label>
+                  <div className="md:col-span-2 min-w-0">
+                    <label className={labelBase}>ช่วงเช้า (เลือกจำนวน)</label>
                     <QtySelect
                       value={r.morning}
                       onChange={(n) => updateRow(setMajorEquipment, r.id, { morning: n } as any)}
                     />
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label className="text-xs opacity-70">ช่วงบ่าย (เลือกจำนวน)</label>
+                  <div className="md:col-span-2 min-w-0">
+                    <label className={labelBase}>ช่วงบ่าย (เลือกจำนวน)</label>
                     <QtySelect
                       value={r.afternoon}
                       onChange={(n) => updateRow(setMajorEquipment, r.id, { afternoon: n } as any)}
                     />
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label className="text-xs opacity-70">ล่วงเวลา (เลือกจำนวน)</label>
+                  <div className="md:col-span-2 min-w-0">
+                    <label className={labelBase}>ล่วงเวลา (เลือกจำนวน)</label>
                     <QtySelect
                       value={r.overtime}
                       onChange={(n) => updateRow(setMajorEquipment, r.id, { overtime: n } as any)}
@@ -598,7 +597,7 @@ export default function DailyReportPage() {
                     {majorEquipment.length > 1 && (
                       <button
                         type="button"
-                        className="text-sm text-red-600 hover:underline"
+                        className="text-sm text-red-500 hover:underline"
                         onClick={() => removeRow(setMajorEquipment, r.id)}
                       >
                         ลบ
@@ -617,14 +616,14 @@ export default function DailyReportPage() {
         </div>
 
         {/* WORK PERFORMED */}
-        <div className="rounded-xl border bg-white p-4">
-          <div className="flex items-center justify-between">
+        <div className="rounded-xl border bg-card p-4">
+          <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">
               รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED TODAY)
             </h2>
             <button
               type="button"
-              className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
+              className="rounded-lg border px-3 py-2 text-sm hover:bg-muted"
               onClick={() =>
                 addRow(setWorkPerformed, {
                   id: uid(),
@@ -642,49 +641,49 @@ export default function DailyReportPage() {
 
           <div className="mt-3 space-y-3">
             {workPerformed.map((r, idx) => (
-              <div key={r.id} className="grid gap-2 md:grid-cols-12 items-end rounded-lg border p-3">
+              <div key={r.id} className="grid grid-cols-1 gap-3 md:grid-cols-12 items-end rounded-lg border bg-background p-3">
                 <div className="md:col-span-1 text-sm font-semibold">#{idx + 1}</div>
 
-                <div className="md:col-span-4">
-                  <label className="text-xs opacity-70">รายการ (DESCRIPTION)</label>
+                <div className="md:col-span-4 min-w-0">
+                  <label className={labelBase}>รายการ (DESCRIPTION)</label>
                   <input
-                    className="w-full rounded-lg border px-3 py-2"
+                    className={fieldBase}
                     value={r.desc}
                     onChange={(e) => updateRow(setWorkPerformed, r.id, { desc: e.target.value } as any)}
                   />
                 </div>
 
-                <div className="md:col-span-3">
-                  <label className="text-xs opacity-70">บริเวณ (LOCATIONS)</label>
+                <div className="md:col-span-3 min-w-0">
+                  <label className={labelBase}>บริเวณ (LOCATIONS)</label>
                   <input
-                    className="w-full rounded-lg border px-3 py-2"
+                    className={fieldBase}
                     value={r.location}
                     onChange={(e) => updateRow(setWorkPerformed, r.id, { location: e.target.value } as any)}
                   />
                 </div>
 
-                <div className="md:col-span-1">
-                  <label className="text-xs opacity-70">จำนวน</label>
+                <div className="md:col-span-1 min-w-0">
+                  <label className={labelBase}>จำนวน</label>
                   <input
-                    className="w-full rounded-lg border px-3 py-2"
+                    className={fieldBase}
                     value={r.qty}
                     onChange={(e) => updateRow(setWorkPerformed, r.id, { qty: e.target.value } as any)}
                   />
                 </div>
 
-                <div className="md:col-span-1">
-                  <label className="text-xs opacity-70">หน่วย</label>
+                <div className="md:col-span-1 min-w-0">
+                  <label className={labelBase}>หน่วย</label>
                   <input
-                    className="w-full rounded-lg border px-3 py-2"
+                    className={fieldBase}
                     value={r.unit}
                     onChange={(e) => updateRow(setWorkPerformed, r.id, { unit: e.target.value } as any)}
                   />
                 </div>
 
-                <div className="md:col-span-2">
-                  <label className="text-xs opacity-70">วัสดุนำเข้า (MATERIAL DELIVERED TO SITE)</label>
+                <div className="md:col-span-2 min-w-0">
+                  <label className={labelBase}>วัสดุนำเข้า (MATERIAL DELIVERED TO SITE)</label>
                   <input
-                    className="w-full rounded-lg border px-3 py-2"
+                    className={fieldBase}
                     value={r.materialDelivered}
                     onChange={(e) =>
                       updateRow(setWorkPerformed, r.id, { materialDelivered: e.target.value } as any)
@@ -696,7 +695,7 @@ export default function DailyReportPage() {
                   {workPerformed.length > 1 && (
                     <button
                       type="button"
-                      className="text-sm text-red-600 hover:underline"
+                      className="text-sm text-red-500 hover:underline"
                       onClick={() => removeRow(setWorkPerformed, r.id)}
                     >
                       ลบแถวนี้
@@ -709,12 +708,12 @@ export default function DailyReportPage() {
         </div>
 
         {/* ISSUES */}
-        <div className="rounded-xl border bg-white p-4">
+        <div className="rounded-xl border bg-card p-4">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">ปัญหาและอุปสรรค (ต้องมีรูป + รายละเอียด)</h2>
             <button
               type="button"
-              className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
+              className="rounded-lg border px-3 py-2 text-sm hover:bg-muted"
               onClick={() => addRow(setIssues, { id: uid(), detail: "", imageDataUrl: "" })}
             >
               + เพิ่มปัญหา
@@ -723,13 +722,13 @@ export default function DailyReportPage() {
 
           <div className="mt-4 space-y-4">
             {issues.map((issue, idx) => (
-              <div key={issue.id} className="rounded-xl border p-4">
+              <div key={issue.id} className="rounded-xl border bg-background p-4">
                 <div className="flex items-center justify-between">
                   <div className="font-semibold text-sm">ปัญหาที่ {idx + 1}</div>
                   {issues.length > 1 && (
                     <button
                       type="button"
-                      className="text-sm text-red-600 hover:underline"
+                      className="text-sm text-red-500 hover:underline"
                       onClick={() => removeRow(setIssues, issue.id)}
                     >
                       ลบ
@@ -755,28 +754,28 @@ export default function DailyReportPage() {
                         />
                         <button
                           type="button"
-                          className="mt-2 text-sm text-red-600 hover:underline"
+                          className="mt-2 text-sm text-red-500 hover:underline"
                           onClick={() => updateIssueImage(issue.id, undefined)}
                         >
                           ลบรูป
                         </button>
                       </div>
                     ) : (
-                      <div className="text-xs text-red-600 mt-2">* ต้องใส่รูป</div>
+                      <div className="text-xs text-red-500 mt-2">* ต้องใส่รูป</div>
                     )}
                   </div>
 
                   <div>
                     <label className="block text-sm font-semibold mb-2">รายละเอียด (บังคับ)</label>
                     <textarea
-                      className="w-full min-h-36 rounded-lg border px-3 py-2"
+                      className={`${fieldBase} min-h-36`}
                       value={issue.detail}
                       onChange={(e) => updateRow(setIssues, issue.id, { detail: e.target.value } as any)}
                       placeholder="อธิบายปัญหา/อุปสรรค..."
                       required
                     />
                     {!issue.detail.trim() && (
-                      <div className="text-xs text-red-600 mt-2">* ต้องใส่รายละเอียด</div>
+                      <div className="text-xs text-red-500 mt-2">* ต้องใส่รายละเอียด</div>
                     )}
                   </div>
                 </div>
@@ -786,14 +785,14 @@ export default function DailyReportPage() {
         </div>
 
         {/* SAFETY */}
-        <div className="rounded-xl border bg-white p-4">
+        <div className="rounded-xl border bg-card p-4">
           <h2 className="text-lg font-semibold mb-3">บันทึกความปลอดภัย</h2>
           <div className="mt-2">
             <label className="block text-sm font-semibold mb-1">
               บันทึกด้านความปลอดภัยในการทำงาน (กรอกโดย User)
             </label>
             <textarea
-              className="w-full min-h-28 rounded-lg border px-3 py-2"
+              className={`${fieldBase} min-h-28`}
               value={safetyNote}
               onChange={(e) => setSafetyNote(e.target.value)}
               placeholder="เช่น PPE, งานเสี่ยง, มาตรการป้องกัน..."
@@ -804,7 +803,7 @@ export default function DailyReportPage() {
         <button
           type="submit"
           disabled={!canSubmit}
-          className="rounded-lg bg-black px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
+          className="w-full sm:w-auto rounded-lg bg-foreground px-4 py-3 text-background hover:opacity-90 disabled:opacity-50"
         >
           Submit → Preview / Print
         </button>
