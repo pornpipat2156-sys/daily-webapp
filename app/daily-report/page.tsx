@@ -816,7 +816,9 @@ export default function DailyReportPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="text-xs opacity-70">วัสดุนำเข้า (MATERIAL DELIVERED)</label>
+                  <label className="text-xs opacity-70">วัสดุนำเข้า
+                    <span className="text-xs opacity-70">(MATERIAL DELIVERED)</span>
+                  </label>
                   <input
                     className="w-full rounded-lg border px-3 py-2 bg-background"
                     value={r.materialDelivered}
@@ -904,7 +906,7 @@ export default function DailyReportPage() {
 
                     <div>
                       <label className="block text-sm font-semibold mb-2">
-                        รายละเอียด {hasImage ? "(บังคับเมื่อแนบรูป)" : "(แนบรูปก่อนถึงจะกรอกรายละเอียดได้)"}
+                        รายละเอียด 
                       </label>
                       <textarea
                         className="w-full min-h-36 rounded-lg border px-3 py-2 bg-background disabled:opacity-50"
