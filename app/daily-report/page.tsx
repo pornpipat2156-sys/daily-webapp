@@ -805,7 +805,7 @@ export default function DailyReportPage() {
           disabled={!canSubmit}
           className="w-full sm:w-auto rounded-lg bg-foreground px-4 py-3 text-background hover:opacity-90 disabled:opacity-50"
         >
-          Submit → Preview / Print
+          Submit
         </button>
       </form>
     </div>
