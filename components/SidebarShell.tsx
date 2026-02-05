@@ -11,21 +11,26 @@ const nav = [
   { href: "/contact", label: "Contact" },
 ];
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+export default function SidebarShell({
+  role = "USER",
+  children,
+}: {
+  role?: string;
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [openMobile, setOpenMobile] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
-      {/* ===== Top bar ===== */}
+      {/* Topbar */}
       <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-3 sm:px-6">
-          {/* Mobile menu button */}
+          {/* Mobile menu */}
           <button
-            type="button"
-            className="md:hidden rounded-lg border px-3 py-2 text-sm"
-            onClick={() => setMobileOpen(true)}
+            className="md:hidden inline-flex items-center justify-center rounded-lg border px-3 py-2 text-sm"
+            onClick={() => setOpenMobile(true)}
             aria-label="Open menu"
           >
             ☰
@@ -34,16 +39,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="font-semibold tracking-wide">DAILY-WEBAPP</div>
 
           <div className="ml-auto">
-            <button type="button" className="rounded-full border px-4 py-2 text-sm">
-              Logout
-            </button>
+            <button className="rounded-full border px-4 py-2 text-sm">Logout</button>
           </div>
         </div>
       </header>
 
-      {/* ===== Content grid ===== */}
-      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-3 px-3 py-3 sm:px-6 md:grid-cols-[auto_1fr]">
-        {/* ===== Sidebar (Desktop) ===== */}
+      <div className="mx-auto grid max-w-7xl grid-cols-1 md:grid-cols-[auto_1fr] gap-3 px-3 sm:px-6 py-3">
+        {/* Desktop sidebar */}
         <aside
           className={[
             "hidden md:flex md:flex-col md:sticky md:top-16 md:h-[calc(100dvh-4rem)]",
@@ -52,18 +54,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           ].join(" ")}
         >
           <div className="flex items-center justify-between p-3">
-            <div className="text-sm font-semibold">TABS</div>
+            <div className={collapsed ? "text-xs font-semibold" : "text-sm font-semibold"}>
+              TABS
+            </div>
             <button
-              type="button"
               className="rounded-lg border px-2 py-1 text-xs"
               onClick={() => setCollapsed((v) => !v)}
               aria-label="Collapse sidebar"
+              type="button"
             >
               {collapsed ? "»" : "«"}
             </button>
           </div>
 
-          <nav className="flex-1 space-y-2 px-2 pb-2">
+          <nav className="flex-1 px-2 pb-2 space-y-2">
             {nav.map((item) => {
               const active = pathname === item.href;
               return (
@@ -71,8 +75,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   key={item.href}
                   href={item.href}
                   className={[
-                    "block rounded-xl border px-3 py-2 text-sm",
-                    active ? "bg-foreground text-background border-foreground" : "hover:bg-muted",
+                    "block rounded-xl px-3 py-2 text-sm border",
+                    active ? "bg-foreground text-background border-foreground" : "bg-background hover:bg-muted",
                     collapsed ? "text-[0px] py-3" : "",
                   ].join(" ")}
                   title={collapsed ? item.label : undefined}
@@ -85,45 +89,42 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
           <div className="m-3 rounded-xl border bg-muted p-3">
             <div className="text-xs font-semibold">Role</div>
-            <div className="text-sm">USER</div>
+            <div className="text-sm">{role}</div>
           </div>
         </aside>
 
-        {/* ===== Sidebar (Mobile Drawer) ===== */}
-        {mobileOpen && (
+        {/* Mobile drawer */}
+        {openMobile && (
           <div className="fixed inset-0 z-50 md:hidden">
-            {/* backdrop */}
             <button
-              type="button"
               className="absolute inset-0 bg-black/40"
-              onClick={() => setMobileOpen(false)}
-              aria-label="Close menu"
+              onClick={() => setOpenMobile(false)}
+              aria-label="Close menu backdrop"
+              type="button"
             />
-
-            {/* panel */}
             <div className="absolute left-0 top-0 h-full w-[82%] max-w-[320px] bg-background border-r p-3">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold">TABS</div>
                 <button
-                  type="button"
                   className="rounded-lg border px-3 py-2 text-sm"
-                  onClick={() => setMobileOpen(false)}
+                  onClick={() => setOpenMobile(false)}
+                  type="button"
                 >
                   ✕
                 </button>
               </div>
 
-              <nav className="mt-4 space-y-2">
+              <nav className="mt-3 space-y-2">
                 {nav.map((item) => {
                   const active = pathname === item.href;
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
-                      onClick={() => setMobileOpen(false)}
+                      onClick={() => setOpenMobile(false)}
                       className={[
-                        "block rounded-xl border px-3 py-2 text-sm",
-                        active ? "bg-foreground text-background border-foreground" : "hover:bg-muted",
+                        "block rounded-xl px-3 py-2 text-sm border",
+                        active ? "bg-foreground text-background border-foreground" : "bg-background hover:bg-muted",
                       ].join(" ")}
                     >
                       {item.label}
@@ -134,17 +135,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
               <div className="mt-4 rounded-xl border bg-muted p-3">
                 <div className="text-xs font-semibold">Role</div>
-                <div className="text-sm">USER</div>
+                <div className="text-sm">{role}</div>
               </div>
             </div>
           </div>
         )}
 
-        {/* ===== Main ===== */}
-        <main className="min-w-0 w-full">
-          {/* ทำให้เนื้อหากรอกข้อมูลเต็มความกว้างเสมอ */}
-          <div className="w-full">{children}</div>
-        </main>
+        {/* Main content */}
+        <main className="min-w-0">{children}</main>
       </div>
     </div>
   );
