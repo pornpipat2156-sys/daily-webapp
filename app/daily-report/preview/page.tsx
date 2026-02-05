@@ -183,7 +183,7 @@ export default function PreviewPage() {
   const [wOvertime, setWOvertime] = useState<string>("-");
   const [wxLoading, setWxLoading] = useState(false);
 
-  // ✅ Responsive scale สำหรับ A4 (แก้ iOS “ตัดครึ่ง” ด้วย zoom)
+  // ✅ iPhone-safe scale (ใช้ transform scale + outer width = scaled width)
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
 
@@ -191,15 +191,25 @@ export default function PreviewPage() {
     const el = wrapRef.current;
     if (!el) return;
 
-    const ro = new ResizeObserver(() => {
+    const calc = () => {
       const w = el.getBoundingClientRect().width;
-      const safeW = Math.max(0, w - 12); // กันชิดขอบจอ
+      // safe padding กันชิดขอบ + กัน iOS rounding
+      const safeW = Math.max(0, w - 16);
       const s = Math.min(1, safeW / A4_WIDTH_PX);
-      setScale(Number.isFinite(s) ? s : 1);
-    });
+      // กันสั่นจาก decimal ยิบย่อยบน iOS
+      const sRounded = Math.floor(s * 1000) / 1000;
+      setScale(Number.isFinite(sRounded) ? sRounded : 1);
+    };
 
+    calc();
+    const ro = new ResizeObserver(calc);
     ro.observe(el);
-    return () => ro.disconnect();
+
+    window.addEventListener("orientationchange", calc);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("orientationchange", calc);
+    };
   }, []);
 
   useEffect(() => {
@@ -348,6 +358,9 @@ export default function PreviewPage() {
 
   const issuesList = (data.issues || []).filter((it) => (it.detail || "").trim() || (it.imageDataUrl || "").trim());
 
+  // ✅ สำคัญ: outer width ต้องเท่ากับ scaled width ไม่งั้น iPhone จะ crop
+  const scaledWidth = Math.ceil(A4_WIDTH_PX * scale);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-[1200px] px-3 md:px-6 py-4">
@@ -369,27 +382,26 @@ export default function PreviewPage() {
         </div>
 
         <style>{`
-          /* ---------- Document look ---------- */
+          /* ---------- Wrapper (ห้าม hidden ไม่งั้นโดนตัด) ---------- */
           .a4Wrap {
             width: 100%;
-            overflow-x: hidden;
+            overflow-x: auto;
             overflow-y: visible;
             -webkit-overflow-scrolling: touch;
+            padding-bottom: 6px;
           }
 
-          /* กล่องที่ถูกย่อ/ขยาย */
-          .a4Zoom {
-            width: ${A4_WIDTH_PX}px;
+          /* ✅ Outer box: ต้องกว้างตามที่ scale แล้ว เพื่อไม่ให้ crop */
+          .a4Outer {
             margin: 0 auto;
-            transform-origin: top left;
-            --scale: 1;
           }
 
-          /* ✅ fallback เฉพาะ browser ที่ "ไม่รองรับ zoom" */
-          @supports not (zoom: 1) {
-            .a4Zoom {
-              transform: scale(var(--scale));
-            }
+          /* Inner: A4 จริง + scale */
+          .a4Scaler {
+            width: ${A4_WIDTH_PX}px;
+            transform-origin: top left;
+            will-change: transform;
+            transform: translateZ(0);
           }
 
           .a4 {
@@ -413,7 +425,6 @@ export default function PreviewPage() {
           table { width: 100%; border-collapse: collapse; table-layout: fixed; }
           th, td { overflow-wrap: anywhere; word-break: break-word; }
 
-          /* ✅ หัวข้อหลัก/ย่อย */
           .hMain { font-weight: 800; font-size: 18px; letter-spacing: 0.2px; }
           .hSub  { font-weight: 600; font-size: 13px; }
 
@@ -428,7 +439,7 @@ export default function PreviewPage() {
           .issueImg { width: 100%; max-height: 240px; object-fit: contain; display: block; }
           .issueRowMin { min-height: 260px; }
 
-          /* ---------- Print: print only the form (A4) ---------- */
+          /* ---------- Print ---------- */
           @media print {
             body { background: white; }
             .print\\:hidden { display: none !important; }
@@ -442,403 +453,400 @@ export default function PreviewPage() {
               width: 210mm;
             }
 
+            /* ✅ ห้ามย่อใน print */
+            .a4Wrap { overflow: visible !important; }
+            .a4Outer { width: 210mm !important; }
+            .a4Scaler { transform: none !important; width: 210mm !important; }
+
             .a4 { border: none; border-radius: 0; padding: 0; }
             @page { size: A4; margin: 10mm; }
           }
         `}</style>
 
-        {/* ✅ Responsive (แก้ iOS ตัดครึ่ง): ใช้ zoom + fallback */}
         <div ref={wrapRef} className="a4Wrap">
-          <div
-            className="a4Zoom"
-            style={
-              {
-                zoom: scale,
-                ["--scale" as any]: scale,
-                transform: "translateZ(0)",
-              } as any
-            }
-          >
-            <div className="a4" id="printArea">
-              {/* ===================== Header ===================== */}
-              <div className="box">
-                <table>
-                  <colgroup>
-                    <col style={{ width: "18%" }} />
-                    <col style={{ width: "82%" }} />
-                  </colgroup>
-                  <tbody>
-                    <tr>
-                      <td className="cellCenter">
-                        <div className="mx-auto w-[110px] h-[110px] rounded-full border-2 border-black overflow-hidden flex items-center justify-center bg-white">
-                          <Image
-                            src="/logo.png"
-                            alt="Company Logo"
-                            width={110}
-                            height={110}
-                            className="w-full h-full object-contain"
-                            priority
-                          />
-                        </div>
-                      </td>
-
-                      <td className="cellCenter titleBar">
-                        <div className="hMain">รายงานการควบคุมงานก่อสร้างประจำวัน (DAILY CONSTRUCTION REPORT)</div>
-                        <div className="mt-1 hSub">ประจำวันที่ {formatDateBE(data.date)}</div>
-                        <div className="mt-1 hSub">โครงการ : {project.projectName}</div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                {/* รายละเอียดโครงการ */}
-                <table>
-                  <colgroup>
-                    <col style={{ width: "18%" }} />
-                    <col style={{ width: "32%" }} />
-                    <col style={{ width: "18%" }} />
-                    <col style={{ width: "32%" }} />
-                  </colgroup>
-                  <tbody>
-                    <tr>
-                      <td className="cell">สัญญาจ้าง</td>
-                      <td className="cell">{project.contractNo}</td>
-                      <td className="cell">สถานที่ก่อสร้าง</td>
-                      <td className="cell">{project.siteLocation}</td>
-                    </tr>
-                    <tr>
-                      <td className="cell">บันทึกแนบท้ายที่</td>
-                      <td className="cell">{project.annexNo}</td>
-                      <td className="cell">วงเงินค่าก่อสร้าง</td>
-                      <td className="cell">{project.contractValue}</td>
-                    </tr>
-                    <tr>
-                      <td className="cell">เริ่มสัญญา</td>
-                      <td className="cell">{formatDateBE(project.contractStart)}</td>
-                      <td className="cell">ผู้รับจ้าง</td>
-                      <td className="cell">{project.contractorName}</td>
-                    </tr>
-                    <tr>
-                      <td className="cell">สิ้นสุดสัญญา</td>
-                      <td className="cell">{formatDateBE(project.contractEnd)}</td>
-                      <td className="cell">จัดจ้างโดยวิธี</td>
-                      <td className="cell">{project.procurementMethod}</td>
-                    </tr>
-                    <tr>
-                      <td className="cell">จำนวนงวด</td>
-                      <td className="cell">{project.installmentCount}</td>
-                      <td className="cell">รวมเวลาก่อสร้าง</td>
-                      <td className="cell">{project.totalDurationDays} วัน</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                {/* ช่วงเวลาทำงาน + กล่องเลขรายงาน */}
-                <div className="grid grid-cols-12">
-                  <div className="col-span-9 border-t-2 border-black p-2">
-                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm">
-                      <div className="font-semibold mb-1">ช่วงเวลาทำงาน</div>
-
-                      <div className="grid grid-cols-3 gap-x-10 numTab">
-                        <div className="nowrap">ช่วงเช้า 08:30น.-12:00น.</div>
-                        <div className="nowrap text-center">ช่วงบ่าย 13:00น.-16:30น.</div>
-                        <div className="nowrap text-right">ล่วงเวลา 16:30น. ขึ้นไป</div>
-                      </div>
-
-                      <div className="mt-2 font-semibold">สภาพอากาศ (WEATHER)</div>
-
-                      {wxLoading ? (
-                        <div className="opacity-70">กำลังดึงข้อมูลอุณหภูมิ/สภาพอากาศ...</div>
-                      ) : (
-                        <>
-                          <div className="numTab">
-                            <span className="nowrap">อุณหภูมิ สูงสุด: {tempMax ?? "-"}°C</span>
-                            <span className="mx-6"> </span>
-                            <span className="nowrap">อุณหภูมิ ต่ำสุด: {tempMin ?? "-"}°C</span>
-                          </div>
-
-                          <div className="grid grid-cols-3 gap-x-10 numTab mt-1">
-                            <div className="nowrap">เช้า: {wMorning}</div>
-                            <div className="nowrap text-center">บ่าย: {wAfternoon}</div>
-                            <div className="nowrap text-right">ล่วงเวลา: {wOvertime}</div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="col-span-3 border-t-2 border-l-2 border-black p-2">
-                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{dailyNoText}</div>
-                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{periodNoText}</div>
-                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm">{weekNoText}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* ===================== PROJECT TEAM ===================== */}
-              <div className="box mt-4">
-                <div className="sectionBar cell">ส่วนโครงการ (PROJECT TEAM)</div>
-
-                <table>
-                  <colgroup>
-                    <col style={{ width: "33.33%" }} />
-                    <col style={{ width: "33.33%" }} />
-                    <col style={{ width: "33.33%" }} />
-                  </colgroup>
-                  <tbody>
-                    <tr>
-                      {/* CONTRACTORS */}
-                      <td className="cell">
-                        <div className="font-semibold text-center leading-tight">
-                          ผู้รับเหมา
-                          <div className="text-xs font-semibold">(CONTRACTORS)</div>
-                        </div>
-
-                        <table className="mini mt-2">
-                          <colgroup>
-                            <col style={{ width: "12%" }} />
-                            <col style={{ width: "44%" }} />
-                            <col style={{ width: "24%" }} />
-                            <col style={{ width: "20%" }} />
-                          </colgroup>
-                          <thead>
-                            <tr>
-                              <th>#</th>
-                              <th>รายชื่อ</th>
-                              <th>ตำแหน่ง</th>
-                              <th>จำนวน</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {contractorsPadded.map((r, i) => (
-                              <tr key={r.id}>
-                                <td className="c">{i + 1}</td>
-                                <td>{r.name?.trim() ? r.name : "-"}</td>
-                                <td>{r.position?.trim() ? r.position : "-"}</td>
-                                <td className="c numTab">{Number(r.qty) || 0}</td>
-                              </tr>
-                            ))}
-                            <tr>
-                              <td className="c" />
-                              <td colSpan={2}>
-                                <span className="font-semibold">รวม</span>
-                              </td>
-                              <td className="c numTab">
-                                <span className="font-semibold">{contractorTotal}</span>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </td>
-
-                      {/* SUB CONTRACTORS */}
-                      <td className="cell">
-                        <div className="font-semibold text-center leading-tight">
-                          ผู้รับเหมารายย่อย
-                          <div className="text-xs font-semibold">(SUB CONTRACTORS)</div>
-                        </div>
-
-                        <table className="mini mt-2">
-                          <colgroup>
-                            <col style={{ width: "10%" }} />
-                            <col style={{ width: "36%" }} />
-                            <col style={{ width: "18%" }} />
-                            <col style={{ width: "18%" }} />
-                            <col style={{ width: "18%" }} />
-                          </colgroup>
-                          <thead>
-                            <tr>
-                              <th>#</th>
-                              <th>ตำแหน่ง</th>
-                              <th>เช้า</th>
-                              <th>บ่าย</th>
-                              <th>ล่วงเวลา</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {subPadded.map((r, i) => (
-                              <tr key={r.id}>
-                                <td className="c">{i + 1}</td>
-                                <td>{r.position?.trim() ? r.position : "-"}</td>
-                                <td className="c numTab">{Number(r.morning) || 0}</td>
-                                <td className="c numTab">{Number(r.afternoon) || 0}</td>
-                                <td className="c numTab">{Number(r.overtime) || 0}</td>
-                              </tr>
-                            ))}
-                            <tr>
-                              <td className="c" />
-                              <td>
-                                <span className="font-semibold">รวม</span>
-                              </td>
-                              <td className="c numTab">
-                                <span className="font-semibold">{subTotals.morning}</span>
-                              </td>
-                              <td className="c numTab">
-                                <span className="font-semibold">{subTotals.afternoon}</span>
-                              </td>
-                              <td className="c numTab">
-                                <span className="font-semibold">{subTotals.overtime}</span>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </td>
-
-                      {/* MAJOR EQUIPMENT */}
-                      <td className="cell">
-                        <div className="font-semibold text-center leading-tight">
-                          เครื่องจักรหลัก
-                          <div className="text-xs font-semibold">(MAJOR EQUIPMENT)</div>
-                        </div>
-
-                        <table className="mini mt-2">
-                          <colgroup>
-                            <col style={{ width: "10%" }} />
-                            <col style={{ width: "36%" }} />
-                            <col style={{ width: "18%" }} />
-                            <col style={{ width: "18%" }} />
-                            <col style={{ width: "18%" }} />
-                          </colgroup>
-                          <thead>
-                            <tr>
-                              <th>#</th>
-                              <th>ชนิด</th>
-                              <th>เช้า</th>
-                              <th>บ่าย</th>
-                              <th>ล่วงเวลา</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {equipPadded.map((r, i) => (
-                              <tr key={r.id}>
-                                <td className="c">{i + 1}</td>
-                                <td>{r.type?.trim() ? r.type : "-"}</td>
-                                <td className="c numTab">{Number(r.morning) || 0}</td>
-                                <td className="c numTab">{Number(r.afternoon) || 0}</td>
-                                <td className="c numTab">{Number(r.overtime) || 0}</td>
-                              </tr>
-                            ))}
-                            <tr>
-                              <td className="c" />
-                              <td>
-                                <span className="font-semibold">รวม</span>
-                              </td>
-                              <td className="c numTab">
-                                <span className="font-semibold">{equipTotals.morning}</span>
-                              </td>
-                              <td className="c numTab">
-                                <span className="font-semibold">{equipTotals.afternoon}</span>
-                              </td>
-                              <td className="c numTab">
-                                <span className="font-semibold">{equipTotals.overtime}</span>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* ===================== WORK PERFORMED ===================== */}
-              <div className="box mt-4">
-                <div className="subBar cell">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)</div>
-
-                <table>
-                  <colgroup>
-                    <col style={{ width: "6%" }} />
-                    <col style={{ width: "30%" }} />
-                    <col style={{ width: "22%" }} />
-                    <col style={{ width: "10%" }} />
-                    <col style={{ width: "10%" }} />
-                    <col style={{ width: "22%" }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th className="cellCenter">#</th>
-                      <th className="cellCenter">รายการ (DESCRIPTION)</th>
-                      <th className="cellCenter">บริเวณ (LOCATIONS)</th>
-                      <th className="cellCenter">จำนวน</th>
-                      <th className="cellCenter">หน่วย</th>
-                      <th className="cellCenter">วัสดุนำเข้า (MATERIAL)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.workPerformed.map((r, i) => (
-                      <tr key={r.id}>
-                        <td className="cellCenter">{i + 1}</td>
-                        <td className="cell">{r.desc}</td>
-                        <td className="cell">{r.location}</td>
-                        <td className="cellCenter">{r.qty}</td>
-                        <td className="cellCenter">{r.unit}</td>
-                        <td className="cell">{r.materialDelivered}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* ===================== ISSUES (only if exists) ===================== */}
-              {hasIssues && (
-                <div className="box mt-4">
+          <div className="a4Outer" style={{ width: scaledWidth }}>
+            <div className="a4Scaler" style={{ transform: `scale(${scale})` }}>
+              <div className="a4" id="printArea">
+                {/* ===================== Header ===================== */}
+                <div className="box">
                   <table>
                     <colgroup>
-                      <col style={{ width: "45%" }} />
-                      <col style={{ width: "33%" }} />
+                      <col style={{ width: "18%" }} />
+                      <col style={{ width: "82%" }} />
+                    </colgroup>
+                    <tbody>
+                      <tr>
+                        <td className="cellCenter">
+                          <div className="mx-auto w-[110px] h-[110px] rounded-full border-2 border-black overflow-hidden flex items-center justify-center bg-white">
+                            <Image
+                              src="/logo.png"
+                              alt="Company Logo"
+                              width={110}
+                              height={110}
+                              className="w-full h-full object-contain"
+                              priority
+                            />
+                          </div>
+                        </td>
+
+                        <td className="cellCenter titleBar">
+                          <div className="hMain">รายงานการควบคุมงานก่อสร้างประจำวัน (DAILY CONSTRUCTION REPORT)</div>
+                          <div className="mt-1 hSub">ประจำวันที่ {formatDateBE(data.date)}</div>
+                          <div className="mt-1 hSub">โครงการ : {project.projectName}</div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* รายละเอียดโครงการ */}
+                  <table>
+                    <colgroup>
+                      <col style={{ width: "18%" }} />
+                      <col style={{ width: "32%" }} />
+                      <col style={{ width: "18%" }} />
+                      <col style={{ width: "32%" }} />
+                    </colgroup>
+                    <tbody>
+                      <tr>
+                        <td className="cell">สัญญาจ้าง</td>
+                        <td className="cell">{project.contractNo}</td>
+                        <td className="cell">สถานที่ก่อสร้าง</td>
+                        <td className="cell">{project.siteLocation}</td>
+                      </tr>
+                      <tr>
+                        <td className="cell">บันทึกแนบท้ายที่</td>
+                        <td className="cell">{project.annexNo}</td>
+                        <td className="cell">วงเงินค่าก่อสร้าง</td>
+                        <td className="cell">{project.contractValue}</td>
+                      </tr>
+                      <tr>
+                        <td className="cell">เริ่มสัญญา</td>
+                        <td className="cell">{formatDateBE(project.contractStart)}</td>
+                        <td className="cell">ผู้รับจ้าง</td>
+                        <td className="cell">{project.contractorName}</td>
+                      </tr>
+                      <tr>
+                        <td className="cell">สิ้นสุดสัญญา</td>
+                        <td className="cell">{formatDateBE(project.contractEnd)}</td>
+                        <td className="cell">จัดจ้างโดยวิธี</td>
+                        <td className="cell">{project.procurementMethod}</td>
+                      </tr>
+                      <tr>
+                        <td className="cell">จำนวนงวด</td>
+                        <td className="cell">{project.installmentCount}</td>
+                        <td className="cell">รวมเวลาก่อสร้าง</td>
+                        <td className="cell">{project.totalDurationDays} วัน</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* ช่วงเวลาทำงาน + กล่องเลขรายงาน */}
+                  <div className="grid grid-cols-12">
+                    <div className="col-span-9 border-t-2 border-black p-2">
+                      <div className="border-2 border-black bg-yellow-50 p-2 text-sm">
+                        <div className="font-semibold mb-1">ช่วงเวลาทำงาน</div>
+
+                        <div className="grid grid-cols-3 gap-x-10 numTab">
+                          <div className="nowrap">ช่วงเช้า 08:30น.-12:00น.</div>
+                          <div className="nowrap text-center">ช่วงบ่าย 13:00น.-16:30น.</div>
+                          <div className="nowrap text-right">ล่วงเวลา 16:30น. ขึ้นไป</div>
+                        </div>
+
+                        <div className="mt-2 font-semibold">สภาพอากาศ (WEATHER)</div>
+
+                        {wxLoading ? (
+                          <div className="opacity-70">กำลังดึงข้อมูลอุณหภูมิ/สภาพอากาศ...</div>
+                        ) : (
+                          <>
+                            <div className="numTab">
+                              <span className="nowrap">อุณหภูมิ สูงสุด: {tempMax ?? "-"}°C</span>
+                              <span className="mx-6"> </span>
+                              <span className="nowrap">อุณหภูมิ ต่ำสุด: {tempMin ?? "-"}°C</span>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-x-10 numTab mt-1">
+                              <div className="nowrap">เช้า: {wMorning}</div>
+                              <div className="nowrap text-center">บ่าย: {wAfternoon}</div>
+                              <div className="nowrap text-right">ล่วงเวลา: {wOvertime}</div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="col-span-3 border-t-2 border-l-2 border-black p-2">
+                      <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{dailyNoText}</div>
+                      <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{periodNoText}</div>
+                      <div className="border-2 border-black bg-yellow-50 p-2 text-sm">{weekNoText}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ===================== PROJECT TEAM ===================== */}
+                <div className="box mt-4">
+                  <div className="sectionBar cell">ส่วนโครงการ (PROJECT TEAM)</div>
+
+                  <table>
+                    <colgroup>
+                      <col style={{ width: "33.33%" }} />
+                      <col style={{ width: "33.33%" }} />
+                      <col style={{ width: "33.33%" }} />
+                    </colgroup>
+                    <tbody>
+                      <tr>
+                        {/* CONTRACTORS */}
+                        <td className="cell">
+                          <div className="font-semibold text-center leading-tight">
+                            ผู้รับเหมา
+                            <div className="text-xs font-semibold">(CONTRACTORS)</div>
+                          </div>
+
+                          <table className="mini mt-2">
+                            <colgroup>
+                              <col style={{ width: "12%" }} />
+                              <col style={{ width: "44%" }} />
+                              <col style={{ width: "24%" }} />
+                              <col style={{ width: "20%" }} />
+                            </colgroup>
+                            <thead>
+                              <tr>
+                                <th>#</th>
+                                <th>รายชื่อ</th>
+                                <th>ตำแหน่ง</th>
+                                <th>จำนวน</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {contractorsPadded.map((r, i) => (
+                                <tr key={r.id}>
+                                  <td className="c">{i + 1}</td>
+                                  <td>{r.name?.trim() ? r.name : "-"}</td>
+                                  <td>{r.position?.trim() ? r.position : "-"}</td>
+                                  <td className="c numTab">{Number(r.qty) || 0}</td>
+                                </tr>
+                              ))}
+                              <tr>
+                                <td className="c" />
+                                <td colSpan={2}>
+                                  <span className="font-semibold">รวม</span>
+                                </td>
+                                <td className="c numTab">
+                                  <span className="font-semibold">{contractorTotal}</span>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </td>
+
+                        {/* SUB CONTRACTORS */}
+                        <td className="cell">
+                          <div className="font-semibold text-center leading-tight">
+                            ผู้รับเหมารายย่อย
+                            <div className="text-xs font-semibold">(SUB CONTRACTORS)</div>
+                          </div>
+
+                          <table className="mini mt-2">
+                            <colgroup>
+                              <col style={{ width: "10%" }} />
+                              <col style={{ width: "36%" }} />
+                              <col style={{ width: "18%" }} />
+                              <col style={{ width: "18%" }} />
+                              <col style={{ width: "18%" }} />
+                            </colgroup>
+                            <thead>
+                              <tr>
+                                <th>#</th>
+                                <th>ตำแหน่ง</th>
+                                <th>เช้า</th>
+                                <th>บ่าย</th>
+                                <th>ล่วงเวลา</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {subPadded.map((r, i) => (
+                                <tr key={r.id}>
+                                  <td className="c">{i + 1}</td>
+                                  <td>{r.position?.trim() ? r.position : "-"}</td>
+                                  <td className="c numTab">{Number(r.morning) || 0}</td>
+                                  <td className="c numTab">{Number(r.afternoon) || 0}</td>
+                                  <td className="c numTab">{Number(r.overtime) || 0}</td>
+                                </tr>
+                              ))}
+                              <tr>
+                                <td className="c" />
+                                <td>
+                                  <span className="font-semibold">รวม</span>
+                                </td>
+                                <td className="c numTab">
+                                  <span className="font-semibold">{subTotals.morning}</span>
+                                </td>
+                                <td className="c numTab">
+                                  <span className="font-semibold">{subTotals.afternoon}</span>
+                                </td>
+                                <td className="c numTab">
+                                  <span className="font-semibold">{subTotals.overtime}</span>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </td>
+
+                        {/* MAJOR EQUIPMENT */}
+                        <td className="cell">
+                          <div className="font-semibold text-center leading-tight">
+                            เครื่องจักรหลัก
+                            <div className="text-xs font-semibold">(MAJOR EQUIPMENT)</div>
+                          </div>
+
+                          <table className="mini mt-2">
+                            <colgroup>
+                              <col style={{ width: "10%" }} />
+                              <col style={{ width: "36%" }} />
+                              <col style={{ width: "18%" }} />
+                              <col style={{ width: "18%" }} />
+                              <col style={{ width: "18%" }} />
+                            </colgroup>
+                            <thead>
+                              <tr>
+                                <th>#</th>
+                                <th>ชนิด</th>
+                                <th>เช้า</th>
+                                <th>บ่าย</th>
+                                <th>ล่วงเวลา</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {equipPadded.map((r, i) => (
+                                <tr key={r.id}>
+                                  <td className="c">{i + 1}</td>
+                                  <td>{r.type?.trim() ? r.type : "-"}</td>
+                                  <td className="c numTab">{Number(r.morning) || 0}</td>
+                                  <td className="c numTab">{Number(r.afternoon) || 0}</td>
+                                  <td className="c numTab">{Number(r.overtime) || 0}</td>
+                                </tr>
+                              ))}
+                              <tr>
+                                <td className="c" />
+                                <td>
+                                  <span className="font-semibold">รวม</span>
+                                </td>
+                                <td className="c numTab">
+                                  <span className="font-semibold">{equipTotals.morning}</span>
+                                </td>
+                                <td className="c numTab">
+                                  <span className="font-semibold">{equipTotals.afternoon}</span>
+                                </td>
+                                <td className="c numTab">
+                                  <span className="font-semibold">{equipTotals.overtime}</span>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* ===================== WORK PERFORMED ===================== */}
+                <div className="box mt-4">
+                  <div className="subBar cell">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)</div>
+
+                  <table>
+                    <colgroup>
+                      <col style={{ width: "6%" }} />
+                      <col style={{ width: "30%" }} />
+                      <col style={{ width: "22%" }} />
+                      <col style={{ width: "10%" }} />
+                      <col style={{ width: "10%" }} />
                       <col style={{ width: "22%" }} />
                     </colgroup>
-
                     <thead>
                       <tr>
-                        <th className="cellCenter titleBar">ภาพปัญหาและอุปสรรค</th>
-                        <th className="cellCenter titleBar">รายละเอียด</th>
-                        <th className="cellCenter titleBar">ความเห็นของผู้ควบคุมงาน</th>
+                        <th className="cellCenter">#</th>
+                        <th className="cellCenter">รายการ (DESCRIPTION)</th>
+                        <th className="cellCenter">บริเวณ (LOCATIONS)</th>
+                        <th className="cellCenter">จำนวน</th>
+                        <th className="cellCenter">หน่วย</th>
+                        <th className="cellCenter">วัสดุนำเข้า (MATERIAL)</th>
                       </tr>
                     </thead>
-
                     <tbody>
-                      {issuesList.map((it, idx) => (
-                        <tr key={it.id}>
-                          <td className="cell issueRowMin">
-                            <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
-                            {it.imageDataUrl ? (
-                              <img
-                                src={it.imageDataUrl}
-                                alt={`issue-img-${idx + 1}`}
-                                className="issueImg border border-black/30 rounded"
-                              />
-                            ) : (
-                              <div className="text-sm opacity-60">-</div>
-                            )}
-                          </td>
-
-                          <td className="cell issueRowMin">
-                            <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
-                            <div className="text-sm whitespace-pre-wrap">{it.detail || " "}</div>
-                          </td>
-
-                          <td className="cell issueRowMin">
-                            <div className="text-sm opacity-60"> </div>
-                          </td>
+                      {data.workPerformed.map((r, i) => (
+                        <tr key={r.id}>
+                          <td className="cellCenter">{i + 1}</td>
+                          <td className="cell">{r.desc}</td>
+                          <td className="cell">{r.location}</td>
+                          <td className="cellCenter">{r.qty}</td>
+                          <td className="cellCenter">{r.unit}</td>
+                          <td className="cell">{r.materialDelivered}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-              )}
 
-              {/* ===================== SAFETY ===================== */}
-              <div className="box mt-4">
-                <div className="subBar cell">บันทึกด้านความปลอดภัยในการทำงาน</div>
-                <div className="cell whitespace-pre-wrap min-h-[90px]">{data.safetyNote || " "}</div>
-              </div>
+                {/* ===================== ISSUES (only if exists) ===================== */}
+                {hasIssues && (
+                  <div className="box mt-4">
+                    <table>
+                      <colgroup>
+                        <col style={{ width: "45%" }} />
+                        <col style={{ width: "33%" }} />
+                        <col style={{ width: "22%" }} />
+                      </colgroup>
 
-              {/* ===================== SUPERVISORS ===================== */}
-              <div className="box mt-4">
-                <div className="cell">
-                  <div className="font-semibold">รายชื่อผู้ควบคุมงาน (กำหนดโดย Generator)</div>
-                  <div className="mt-2">{project.supervisors?.length ? project.supervisors.join(" , ") : "-"}</div>
+                      <thead>
+                        <tr>
+                          <th className="cellCenter titleBar">ภาพปัญหาและอุปสรรค</th>
+                          <th className="cellCenter titleBar">รายละเอียด</th>
+                          <th className="cellCenter titleBar">ความเห็นของผู้ควบคุมงาน</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {issuesList.map((it, idx) => (
+                          <tr key={it.id}>
+                            <td className="cell issueRowMin">
+                              <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
+                              {it.imageDataUrl ? (
+                                <img
+                                  src={it.imageDataUrl}
+                                  alt={`issue-img-${idx + 1}`}
+                                  className="issueImg border border-black/30 rounded"
+                                />
+                              ) : (
+                                <div className="text-sm opacity-60">-</div>
+                              )}
+                            </td>
+
+                            <td className="cell issueRowMin">
+                              <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
+                              <div className="text-sm whitespace-pre-wrap">{it.detail || " "}</div>
+                            </td>
+
+                            <td className="cell issueRowMin">
+                              <div className="text-sm opacity-60"> </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* ===================== SAFETY ===================== */}
+                <div className="box mt-4">
+                  <div className="subBar cell">บันทึกด้านความปลอดภัยในการทำงาน</div>
+                  <div className="cell whitespace-pre-wrap min-h-[90px]">{data.safetyNote || " "}</div>
+                </div>
+
+                {/* ===================== SUPERVISORS ===================== */}
+                <div className="box mt-4">
+                  <div className="cell">
+                    <div className="font-semibold">รายชื่อผู้ควบคุมงาน (กำหนดโดย Generator)</div>
+                    <div className="mt-2">{project.supervisors?.length ? project.supervisors.join(" , ") : "-"}</div>
+                  </div>
                 </div>
               </div>
             </div>
