@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type ProjectMeta = {
@@ -160,6 +160,8 @@ function padArray<T>(arr: T[], targetLen: number, makeEmpty: (idx: number) => T)
   return out.slice(0, targetLen);
 }
 
+const A4_WIDTH_PX = 794; // ประมาณ 210mm @ 96dpi
+
 export default function PreviewPage() {
   const router = useRouter();
   const [data, setData] = useState<DailyReportPayload | null>(null);
@@ -170,6 +172,24 @@ export default function PreviewPage() {
   const [wAfternoon, setWAfternoon] = useState<string>("-");
   const [wOvertime, setWOvertime] = useState<string>("-");
   const [wxLoading, setWxLoading] = useState(false);
+
+  // ✅ Responsive scale สำหรับ A4 (มือถือ/แท็บเล็ต/คอม)
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      const s = Math.min(1, w / A4_WIDTH_PX);
+      setScale(Number.isFinite(s) ? s : 1);
+    });
+
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const raw = sessionStorage.getItem("dailyReportPayload");
@@ -214,6 +234,12 @@ export default function PreviewPage() {
       afternoon: list.reduce((s, r) => s + (Number(r.afternoon) || 0), 0),
       overtime: list.reduce((s, r) => s + (Number(r.overtime) || 0), 0),
     };
+  }, [data]);
+
+  // ✅ hasIssues จริง: ต้องมี detail หรือรูปอย่างใดอย่างหนึ่ง
+  const hasIssues = useMemo(() => {
+    const list = data?.issues || [];
+    return list.some((x) => (x.detail || "").trim() || (x.imageDataUrl || "").trim());
   }, [data]);
 
   useEffect(() => {
@@ -262,13 +288,18 @@ export default function PreviewPage() {
 
   if (!data || !project) {
     return (
-      <div className="max-w-3xl">
-        <div className="rounded-xl border bg-white p-4">
-          <div className="font-semibold">ไม่พบข้อมูลสำหรับ Preview</div>
-          <div className="text-sm opacity-70 mt-1">ให้กลับไปหน้า Daily report แล้วกด Submit ใหม่</div>
-          <button className="mt-3 rounded-lg bg-black px-4 py-2 text-white" onClick={() => router.push("/daily-report")}>
-            กลับไปกรอกใหม่
-          </button>
+      <div className="min-h-screen bg-background text-foreground">
+        <div className="mx-auto max-w-3xl px-4 py-10">
+          <div className="rounded-xl border bg-card p-4">
+            <div className="font-semibold">ไม่พบข้อมูลสำหรับ Preview</div>
+            <div className="text-sm opacity-70 mt-1">ให้กลับไปหน้า Daily report แล้วกด Submit ใหม่</div>
+            <button
+              className="mt-3 rounded-lg bg-black px-4 py-2 text-white"
+              onClick={() => router.push("/daily-report")}
+            >
+              กลับไปกรอกใหม่
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -279,8 +310,7 @@ export default function PreviewPage() {
   const periodNoText = project.periodNo || "-";
   const weekNoText = project.weekNo || "-";
 
-  const issues = data.issues?.length ? data.issues : [{ id: "EMPTY", detail: "", imageDataUrl: "" }];
-
+  // ✅ pad ตารางทีมให้สูงเท่ากัน (เหมือนเดิม)
   const maxRows = Math.max(
     data.contractors?.length || 0,
     data.subContractors?.length || 0,
@@ -288,422 +318,479 @@ export default function PreviewPage() {
     1
   );
 
-  const contractorsPadded = padArray<ContractorRow>(
-    data.contractors || [],
-    maxRows,
-    (i) => ({ id: `EMPTY-C-${i}`, name: "-", position: "-", qty: 0 })
-  );
+  const contractorsPadded = padArray<ContractorRow>(data.contractors || [], maxRows, (i) => ({
+    id: `EMPTY-C-${i}`,
+    name: "-",
+    position: "-",
+    qty: 0,
+  }));
 
-  const subPadded = padArray<SubContractorRow>(
-    data.subContractors || [],
-    maxRows,
-    (i) => ({ id: `EMPTY-S-${i}`, position: "-", morning: 0, afternoon: 0, overtime: 0 })
-  );
+  const subPadded = padArray<SubContractorRow>(data.subContractors || [], maxRows, (i) => ({
+    id: `EMPTY-S-${i}`,
+    position: "-",
+    morning: 0,
+    afternoon: 0,
+    overtime: 0,
+  }));
 
-  const equipPadded = padArray<MajorEquipmentRow>(
-    data.majorEquipment || [],
-    maxRows,
-    (i) => ({ id: `EMPTY-E-${i}`, type: "-", morning: 0, afternoon: 0, overtime: 0 })
-  );
+  const equipPadded = padArray<MajorEquipmentRow>(data.majorEquipment || [], maxRows, (i) => ({
+    id: `EMPTY-E-${i}`,
+    type: "-",
+    morning: 0,
+    afternoon: 0,
+    overtime: 0,
+  }));
 
   return (
-    <div className="max-w-[1100px]">
-      <div className="flex items-center justify-between mb-3 print:hidden">
-        <button className="rounded-lg border px-3 py-2" onClick={() => router.push("/daily-report")}>
-          ← กลับไปแก้ไข
-        </button>
-        <button className="rounded-lg bg-black px-4 py-2 text-white" onClick={() => window.print()}>
-          Print / Save PDF
-        </button>
-      </div>
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto max-w-[1200px] px-3 md:px-6 py-4">
+        {/* Top actions (ไม่พิมพ์) */}
+        <div className="flex items-center justify-between mb-3 print:hidden">
+          <button className="rounded-lg border px-3 py-2" onClick={() => router.push("/daily-report")}>
+            ← กลับไปแก้ไข
+          </button>
 
-      <style>{`
-        .a4 { background: white; border: 2px solid #111; border-radius: 14px; padding: 14px; }
-        .box { border: 2px solid #111; border-radius: 12px; overflow: hidden; }
-        .cell { border: 1.5px solid #111; padding: 6px 8px; vertical-align: top; }
-        .cellCenter { border: 1.5px solid #111; padding: 6px 8px; text-align: center; vertical-align: middle; }
-        .titleBar { background: #eadcf6; font-weight: 700; }
-        .sectionBar { background: #dff2df; font-weight: 700; text-align: center; }
-        .subBar { background: #f4e8d4; font-weight: 700; text-align: center; }
-        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        img { max-width: 100%; height: auto; }
-        th, td { overflow-wrap: anywhere; word-break: break-word; line-height: 1.15; }
+          {/* ✅ เปลี่ยนเป็น Forward ตามเงื่อนไข */}
+          <button
+            className="rounded-lg bg-black px-4 py-2 text-white"
+            onClick={() => {
+              // ส่ง payload ให้แท็บถัดไปใช้
+              sessionStorage.setItem("dailyReportPayload", JSON.stringify(data));
+              router.push(hasIssues ? "/commentator" : "/summation");
+            }}
+          >
+            Forward To Comment
+          </button>
+        </div>
 
-        .mini th, .mini td { border: 1.5px solid #111; padding: 4px 6px; font-size: 12px; line-height: 1.1; }
-        .mini th { text-align: center; vertical-align: middle; font-weight: 700; }
-        .mini td { vertical-align: top; }
-        .mini .c { text-align: center; vertical-align: middle; }
-        .numTab { font-variant-numeric: tabular-nums; }
-        .nowrap { white-space: nowrap; }
+        <style>{`
+          /* ---------- Screen layout ---------- */
+          .a4Wrap { overflow-x: auto; }
+          .a4 { background: white; color: #111; border: 2px solid #111; border-radius: 14px; padding: 14px; }
+          .box { border: 2px solid #111; border-radius: 12px; overflow: hidden; }
+          .cell { border: 1.5px solid #111; padding: 6px 8px; vertical-align: top; }
+          .cellCenter { border: 1.5px solid #111; padding: 6px 8px; text-align: center; vertical-align: middle; }
+          .titleBar { background: #eadcf6; font-weight: 700; }
+          .sectionBar { background: #dff2df; font-weight: 700; text-align: center; }
+          .subBar { background: #f4e8d4; font-weight: 700; text-align: center; }
+          table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+          img { max-width: 100%; height: auto; }
+          th, td { overflow-wrap: anywhere; word-break: break-word; line-height: 1.15; }
 
-        .issueImg { width: 100%; max-height: 240px; object-fit: contain; display: block; }
-        .issueRowMin { min-height: 260px; }
+          .mini th, .mini td { border: 1.5px solid #111; padding: 4px 6px; font-size: 12px; line-height: 1.1; }
+          .mini th { text-align: center; vertical-align: middle; font-weight: 700; }
+          .mini td { vertical-align: top; }
+          .mini .c { text-align: center; vertical-align: middle; }
+          .numTab { font-variant-numeric: tabular-nums; }
+          .nowrap { white-space: nowrap; }
 
-        @media print {
-          body { background: white; }
-          .print\\:hidden { display: none !important; }
-          .a4 { border: none; border-radius: 0; padding: 0; }
-          @page { size: A4; margin: 10mm; }
-        }
-      `}</style>
+          .issueImg { width: 100%; max-height: 240px; object-fit: contain; display: block; }
+          .issueRowMin { min-height: 260px; }
 
-      <div className="a4">
-        {/* Header */}
-        <div className="box">
-          <table>
-            <colgroup>
-              <col style={{ width: "18%" }} />
-              <col style={{ width: "82%" }} />
-            </colgroup>
-            <tbody>
-              <tr>
-                <td className="cellCenter">
-                  <div className="mx-auto w-[110px] h-[110px] rounded-full border-2 border-black flex items-center justify-center">
-                    LOGO
+          /* ---------- Print: print only the form (A4) ---------- */
+          @media print {
+            body { background: white; }
+            .print\\:hidden { display: none !important; }
+
+            /* print only #printArea */
+            body * { visibility: hidden !important; }
+            #printArea, #printArea * { visibility: visible !important; }
+            #printArea {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 210mm;
+            }
+
+            .a4 { border: none; border-radius: 0; padding: 0; }
+            @page { size: A4; margin: 10mm; }
+          }
+        `}</style>
+
+        {/* ✅ Responsive Scale Wrapper */}
+        <div ref={wrapRef} className="a4Wrap">
+          <div style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}>
+            <div className="a4" id="printArea">
+              {/* Header */}
+              <div className="box">
+                <table>
+                  <colgroup>
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "82%" }} />
+                  </colgroup>
+                  <tbody>
+                    <tr>
+                      <td className="cellCenter">
+                        <div className="mx-auto w-[110px] h-[110px] rounded-full border-2 border-black flex items-center justify-center">
+                          LOGO
+                        </div>
+                      </td>
+                      <td className="cellCenter titleBar">
+                        <div className="text-lg">รายงานการควบคุมงานก่อสร้างประจำวัน (DAILY CONSTRUCTION REPORT)</div>
+                        <div className="mt-1 font-normal">ประจำวันที่ {formatDateTH(data.date)}</div>
+                        <div className="mt-1 font-normal">โครงการ : {project.projectName}</div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* Generator header */}
+                <table>
+                  <colgroup>
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "32%" }} />
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "32%" }} />
+                  </colgroup>
+                  <tbody>
+                    <tr>
+                      <td className="cell">สัญญาจ้าง</td>
+                      <td className="cell">{project.contractNo}</td>
+                      <td className="cell">สถานที่ก่อสร้าง</td>
+                      <td className="cell">{project.siteLocation}</td>
+                    </tr>
+                    <tr>
+                      <td className="cell">บันทึกแนบท้ายที่</td>
+                      <td className="cell">{project.annexNo}</td>
+                      <td className="cell">วงเงินค่าก่อสร้าง</td>
+                      <td className="cell">{project.contractValue}</td>
+                    </tr>
+                    <tr>
+                      <td className="cell">เริ่มสัญญา</td>
+                      <td className="cell">{formatDateTH(project.contractStart)}</td>
+                      <td className="cell">ผู้รับจ้าง</td>
+                      <td className="cell">{project.contractorName}</td>
+                    </tr>
+                    <tr>
+                      <td className="cell">สิ้นสุดสัญญา</td>
+                      <td className="cell">{formatDateTH(project.contractEnd)}</td>
+                      <td className="cell">จัดจ้างโดยวิธี</td>
+                      <td className="cell">{project.procurementMethod}</td>
+                    </tr>
+                    <tr>
+                      <td className="cell">จำนวนงวด</td>
+                      <td className="cell">{project.installmentCount}</td>
+                      <td className="cell">รวมเวลาก่อสร้าง</td>
+                      <td className="cell">{project.totalDurationDays} วัน</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* ช่วงเวลาทำงาน + กล่องรายงาน */}
+                <div className="grid grid-cols-12">
+                  <div className="col-span-9 border-t-2 border-black p-2">
+                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm">
+                      <div className="font-semibold mb-1">ช่วงเวลาทำงาน</div>
+
+                      <div className="grid grid-cols-3 gap-x-10 numTab">
+                        <div className="whitespace-nowrap">ช่วงเช้า 08:30น.-12:00น.</div>
+                        <div className="whitespace-nowrap text-center">ช่วงบ่าย 13:00น.-16:30น.</div>
+                        <div className="whitespace-nowrap text-right">ล่วงเวลา 16:30น. ขึ้นไป</div>
+                      </div>
+
+                      <div className="mt-2 font-semibold">สภาพอากาศ (WEATHER)</div>
+
+                      {wxLoading ? (
+                        <div className="opacity-70">กำลังดึงข้อมูลอุณหภูมิ/สภาพอากาศ...</div>
+                      ) : (
+                        <>
+                          <div className="numTab">
+                            <span className="nowrap">อุณหภูมิ สูงสุด: {tempMax ?? "-"}°C</span>
+                            <span className="mx-8"> </span>
+                            <span className="nowrap">อุณหภูมิ ต่ำสุด: {tempMin ?? "-"}°C</span>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-x-10 numTab mt-1">
+                            <div className="whitespace-nowrap">เช้า: {wMorning}</div>
+                            <div className="whitespace-nowrap text-center">ช่วงบ่าย: {wAfternoon}</div>
+                            <div className="whitespace-nowrap text-right">ล่วงเวลา: {wOvertime}</div>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </td>
-                <td className="cellCenter titleBar">
-                  <div className="text-lg">รายงานการควบคุมงานก่อสร้างประจำวัน (DAILY CONSTRUCTION REPORT)</div>
-                  <div className="mt-1 font-normal">ประจำวันที่ {formatDateTH(data.date)}</div>
-                  <div className="mt-1 font-normal">โครงการ : {project.projectName}</div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
 
-          {/* Generator header */}
-          <table>
-            <colgroup>
-              <col style={{ width: "18%" }} />
-              <col style={{ width: "32%" }} />
-              <col style={{ width: "18%" }} />
-              <col style={{ width: "32%" }} />
-            </colgroup>
-            <tbody>
-              <tr>
-                <td className="cell">สัญญาจ้าง</td>
-                <td className="cell">{project.contractNo}</td>
-                <td className="cell">สถานที่ก่อสร้าง</td>
-                <td className="cell">{project.siteLocation}</td>
-              </tr>
-              <tr>
-                <td className="cell">บันทึกแนบท้ายที่</td>
-                <td className="cell">{project.annexNo}</td>
-                <td className="cell">วงเงินค่าก่อสร้าง</td>
-                <td className="cell">{project.contractValue}</td>
-              </tr>
-              <tr>
-                <td className="cell">เริ่มสัญญา</td>
-                <td className="cell">{formatDateTH(project.contractStart)}</td>
-                <td className="cell">ผู้รับจ้าง</td>
-                <td className="cell">{project.contractorName}</td>
-              </tr>
-              <tr>
-                <td className="cell">สิ้นสุดสัญญา</td>
-                <td className="cell">{formatDateTH(project.contractEnd)}</td>
-                <td className="cell">จัดจ้างโดยวิธี</td>
-                <td className="cell">{project.procurementMethod}</td>
-              </tr>
-              <tr>
-                <td className="cell">จำนวนงวด</td>
-                <td className="cell">{project.installmentCount}</td>
-                <td className="cell">รวมเวลาก่อสร้าง</td>
-                <td className="cell">{project.totalDurationDays} วัน</td>
-              </tr>
-            </tbody>
-          </table>
-
-          {/* ช่วงเวลาทำงาน + กล่องรายงาน */}
-          <div className="grid grid-cols-12">
-            <div className="col-span-9 border-t-2 border-black p-2">
-              <div className="border-2 border-black bg-yellow-50 p-2 text-sm">
-                <div className="font-semibold mb-1">ช่วงเวลาทำงาน</div>
-
-                <div className="grid grid-cols-3 gap-x-10 numTab">
-                  <div className="whitespace-nowrap">ช่วงเช้า 08:30น.-12:00น.</div>
-                  <div className="whitespace-nowrap text-center">ช่วงบ่าย 13:00น.-16:30น.</div>
-                  <div className="whitespace-nowrap text-right">ล่วงเวลา 16:30น. ขึ้นไป</div>
+                  <div className="col-span-3 border-t-2 border-l-2 border-black p-2">
+                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{dailyNoText}</div>
+                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{periodNoText}</div>
+                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm">{weekNoText}</div>
+                  </div>
                 </div>
+              </div>
 
-                <div className="mt-2 font-semibold">สภาพอากาศ (WEATHER)</div>
+              {/* PROJECT TEAM */}
+              <div className="box mt-4">
+                <div className="sectionBar cell">ส่วนโครงการ (PROJECT TEAM)</div>
 
-                {wxLoading ? (
-                  <div className="opacity-70">กำลังดึงข้อมูลอุณหภูมิ/สภาพอากาศ...</div>
-                ) : (
-                  <>
-                    <div className="numTab">
-                      <span className="nowrap">อุณหภูมิ สูงสุด: {tempMax ?? "-"}°C</span>
-                      <span className="mx-8"> </span>
-                      <span className="nowrap">อุณหภูมิ ต่ำสุด: {tempMin ?? "-"}°C</span>
-                    </div>
+                <table>
+                  <colgroup>
+                    <col style={{ width: "33.33%" }} />
+                    <col style={{ width: "33.33%" }} />
+                    <col style={{ width: "33.33%" }} />
+                  </colgroup>
+                  <tbody>
+                    <tr>
+                      {/* CONTRACTORS */}
+                      <td className="cell">
+                        <div className="font-semibold text-center leading-tight">
+                          บุคลากรประจำ/ผู้รับจ้าง
+                          <div className="text-xs font-semibold">(CONTRACTORS)</div>
+                        </div>
 
-                    <div className="grid grid-cols-3 gap-x-10 numTab mt-1">
-                      <div className="whitespace-nowrap">เช้า: {wMorning}</div>
-                      <div className="whitespace-nowrap text-center">ช่วงบ่าย: {wAfternoon}</div>
-                      <div className="whitespace-nowrap text-right">ล่วงเวลา: {wOvertime}</div>
-                    </div>
-                  </>
-                )}
+                        <table className="mini mt-2">
+                          <colgroup>
+                            <col style={{ width: "12%" }} />
+                            <col style={{ width: "44%" }} />
+                            <col style={{ width: "24%" }} />
+                            <col style={{ width: "20%" }} />
+                          </colgroup>
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>รายชื่อ</th>
+                              <th>ตำแหน่ง</th>
+                              <th>จำนวน</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {contractorsPadded.map((r, i) => (
+                              <tr key={r.id}>
+                                <td className="c">{i + 1}</td>
+                                <td>{r.name?.trim() ? r.name : "-"}</td>
+                                <td>{r.position?.trim() ? r.position : "-"}</td>
+                                <td className="c numTab">{Number(r.qty) || 0}</td>
+                              </tr>
+                            ))}
+                            <tr>
+                              <td className="c" />
+                              <td colSpan={2}>
+                                <span className="font-semibold">รวม</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{contractorTotal}</span>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+
+                      {/* SUB CONTRACTORS */}
+                      <td className="cell">
+                        <div className="font-semibold text-center leading-tight">
+                          ผู้ปฏิบัติงานของผู้รับจ้าง
+                          <div className="text-xs font-semibold">(SUB CONTRACTORS)</div>
+                        </div>
+
+                        <table className="mini mt-2">
+                          <colgroup>
+                            <col style={{ width: "10%" }} />
+                            <col style={{ width: "36%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "18%" }} />
+                          </colgroup>
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>ตำแหน่ง</th>
+                              <th>ช่วงเช้า</th>
+                              <th>ช่วงบ่าย</th>
+                              <th>ล่วงเวลา</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {subPadded.map((r, i) => (
+                              <tr key={r.id}>
+                                <td className="c">{i + 1}</td>
+                                <td>{r.position?.trim() ? r.position : "-"}</td>
+                                <td className="c numTab">{Number(r.morning) || 0}</td>
+                                <td className="c numTab">{Number(r.afternoon) || 0}</td>
+                                <td className="c numTab">{Number(r.overtime) || 0}</td>
+                              </tr>
+                            ))}
+                            <tr>
+                              <td className="c" />
+                              <td>
+                                <span className="font-semibold">รวม</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{subTotals.morning}</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{subTotals.afternoon}</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{subTotals.overtime}</span>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+
+                      {/* MAJOR EQUIPMENT */}
+                      <td className="cell">
+                        <div className="font-semibold text-center leading-tight">
+                          เครื่องจักร
+                          <div className="text-xs font-semibold">(MAJOR EQUIPMENT)</div>
+                        </div>
+
+                        <table className="mini mt-2">
+                          <colgroup>
+                            <col style={{ width: "10%" }} />
+                            <col style={{ width: "36%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "18%" }} />
+                          </colgroup>
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>ชนิด</th>
+                              <th>ช่วงเช้า</th>
+                              <th>ช่วงบ่าย</th>
+                              <th>ล่วงเวลา</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {equipPadded.map((r, i) => (
+                              <tr key={r.id}>
+                                <td className="c">{i + 1}</td>
+                                <td>{r.type?.trim() ? r.type : "-"}</td>
+                                <td className="c numTab">{Number(r.morning) || 0}</td>
+                                <td className="c numTab">{Number(r.afternoon) || 0}</td>
+                                <td className="c numTab">{Number(r.overtime) || 0}</td>
+                              </tr>
+                            ))}
+                            <tr>
+                              <td className="c" />
+                              <td>
+                                <span className="font-semibold">รวม</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{equipTotals.morning}</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{equipTotals.afternoon}</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{equipTotals.overtime}</span>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* WORK PERFORMED TODAY */}
+              <div className="box mt-4">
+                <div className="subBar cell">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED TODAY)</div>
+                <table>
+                  <colgroup>
+                    <col style={{ width: "6%" }} />
+                    <col style={{ width: "30%" }} />
+                    <col style={{ width: "22%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "22%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th className="cellCenter">#</th>
+                      <th className="cellCenter">รายการ (DESCRIPTION)</th>
+                      <th className="cellCenter">บริเวณที่ทำงาน (LOCATIONS)</th>
+                      <th className="cellCenter">จำนวน</th>
+                      <th className="cellCenter">หน่วย</th>
+                      <th className="cellCenter">วัสดุนำเข้า (MATERIAL DELIVERED TO SITE)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.workPerformed.map((r, i) => (
+                      <tr key={r.id}>
+                        <td className="cellCenter">{i + 1}</td>
+                        <td className="cell">{r.desc}</td>
+                        <td className="cell">{r.location}</td>
+                        <td className="cellCenter">{r.qty}</td>
+                        <td className="cellCenter">{r.unit}</td>
+                        <td className="cell">{r.materialDelivered}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ✅ ISSUES: แสดงเฉพาะเมื่อมีปัญหา/รูปจริง */}
+              {hasIssues && (
+                <div className="box mt-4">
+                  <table>
+                    <colgroup>
+                      <col style={{ width: "45%" }} />
+                      <col style={{ width: "33%" }} />
+                      <col style={{ width: "22%" }} />
+                    </colgroup>
+
+                    <thead>
+                      <tr>
+                        <th className="cellCenter titleBar">ภาพของปัญหาและอุปสรรค</th>
+                        <th className="cellCenter titleBar">รายละเอียดของปัญหาและอุปสรรค</th>
+                        <th className="cellCenter titleBar">ความเห็นของผู้ควบคุมงาน</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {data.issues
+                        .filter((it) => (it.detail || "").trim() || (it.imageDataUrl || "").trim())
+                        .map((it, idx) => (
+                          <tr key={it.id}>
+                            <td className="cell issueRowMin">
+                              <div className="text-sm font-semibold mb-2">#{idx + 1}</div>
+                              {it.imageDataUrl ? (
+                                <img
+                                  src={it.imageDataUrl}
+                                  alt={`issue-img-${idx + 1}`}
+                                  className="issueImg border border-black/30 rounded"
+                                />
+                              ) : (
+                                <div className="text-sm opacity-60">-</div>
+                              )}
+                            </td>
+
+                            <td className="cell issueRowMin">
+                              <div className="text-sm font-semibold mb-2">#{idx + 1}</div>
+                              <div className="text-sm whitespace-pre-wrap">{it.detail || " "}</div>
+                            </td>
+
+                            <td className="cell issueRowMin">
+                              <div className="text-sm opacity-60"> </div>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* SAFETY NOTE */}
+              <div className="box mt-4">
+                <div className="subBar cell">บันทึกด้านความปลอดภัยในการทำงาน</div>
+                <div className="cell whitespace-pre-wrap min-h-[90px]">{data.safetyNote || " "}</div>
+              </div>
+
+              {/* Footer */}
+              <div className="box mt-4">
+                <div className="cell">
+                  <div className="font-semibold">รายชื่อผู้ควบคุมงาน (กำหนดโดย Generator)</div>
+                  <div className="mt-2 text-sm">{project.supervisors?.length ? project.supervisors.join(" , ") : "-"}</div>
+                </div>
               </div>
             </div>
-
-            <div className="col-span-3 border-t-2 border-l-2 border-black p-2">
-              <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{dailyNoText}</div>
-              <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{periodNoText}</div>
-              <div className="border-2 border-black bg-yellow-50 p-2 text-sm">{weekNoText}</div>
-            </div>
           </div>
         </div>
 
-        {/* PROJECT TEAM */}
-        <div className="box mt-4">
-          <div className="sectionBar cell">ส่วนโครงการ (PROJECT TEAM)</div>
-
-          <table>
-            <colgroup>
-              <col style={{ width: "33.33%" }} />
-              <col style={{ width: "33.33%" }} />
-              <col style={{ width: "33.33%" }} />
-            </colgroup>
-            <tbody>
-              <tr>
-                {/* CONTRACTORS */}
-                <td className="cell">
-                  <div className="font-semibold text-center leading-tight">
-                    บุคลากรประจำ/ผู้รับจ้าง
-                    <div className="text-xs font-semibold">(CONTRACTORS)</div>
-                  </div>
-
-                  <table className="mini mt-2">
-                    <colgroup>
-                      <col style={{ width: "12%" }} />
-                      <col style={{ width: "44%" }} />
-                      <col style={{ width: "24%" }} />
-                      <col style={{ width: "20%" }} />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>รายชื่อ</th>
-                        <th>ตำแหน่ง</th>
-                        <th>จำนวน</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {contractorsPadded.map((r, i) => (
-                        <tr key={r.id}>
-                          <td className="c">{i + 1}</td>
-                          <td>{r.name?.trim() ? r.name : "-"}</td>
-                          <td>{r.position?.trim() ? r.position : "-"}</td>
-                          <td className="c numTab">{Number(r.qty) || 0}</td>
-                        </tr>
-                      ))}
-                      <tr>
-                        <td className="c" />
-                        <td colSpan={2}>
-                          <span className="font-semibold">รวม</span>
-                        </td>
-                        <td className="c numTab">
-                          <span className="font-semibold">{contractorTotal}</span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </td>
-
-                {/* SUB CONTRACTORS */}
-                <td className="cell">
-                  <div className="font-semibold text-center leading-tight">
-                    ผู้ปฏิบัติงานของผู้รับจ้าง
-                    <div className="text-xs font-semibold">(SUB CONTRACTORS)</div>
-                  </div>
-
-                  <table className="mini mt-2">
-                    <colgroup>
-                      <col style={{ width: "10%" }} />
-                      <col style={{ width: "36%" }} />
-                      <col style={{ width: "18%" }} />
-                      <col style={{ width: "18%" }} />
-                      <col style={{ width: "18%" }} />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>ตำแหน่ง</th>
-                        <th>ช่วงเช้า</th>
-                        <th>ช่วงบ่าย</th>
-                        <th>ล่วงเวลา</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {subPadded.map((r, i) => (
-                        <tr key={r.id}>
-                          <td className="c">{i + 1}</td>
-                          <td>{r.position?.trim() ? r.position : "-"}</td>
-                          <td className="c numTab">{Number(r.morning) || 0}</td>
-                          <td className="c numTab">{Number(r.afternoon) || 0}</td>
-                          <td className="c numTab">{Number(r.overtime) || 0}</td>
-                        </tr>
-                      ))}
-                      <tr>
-                        <td className="c" />
-                        <td><span className="font-semibold">รวม</span></td>
-                        <td className="c numTab"><span className="font-semibold">{subTotals.morning}</span></td>
-                        <td className="c numTab"><span className="font-semibold">{subTotals.afternoon}</span></td>
-                        <td className="c numTab"><span className="font-semibold">{subTotals.overtime}</span></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </td>
-
-                {/* MAJOR EQUIPMENT */}
-                <td className="cell">
-                  <div className="font-semibold text-center leading-tight">
-                    เครื่องจักร
-                    <div className="text-xs font-semibold">(MAJOR EQUIPMENT)</div>
-                  </div>
-
-                  <table className="mini mt-2">
-                    <colgroup>
-                      <col style={{ width: "10%" }} />
-                      <col style={{ width: "36%" }} />
-                      <col style={{ width: "18%" }} />
-                      <col style={{ width: "18%" }} />
-                      <col style={{ width: "18%" }} />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>ชนิด</th>
-                        <th>ช่วงเช้า</th>
-                        <th>ช่วงบ่าย</th>
-                        <th>ล่วงเวลา</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {equipPadded.map((r, i) => (
-                        <tr key={r.id}>
-                          <td className="c">{i + 1}</td>
-                          <td>{r.type?.trim() ? r.type : "-"}</td>
-                          <td className="c numTab">{Number(r.morning) || 0}</td>
-                          <td className="c numTab">{Number(r.afternoon) || 0}</td>
-                          <td className="c numTab">{Number(r.overtime) || 0}</td>
-                        </tr>
-                      ))}
-                      <tr>
-                        <td className="c" />
-                        <td><span className="font-semibold">รวม</span></td>
-                        <td className="c numTab"><span className="font-semibold">{equipTotals.morning}</span></td>
-                        <td className="c numTab"><span className="font-semibold">{equipTotals.afternoon}</span></td>
-                        <td className="c numTab"><span className="font-semibold">{equipTotals.overtime}</span></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* WORK PERFORMED TODAY */}
-        <div className="box mt-4">
-          <div className="subBar cell">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED TODAY)</div>
-          <table>
-            <colgroup>
-              <col style={{ width: "6%" }} />
-              <col style={{ width: "30%" }} />
-              <col style={{ width: "22%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "22%" }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <th className="cellCenter">#</th>
-                <th className="cellCenter">รายการ (DESCRIPTION)</th>
-                <th className="cellCenter">บริเวณที่ทำงาน (LOCATIONS)</th>
-                <th className="cellCenter">จำนวน</th>
-                <th className="cellCenter">หน่วย</th>
-                <th className="cellCenter">วัสดุนำเข้า (MATERIAL DELIVERED TO SITE)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.workPerformed.map((r, i) => (
-                <tr key={r.id}>
-                  <td className="cellCenter">{i + 1}</td>
-                  <td className="cell">{r.desc}</td>
-                  <td className="cell">{r.location}</td>
-                  <td className="cellCenter">{r.qty}</td>
-                  <td className="cellCenter">{r.unit}</td>
-                  <td className="cell">{r.materialDelivered}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* ISSUES */}
-        <div className="box mt-4">
-          <table>
-            <colgroup>
-              <col style={{ width: "45%" }} />
-              <col style={{ width: "33%" }} />
-              <col style={{ width: "22%" }} />
-            </colgroup>
-
-            <thead>
-              <tr>
-                <th className="cellCenter titleBar">ภาพของปัญหาและอุปสรรค</th>
-                <th className="cellCenter titleBar">รายละเอียดของปัญหาและอุปสรรค</th>
-                <th className="cellCenter titleBar">ความเห็นของผู้ควบคุมงาน</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {issues.map((it, idx) => (
-                <tr key={it.id}>
-                  <td className="cell issueRowMin">
-                    <div className="text-sm font-semibold mb-2">#{idx + 1}</div>
-                    {it.imageDataUrl ? (
-                      <img
-                        src={it.imageDataUrl}
-                        alt={`issue-img-${idx + 1}`}
-                        className="issueImg border border-black/30 rounded"
-                      />
-                    ) : (
-                      <div className="text-sm opacity-60">-</div>
-                    )}
-                  </td>
-
-                  <td className="cell issueRowMin">
-                    <div className="text-sm font-semibold mb-2">#{idx + 1}</div>
-                    <div className="text-sm whitespace-pre-wrap">{it.detail || " "}</div>
-                  </td>
-
-                  <td className="cell issueRowMin">
-                    <div className="text-sm opacity-60"> </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* SAFETY NOTE */}
-        <div className="box mt-4">
-          <div className="subBar cell">บันทึกด้านความปลอดภัยในการทำงาน</div>
-          <div className="cell whitespace-pre-wrap min-h-[90px]">{data.safetyNote || " "}</div>
-        </div>
-
-        {/* Footer */}
-        <div className="box mt-4">
-          <div className="cell">
-            <div className="font-semibold">รายชื่อผู้ควบคุมงาน (กำหนดโดย Generator)</div>
-            <div className="mt-2 text-sm">
-              {project.supervisors?.length ? project.supervisors.join(" , ") : "-"}
-            </div>
-          </div>
-        </div>
+        {/* กันความสูงตกตอน scale < 1 */}
+        <div className="h-6" />
       </div>
     </div>
   );
