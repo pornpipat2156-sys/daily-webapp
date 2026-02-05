@@ -359,7 +359,7 @@ export default function PreviewPage() {
 
           {/* ✅ เปลี่ยนเป็น Forward ตามเงื่อนไข */}
           <button
-            className="rounded-lg bg-black px-4 py-2 text-white"
+            className="rounded-lg border px-3 py-2"
             onClick={() => {
               // ส่ง payload ให้แท็บถัดไปใช้
               sessionStorage.setItem("dailyReportPayload", JSON.stringify(data));
@@ -700,7 +700,7 @@ export default function PreviewPage() {
 
               {/* WORK PERFORMED TODAY */}
               <div className="box mt-4">
-                <div className="subBar cell">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED TODAY)</div>
+                <div className="subBar cell">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)</div>
                 <table>
                   <colgroup>
                     <col style={{ width: "6%" }} />
@@ -717,7 +717,7 @@ export default function PreviewPage() {
                       <th className="cellCenter">บริเวณที่ทำงาน (LOCATIONS)</th>
                       <th className="cellCenter">จำนวน</th>
                       <th className="cellCenter">หน่วย</th>
-                      <th className="cellCenter">วัสดุนำเข้า (MATERIAL DELIVERED TO SITE)</th>
+                      <th className="cellCenter">วัสดุนำเข้า (MATERIAL)</th>
                     </tr>
                   </thead>
                   <tbody>
