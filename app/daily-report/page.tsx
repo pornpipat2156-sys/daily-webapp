@@ -456,7 +456,7 @@ export default function DailyReportPage() {
       <div className="rounded-xl border bg-card p-4 mb-6">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium mb-1">ชื่อโครงการ (เลือกเท่านั้น)</label>
+            <label className="block text-sm font-medium mb-1">ชื่อโครงการ</label>
 
             <select
               className="w-full rounded-lg border px-4 py-3 bg-background hover:opacity-90 disabled:opacity-50"
@@ -477,11 +477,10 @@ export default function DailyReportPage() {
               )}
             </select>
 
-            <div className="text-xs opacity-60 mt-1">* รายชื่อโครงการมาจาก DB (ผ่าน /api/projects)</div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">วันที่ (รูปแบบ วัน/เดือน/ปี พ.ศ. เท่านั้น)</label>
+            <label className="block text-sm font-medium mb-1">วัน/เดือน/ปี พ.ศ.</label>
 
             {/* ✅ กล่องแสดงผลเป็น พ.ศ. แต่ให้เลือกจาก date picker ได้ */}
             <div className="relative">
@@ -531,7 +530,7 @@ export default function DailyReportPage() {
           {/* Contractors */}
           <div className="mb-5">
             <div className="flex items-center justify-between">
-              <div className="font-semibold">CONTRACTORS</div>
+              <div className="font-semibold">ผู้รับเหมา (CONTRACTORS)</div>
               <button
                 type="button"
                 className="rounded-lg border px-3 py-2 text-sm hover:opacity-90"
@@ -595,7 +594,7 @@ export default function DailyReportPage() {
           {/* Sub Contractors */}
           <div className="mb-5">
             <div className="flex items-center justify-between">
-              <div className="font-semibold">SUB CONTRACTORS</div>
+              <div className="font-semibold">ผู้รับเหมารายย่อย (SUB CONTRACTORS)</div>
               <button
                 type="button"
                 className="rounded-lg border px-3 py-2 text-sm hover:opacity-90"
@@ -675,7 +674,7 @@ export default function DailyReportPage() {
           {/* Major Equipment */}
           <div>
             <div className="flex items-center justify-between">
-              <div className="font-semibold">MAJOR EQUIPMENT</div>
+              <div className="font-semibold">เครื่องจักรหลัก (MAJOR EQUIPMENT)</div>
               <button
                 type="button"
                 className="rounded-lg border px-3 py-2 text-sm hover:opacity-90"
@@ -817,7 +816,9 @@ export default function DailyReportPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="text-xs opacity-70">วัสดุนำเข้า (MATERIAL DELIVERED TO SITE)</label>
+                  <label className="text-xs opacity-70">วัสดุนำเข้า 
+                    <span className="block">(MATERIAL DELIVERED TO SITE)</span>
+                  </label>
                   <input
                     className="w-full rounded-lg border px-3 py-2 bg-background"
                     value={r.materialDelivered}
@@ -945,7 +946,7 @@ export default function DailyReportPage() {
           disabled={!canSubmit}
           className="rounded-lg border px-4 py-2 hover:opacity-90 disabled:opacity-50"
         >
-          Submit → Preview / Print
+          Submit
         </button>
       </form>
     </div>
