@@ -41,9 +41,13 @@
 html,
 body {
   height: 100%;
+  width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+
+  /* สำคัญ: ห้าม hidden ไม่งั้น preview ที่ใช้ scale/transform จะโดนตัด */
+  overflow-x: visible;
 }
+
 
 body {
   background: var(--background);
@@ -91,4 +95,8 @@ body {
 }
 .border-foreground {
   border-color: var(--foreground);
+}
+
+.no-x-overflow {
+  overflow-x: hidden;
 }

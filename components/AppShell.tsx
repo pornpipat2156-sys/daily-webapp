@@ -142,9 +142,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         )}
 
         {/* ===== Main ===== */}
-        <main className="min-w-0 w-full">
+        <main className="no-x-overflow">
           {/* ทำให้เนื้อหากรอกข้อมูลเต็มความกว้างเสมอ */}
-          <div className="w-full">{children}</div>
+          <div className="no-x-overflow">{children}</div>
         </main>
       </div>
     </div>
