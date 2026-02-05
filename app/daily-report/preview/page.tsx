@@ -186,16 +186,26 @@ export default function PreviewPage() {
   // Responsive scale สำหรับ A4
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
+  const [scaledWidth, setScaledWidth] = useState(A4_WIDTH_PX);
 
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
 
     const ro = new ResizeObserver(() => {
-      const w = el.clientWidth;
-      const s = Math.min(1, w / A4_WIDTH_PX);
-      setScale(Number.isFinite(s) ? s : 1);
-    });
+  // ✅ ความกว้างจริงของพื้นที่แสดงผล (ตัด padding/scrollbar ออก)
+  const w = el.getBoundingClientRect().width;
+
+  // ✅ เผื่อขอบนิดนึง กันชนขอบจอมือถือ
+  const safeW = Math.max(0, w - 8);
+
+  const s = Math.min(1, safeW / A4_WIDTH_PX);
+  const ss = Number.isFinite(s) ? s : 1;
+
+  setScale(ss);
+  setScaledWidth(Math.round(A4_WIDTH_PX * ss));
+});
+
 
     ro.observe(el);
     return () => ro.disconnect();
@@ -373,7 +383,8 @@ export default function PreviewPage() {
 
         <style>{`
           /* ---------- Document look ---------- */
-          .a4Wrap { overflow-x: auto; }
+          .a4Wrap { overflow-x: hidden;
+                    overflow-y: visible; }
           .a4 {
             background: #fff;
             color: #111;
@@ -431,7 +442,8 @@ export default function PreviewPage() {
 
         {/* Responsive Scale Wrapper */}
         <div ref={wrapRef} className="a4Wrap">
-          <div style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}>
+          <div style={{ width: scaledWidth }} className="mx-auto">
+          <div style={{ width: A4_WIDTH_PX, transform: `scale(${scale})`, transformOrigin: "top left" }}>
             <div className="a4" id="printArea">
               {/* ===================== Header ===================== */}
               <div className="box">
@@ -796,6 +808,7 @@ export default function PreviewPage() {
                 </div>
               </div>
             </div>
+          </div>
           </div>
         </div>
 
