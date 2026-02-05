@@ -5,10 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const nav = [
-  { href: "/daily-report", label: "Daily report" },
-  { href: "/commentator", label: "Commentator" },
-  { href: "/summation", label: "Summation" },
-  { href: "/contact", label: "Contact" },
+  { href: "/daily-report", label: "รายงานประจำวัน" },
+  { href: "/commentator", label: "แสดงความคิดเห็น" },
+  { href: "/summation", label: "การตรวจสอบและการอนุมัติ" },
+  { href: "/contact", label: "ติดต่อ" },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
