@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
@@ -50,22 +50,19 @@ type DailyReportPayload = {
   safetyNote: string;
 };
 
-function formatDateBE(yyyyMmDd?: string) {
+function formatDateTH(yyyyMmDd?: string) {
   if (!yyyyMmDd) return "-";
   const parts = yyyyMmDd.split("-");
   if (parts.length !== 3) return yyyyMmDd;
-  const [yStr, mStr, dStr] = parts;
 
+  const [yStr, m, d] = parts;
   const y = Number(yStr);
-  const m = Number(mStr);
-  const d = Number(dStr);
+  if (!Number.isFinite(y)) return `${d}/${m}/${yStr}`;
 
-  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return `${dStr}/${mStr}/${yStr}`;
-  const be = y + 543;
-  const dd = String(d).padStart(2, "0");
-  const mm = String(m).padStart(2, "0");
-  return `${dd}/${mm}/${be}`;
+  const be = y + 543; // ✅ พ.ศ.
+  return `${d}/${m}/${be}`;
 }
+
 
 function hmToMin(hm: string) {
   const [h, m] = hm.split(":").map(Number);
@@ -170,7 +167,7 @@ function padArray<T>(arr: T[], targetLen: number, makeEmpty: (idx: number) => T)
   return out.slice(0, targetLen);
 }
 
-const A4_WIDTH_PX = 794; // 210mm @ 96dpi (ประมาณ)
+const A4_WIDTH_PX = 794; // ประมาณ 210mm @ 96dpi
 
 export default function PreviewPage() {
   const router = useRouter();
@@ -182,6 +179,24 @@ export default function PreviewPage() {
   const [wAfternoon, setWAfternoon] = useState<string>("-");
   const [wOvertime, setWOvertime] = useState<string>("-");
   const [wxLoading, setWxLoading] = useState(false);
+
+  // ✅ Responsive scale สำหรับ A4 (มือถือ/แท็บเล็ต/คอม)
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      const s = Math.min(1, w / A4_WIDTH_PX);
+      setScale(Number.isFinite(s) ? s : 1);
+    });
+
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const raw = sessionStorage.getItem("dailyReportPayload");
@@ -228,6 +243,7 @@ export default function PreviewPage() {
     };
   }, [data]);
 
+  // ✅ hasIssues จริง: ต้องมี detail หรือรูปอย่างใดอย่างหนึ่ง
   const hasIssues = useMemo(() => {
     const list = data?.issues || [];
     return list.some((x) => (x.detail || "").trim() || (x.imageDataUrl || "").trim());
@@ -284,7 +300,10 @@ export default function PreviewPage() {
           <div className="rounded-xl border bg-card p-4">
             <div className="font-semibold">ไม่พบข้อมูลสำหรับ Preview</div>
             <div className="text-sm opacity-70 mt-1">ให้กลับไปหน้า Daily report แล้วกด Submit ใหม่</div>
-            <button className="mt-3 rounded-lg border px-4 py-2" onClick={() => router.push("/daily-report")}>
+            <button
+              className="mt-3 rounded-lg bg-black px-4 py-2 text-white"
+              onClick={() => router.push("/daily-report")}
+            >
               กลับไปกรอกใหม่
             </button>
           </div>
@@ -293,10 +312,12 @@ export default function PreviewPage() {
     );
   }
 
+  // ✅ ใช้ค่าจาก DB ตรง ๆ
   const dailyNoText = project.dailyReportNo || "-";
   const periodNoText = project.periodNo || "-";
   const weekNoText = project.weekNo || "-";
 
+  // ✅ pad ตารางทีมให้สูงเท่ากัน (เหมือนเดิม)
   const maxRows = Math.max(
     data.contractors?.length || 0,
     data.subContractors?.length || 0,
@@ -327,8 +348,6 @@ export default function PreviewPage() {
     overtime: 0,
   }));
 
-  const issuesList = (data.issues || []).filter((it) => (it.detail || "").trim() || (it.imageDataUrl || "").trim());
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-[1200px] px-3 md:px-6 py-4">
@@ -338,9 +357,11 @@ export default function PreviewPage() {
             ← กลับไปแก้ไข
           </button>
 
+          {/* ✅ เปลี่ยนเป็น Forward ตามเงื่อนไข */}
           <button
             className="rounded-lg border px-3 py-2"
             onClick={() => {
+              // ส่ง payload ให้แท็บถัดไปใช้
               sessionStorage.setItem("dailyReportPayload", JSON.stringify(data));
               router.push(hasIssues ? "/commentator" : "/summation");
             }}
@@ -350,91 +371,54 @@ export default function PreviewPage() {
         </div>
 
         <style>{`
-          /* ===== สำคัญ: ห้ามใช้ transform/zoom scale (ทำให้ iOS crop) ===== */
-          .previewStage{
-            width: 100%;
-            display: flex;
-            justify-content: center;
-          }
-
-          /* ✅ ให้ “A4” ย่อด้วยความกว้างจริงของ container => ไม่ crop ทุก platform */
-          .previewPaper{
-            width: min(${A4_WIDTH_PX}px, calc(100vw - 24px));
-            /* กันชนขอบตอนอยู่ใน AppShell */
-            max-width: 100%;
-          }
-
-          .a4{
-            width: 100%;
-            box-sizing: border-box;
-            background: #fff;
-            color: #111;
-            border: 2px solid #111;
-            border-radius: 14px;
-            padding: 14px;
-            font-size: 13px;
-            line-height: 1.2;
-          }
-
+          /* ---------- Screen layout ---------- */
+          .a4Wrap { overflow-x: auto; }
+          .a4 { background: white; color: #111; border: 2px solid #111; border-radius: 14px; padding: 14px; }
           .box { border: 2px solid #111; border-radius: 12px; overflow: hidden; }
           .cell { border: 1.5px solid #111; padding: 6px 8px; vertical-align: top; }
           .cellCenter { border: 1.5px solid #111; padding: 6px 8px; text-align: center; vertical-align: middle; }
-
           .titleBar { background: #eadcf6; font-weight: 700; }
           .sectionBar { background: #dff2df; font-weight: 700; text-align: center; }
           .subBar { background: #f4e8d4; font-weight: 700; text-align: center; }
-
           table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-          th, td { overflow-wrap: anywhere; word-break: break-word; }
-
-          .hMain { font-weight: 800; font-size: 18px; letter-spacing: 0.2px; }
-          .hSub  { font-weight: 600; font-size: 13px; }
+          img { max-width: 100%; height: auto; }
+          th, td { overflow-wrap: anywhere; word-break: break-word; line-height: 1.15; }
 
           .mini th, .mini td { border: 1.5px solid #111; padding: 4px 6px; font-size: 12px; line-height: 1.1; }
           .mini th { text-align: center; vertical-align: middle; font-weight: 700; }
           .mini td { vertical-align: top; }
           .mini .c { text-align: center; vertical-align: middle; }
-
           .numTab { font-variant-numeric: tabular-nums; }
           .nowrap { white-space: nowrap; }
 
           .issueImg { width: 100%; max-height: 240px; object-fit: contain; display: block; }
           .issueRowMin { min-height: 260px; }
 
-          /* ---------- Print: พิมพ์เป็น A4 จริง ---------- */
+          /* ---------- Print: print only the form (A4) ---------- */
           @media print {
-            /* ซ่อน UI นอกกระดาษ */
+            body { background: white; }
             .print\\:hidden { display: none !important; }
 
-            body { background: white !important; }
+            /* print only #printArea */
             body * { visibility: hidden !important; }
             #printArea, #printArea * { visibility: visible !important; }
-
-            /* วางกระดาษมุมซ้ายบน */
-            #printArea{
+            #printArea {
               position: absolute;
               left: 0;
               top: 0;
-              width: 210mm !important;
-              margin: 0 !important;
+              width: 210mm;
             }
 
-            .a4{
-              border: none;
-              border-radius: 0;
-              padding: 0;
-              width: 210mm !important;
-            }
-
+            .a4 { border: none; border-radius: 0; padding: 0; }
             @page { size: A4; margin: 10mm; }
           }
         `}</style>
 
-        {/* ✅ จอทุก platform: ไม่ scale, ไม่ crop */}
-        <div className="previewStage">
-          <div className="previewPaper" id="printArea">
-            <div className="a4">
-              {/* ===================== Header ===================== */}
+        {/* ✅ Responsive Scale Wrapper */}
+        <div ref={wrapRef} className="a4Wrap">
+          <div style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}>
+            <div className="a4" id="printArea">
+              {/* Header */}
               <div className="box">
                 <table>
                   <colgroup>
@@ -455,17 +439,16 @@ export default function PreviewPage() {
                           />
                         </div>
                       </td>
-
                       <td className="cellCenter titleBar">
-                        <div className="hMain">รายงานการควบคุมงานก่อสร้างประจำวัน (DAILY CONSTRUCTION REPORT)</div>
-                        <div className="mt-1 hSub">ประจำวันที่ {formatDateBE(data.date)}</div>
-                        <div className="mt-1 hSub">โครงการ : {project.projectName}</div>
+                        <div className="text-lg">รายงานการควบคุมงานก่อสร้างประจำวัน (DAILY CONSTRUCTION REPORT)</div>
+                        <div className="mt-1 font-normal">ประจำวันที่ {formatDateTH(data.date)}</div>
+                        <div className="mt-1 font-normal">โครงการ : {project.projectName}</div>
                       </td>
                     </tr>
                   </tbody>
                 </table>
 
-                {/* รายละเอียดโครงการ */}
+                {/* Generator header */}
                 <table>
                   <colgroup>
                     <col style={{ width: "18%" }} />
@@ -488,13 +471,13 @@ export default function PreviewPage() {
                     </tr>
                     <tr>
                       <td className="cell">เริ่มสัญญา</td>
-                      <td className="cell">{formatDateBE(project.contractStart)}</td>
+                      <td className="cell">{formatDateTH(project.contractStart)}</td>
                       <td className="cell">ผู้รับจ้าง</td>
                       <td className="cell">{project.contractorName}</td>
                     </tr>
                     <tr>
                       <td className="cell">สิ้นสุดสัญญา</td>
-                      <td className="cell">{formatDateBE(project.contractEnd)}</td>
+                      <td className="cell">{formatDateTH(project.contractEnd)}</td>
                       <td className="cell">จัดจ้างโดยวิธี</td>
                       <td className="cell">{project.procurementMethod}</td>
                     </tr>
@@ -507,16 +490,16 @@ export default function PreviewPage() {
                   </tbody>
                 </table>
 
-                {/* ช่วงเวลาทำงาน + กล่องเลขรายงาน */}
+                {/* ช่วงเวลาทำงาน + กล่องรายงาน */}
                 <div className="grid grid-cols-12">
                   <div className="col-span-9 border-t-2 border-black p-2">
                     <div className="border-2 border-black bg-yellow-50 p-2 text-sm">
                       <div className="font-semibold mb-1">ช่วงเวลาทำงาน</div>
 
                       <div className="grid grid-cols-3 gap-x-10 numTab">
-                        <div className="nowrap">ช่วงเช้า 08:30น.-12:00น.</div>
-                        <div className="nowrap text-center">ช่วงบ่าย 13:00น.-16:30น.</div>
-                        <div className="nowrap text-right">ล่วงเวลา 16:30น. ขึ้นไป</div>
+                        <div className="whitespace-nowrap">ช่วงเช้า 08:30น.-12:00น.</div>
+                        <div className="whitespace-nowrap text-center">ช่วงบ่าย 13:00น.-16:30น.</div>
+                        <div className="whitespace-nowrap text-right">ล่วงเวลา 16:30น. ขึ้นไป</div>
                       </div>
 
                       <div className="mt-2 font-semibold">สภาพอากาศ (WEATHER)</div>
@@ -527,14 +510,14 @@ export default function PreviewPage() {
                         <>
                           <div className="numTab">
                             <span className="nowrap">อุณหภูมิ สูงสุด: {tempMax ?? "-"}°C</span>
-                            <span className="mx-6"> </span>
+                            <span className="mx-8"> </span>
                             <span className="nowrap">อุณหภูมิ ต่ำสุด: {tempMin ?? "-"}°C</span>
                           </div>
 
                           <div className="grid grid-cols-3 gap-x-10 numTab mt-1">
-                            <div className="nowrap">เช้า: {wMorning}</div>
-                            <div className="nowrap text-center">บ่าย: {wAfternoon}</div>
-                            <div className="nowrap text-right">ล่วงเวลา: {wOvertime}</div>
+                            <div className="whitespace-nowrap">เช้า: {wMorning}</div>
+                            <div className="whitespace-nowrap text-center">ช่วงบ่าย: {wAfternoon}</div>
+                            <div className="whitespace-nowrap text-right">ล่วงเวลา: {wOvertime}</div>
                           </div>
                         </>
                       )}
@@ -549,7 +532,7 @@ export default function PreviewPage() {
                 </div>
               </div>
 
-              {/* ===================== PROJECT TEAM ===================== */}
+              {/* PROJECT TEAM */}
               <div className="box mt-4">
                 <div className="sectionBar cell">ส่วนโครงการ (PROJECT TEAM)</div>
 
@@ -564,7 +547,7 @@ export default function PreviewPage() {
                       {/* CONTRACTORS */}
                       <td className="cell">
                         <div className="font-semibold text-center leading-tight">
-                          ผู้รับเหมา
+                          บุคลากรประจำ/ผู้รับจ้าง
                           <div className="text-xs font-semibold">(CONTRACTORS)</div>
                         </div>
 
@@ -608,7 +591,7 @@ export default function PreviewPage() {
                       {/* SUB CONTRACTORS */}
                       <td className="cell">
                         <div className="font-semibold text-center leading-tight">
-                          ผู้รับเหมารายย่อย
+                          ผู้ปฏิบัติงานของผู้รับจ้าง
                           <div className="text-xs font-semibold">(SUB CONTRACTORS)</div>
                         </div>
 
@@ -624,8 +607,8 @@ export default function PreviewPage() {
                             <tr>
                               <th>#</th>
                               <th>ตำแหน่ง</th>
-                              <th>เช้า</th>
-                              <th>บ่าย</th>
+                              <th>ช่วงเช้า</th>
+                              <th>ช่วงบ่าย</th>
                               <th>ล่วงเวลา</th>
                             </tr>
                           </thead>
@@ -661,7 +644,7 @@ export default function PreviewPage() {
                       {/* MAJOR EQUIPMENT */}
                       <td className="cell">
                         <div className="font-semibold text-center leading-tight">
-                          เครื่องจักรหลัก
+                          เครื่องจักร
                           <div className="text-xs font-semibold">(MAJOR EQUIPMENT)</div>
                         </div>
 
@@ -677,8 +660,8 @@ export default function PreviewPage() {
                             <tr>
                               <th>#</th>
                               <th>ชนิด</th>
-                              <th>เช้า</th>
-                              <th>บ่าย</th>
+                              <th>ช่วงเช้า</th>
+                              <th>ช่วงบ่าย</th>
                               <th>ล่วงเวลา</th>
                             </tr>
                           </thead>
@@ -715,10 +698,9 @@ export default function PreviewPage() {
                 </table>
               </div>
 
-              {/* ===================== WORK PERFORMED ===================== */}
+              {/* WORK PERFORMED TODAY */}
               <div className="box mt-4">
                 <div className="subBar cell">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)</div>
-
                 <table>
                   <colgroup>
                     <col style={{ width: "6%" }} />
@@ -732,7 +714,7 @@ export default function PreviewPage() {
                     <tr>
                       <th className="cellCenter">#</th>
                       <th className="cellCenter">รายการ (DESCRIPTION)</th>
-                      <th className="cellCenter">บริเวณ (LOCATIONS)</th>
+                      <th className="cellCenter">บริเวณที่ทำงาน (LOCATIONS)</th>
                       <th className="cellCenter">จำนวน</th>
                       <th className="cellCenter">หน่วย</th>
                       <th className="cellCenter">วัสดุนำเข้า (MATERIAL)</th>
@@ -753,7 +735,7 @@ export default function PreviewPage() {
                 </table>
               </div>
 
-              {/* ===================== ISSUES (only if exists) ===================== */}
+              {/* ✅ ISSUES: แสดงเฉพาะเมื่อมีปัญหา/รูปจริง */}
               {hasIssues && (
                 <div className="box mt-4">
                   <table>
@@ -765,62 +747,66 @@ export default function PreviewPage() {
 
                     <thead>
                       <tr>
-                        <th className="cellCenter titleBar">ภาพปัญหาและอุปสรรค</th>
-                        <th className="cellCenter titleBar">รายละเอียด</th>
+                        <th className="cellCenter titleBar">ภาพของปัญหาและอุปสรรค</th>
+                        <th className="cellCenter titleBar">รายละเอียดของปัญหาและอุปสรรค</th>
                         <th className="cellCenter titleBar">ความเห็นของผู้ควบคุมงาน</th>
                       </tr>
                     </thead>
 
                     <tbody>
-                      {issuesList.map((it, idx) => (
-                        <tr key={it.id}>
-                          <td className="cell issueRowMin">
-                            <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
-                            {it.imageDataUrl ? (
-                              <img
-                                src={it.imageDataUrl}
-                                alt={`issue-img-${idx + 1}`}
-                                className="issueImg border border-black/30 rounded"
-                              />
-                            ) : (
-                              <div className="text-sm opacity-60">-</div>
-                            )}
-                          </td>
+                      {data.issues
+                        .filter((it) => (it.detail || "").trim() || (it.imageDataUrl || "").trim())
+                        .map((it, idx) => (
+                          <tr key={it.id}>
+                            <td className="cell issueRowMin">
+                              <div className="text-sm font-semibold mb-2">#{idx + 1}</div>
+                              {it.imageDataUrl ? (
+                                <img
+                                  src={it.imageDataUrl}
+                                  alt={`issue-img-${idx + 1}`}
+                                  className="issueImg border border-black/30 rounded"
+                                />
+                              ) : (
+                                <div className="text-sm opacity-60">-</div>
+                              )}
+                            </td>
 
-                          <td className="cell issueRowMin">
-                            <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
-                            <div className="text-sm whitespace-pre-wrap">{it.detail || " "}</div>
-                          </td>
+                            <td className="cell issueRowMin">
+                              <div className="text-sm font-semibold mb-2">#{idx + 1}</div>
+                              <div className="text-sm whitespace-pre-wrap">{it.detail || " "}</div>
+                            </td>
 
-                          <td className="cell issueRowMin">
-                            <div className="text-sm opacity-60"> </div>
-                          </td>
-                        </tr>
-                      ))}
+                            <td className="cell issueRowMin">
+                              <div className="text-sm opacity-60"> </div>
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </div>
               )}
 
-              {/* ===================== SAFETY ===================== */}
+              {/* SAFETY NOTE */}
               <div className="box mt-4">
                 <div className="subBar cell">บันทึกด้านความปลอดภัยในการทำงาน</div>
                 <div className="cell whitespace-pre-wrap min-h-[90px]">{data.safetyNote || " "}</div>
               </div>
 
-              {/* ===================== SUPERVISORS ===================== */}
+              {/* Footer */}
               <div className="box mt-4">
                 <div className="cell">
                   <div className="font-semibold">รายชื่อผู้ควบคุมงาน (กำหนดโดย Generator)</div>
-                  <div className="mt-2">{project.supervisors?.length ? project.supervisors.join(" , ") : "-"}</div>
+                  <div className="mt-2 text-sm">{project.supervisors?.length ? project.supervisors.join(" , ") : "-"}</div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
+        {/* กันความสูงตกตอน scale < 1 */}
         <div className="h-6" />
       </div>
     </div>
   );
 }
+
