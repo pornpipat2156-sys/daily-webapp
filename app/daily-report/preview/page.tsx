@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 type ProjectMeta = {
   id: string;
@@ -53,9 +54,15 @@ function formatDateTH(yyyyMmDd?: string) {
   if (!yyyyMmDd) return "-";
   const parts = yyyyMmDd.split("-");
   if (parts.length !== 3) return yyyyMmDd;
-  const [y, m, d] = parts;
-  return `${d}/${m}/${y}`;
+
+  const [yStr, m, d] = parts;
+  const y = Number(yStr);
+  if (!Number.isFinite(y)) return `${d}/${m}/${yStr}`;
+
+  const be = y + 543; // ✅ พ.ศ.
+  return `${d}/${m}/${be}`;
 }
+
 
 function hmToMin(hm: string) {
   const [h, m] = hm.split(":").map(Number);
@@ -359,7 +366,7 @@ export default function PreviewPage() {
               router.push(hasIssues ? "/commentator" : "/summation");
             }}
           >
-            Forward To Comment
+            ส่ง
           </button>
         </div>
 
@@ -421,8 +428,15 @@ export default function PreviewPage() {
                   <tbody>
                     <tr>
                       <td className="cellCenter">
-                        <div className="mx-auto w-[110px] h-[110px] rounded-full border-2 border-black flex items-center justify-center">
-                          LOGO
+                        <div className="mx-auto w-[110px] h-[110px] rounded-full border-2 border-black overflow-hidden flex items-center justify-center bg-white">
+                          <Image
+                            src="/logo.png"
+                            alt="Company Logo"
+                            width={110}
+                            height={110}
+                            className="w-full h-full object-contain"
+                            priority
+                          />
                         </div>
                       </td>
                       <td className="cellCenter titleBar">

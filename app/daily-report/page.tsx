@@ -944,7 +944,7 @@ export default function DailyReportPage() {
           disabled={!canSubmit}
           className="rounded-lg border px-4 py-2 hover:opacity-90 disabled:opacity-50"
         >
-          Submit
+          ยืนยัน
         </button>
       </form>
     </div>
