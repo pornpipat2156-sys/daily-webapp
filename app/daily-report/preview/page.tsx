@@ -183,33 +183,27 @@ export default function PreviewPage() {
   const [wOvertime, setWOvertime] = useState<string>("-");
   const [wxLoading, setWxLoading] = useState(false);
 
-  // ✅ iPhone-safe scale (ใช้ transform scale + outer width = scaled width)
+  // ✅ iOS Fix: scale + "layout width" ต้องหดตามจริง ไม่งั้นโดน overflow-x hidden ตัดครึ่ง
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
+  const [scaledWidth, setScaledWidth] = useState(A4_WIDTH_PX);
 
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
 
-    const calc = () => {
+    const ro = new ResizeObserver(() => {
       const w = el.getBoundingClientRect().width;
-      // safe padding กันชิดขอบ + กัน iOS rounding
-      const safeW = Math.max(0, w - 16);
+      const safeW = Math.max(0, w - 16); // กันชิดขอบ
       const s = Math.min(1, safeW / A4_WIDTH_PX);
-      // กันสั่นจาก decimal ยิบย่อยบน iOS
-      const sRounded = Math.floor(s * 1000) / 1000;
-      setScale(Number.isFinite(sRounded) ? sRounded : 1);
-    };
 
-    calc();
-    const ro = new ResizeObserver(calc);
+      const fixed = Number.isFinite(s) && s > 0 ? s : 1;
+      setScale(fixed);
+      setScaledWidth(Math.ceil(A4_WIDTH_PX * fixed)); // ✅ ทำให้ layout width หดจริง
+    });
+
     ro.observe(el);
-
-    window.addEventListener("orientationchange", calc);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("orientationchange", calc);
-    };
+    return () => ro.disconnect();
   }, []);
 
   useEffect(() => {
@@ -358,9 +352,6 @@ export default function PreviewPage() {
 
   const issuesList = (data.issues || []).filter((it) => (it.detail || "").trim() || (it.imageDataUrl || "").trim());
 
-  // ✅ สำคัญ: outer width ต้องเท่ากับ scaled width ไม่งั้น iPhone จะ crop
-  const scaledWidth = Math.ceil(A4_WIDTH_PX * scale);
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-[1200px] px-3 md:px-6 py-4">
@@ -382,29 +373,25 @@ export default function PreviewPage() {
         </div>
 
         <style>{`
-          /* ---------- Wrapper (ห้าม hidden ไม่งั้นโดนตัด) ---------- */
-          .a4Wrap {
+          /* ---------- Document look ---------- */
+          .a4Wrap{
             width: 100%;
-            overflow-x: auto;
-            overflow-y: visible;
-            -webkit-overflow-scrolling: touch;
-            padding-bottom: 6px;
+            display: flex;
+            justify-content: center;
           }
 
-          /* ✅ Outer box: ต้องกว้างตามที่ scale แล้ว เพื่อไม่ให้ crop */
-          .a4Outer {
-            margin: 0 auto;
+          /* ✅ ตัวนี้สำคัญ: ทำให้ "layout width" หดตาม scale => iOS ไม่ตัดครึ่ง */
+          .a4Outer{
+            width: var(--scaledW);
           }
 
-          /* Inner: A4 จริง + scale */
-          .a4Scaler {
+          .a4Zoom{
             width: ${A4_WIDTH_PX}px;
             transform-origin: top left;
             will-change: transform;
-            transform: translateZ(0);
           }
 
-          .a4 {
+          .a4{
             background: #fff;
             color: #111;
             border: 2px solid #111;
@@ -439,7 +426,7 @@ export default function PreviewPage() {
           .issueImg { width: 100%; max-height: 240px; object-fit: contain; display: block; }
           .issueRowMin { min-height: 260px; }
 
-          /* ---------- Print ---------- */
+          /* ---------- Print: print only the form (A4) ---------- */
           @media print {
             body { background: white; }
             .print\\:hidden { display: none !important; }
@@ -453,19 +440,19 @@ export default function PreviewPage() {
               width: 210mm;
             }
 
-            /* ✅ ห้ามย่อใน print */
-            .a4Wrap { overflow: visible !important; }
-            .a4Outer { width: 210mm !important; }
-            .a4Scaler { transform: none !important; width: 210mm !important; }
+            .a4Wrap{ display:block; }
+            .a4Outer{ width: 210mm !important; }
+            .a4Zoom{ width: 210mm !important; transform: none !important; }
 
             .a4 { border: none; border-radius: 0; padding: 0; }
             @page { size: A4; margin: 10mm; }
           }
         `}</style>
 
+        {/* ✅ Responsive แบบไม่โดน iOS ตัดครึ่ง */}
         <div ref={wrapRef} className="a4Wrap">
-          <div className="a4Outer" style={{ width: scaledWidth }}>
-            <div className="a4Scaler" style={{ transform: `scale(${scale})` }}>
+          <div className="a4Outer" style={{ ["--scaledW" as any]: `${scaledWidth}px` }}>
+            <div className="a4Zoom" style={{ transform: `scale(${scale})` }}>
               <div className="a4" id="printArea">
                 {/* ===================== Header ===================== */}
                 <div className="box">
