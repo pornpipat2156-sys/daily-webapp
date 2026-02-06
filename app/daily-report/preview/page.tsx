@@ -1,6 +1,7 @@
+// app/daily-report/preview/page.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
@@ -172,6 +173,14 @@ function padArray<T>(arr: T[], targetLen: number, makeEmpty: (idx: number) => T)
 
 const A4_WIDTH_PX = 794; // ~210mm @96dpi
 
+function computeScaleFromWidth(containerWidth: number) {
+  const safeW = Math.max(0, containerWidth - 16); // กันชิดขอบ
+  const s = Math.min(1, safeW / A4_WIDTH_PX);
+  const ss = Number.isFinite(s) ? s : 1;
+  const scaledW = Math.max(1, Math.floor(A4_WIDTH_PX * ss));
+  return { ss, scaledW };
+}
+
 export default function PreviewPage() {
   const router = useRouter();
   const [data, setData] = useState<DailyReportPayload | null>(null);
@@ -183,30 +192,47 @@ export default function PreviewPage() {
   const [wOvertime, setWOvertime] = useState<string>("-");
   const [wxLoading, setWxLoading] = useState(false);
 
-  // ✅ Scale ที่ “ไม่ตัดครึ่ง” ทุก platform:
-  // ทำ transform: scale() แต่ wrapper ต้องมี width = A4_WIDTH_PX * scale เพื่อจองพื้นที่จริง
+  // ✅ สำคัญ: ตั้งค่าเริ่มต้นจากหน้าจอจริง (ลดอาการ iPhone ต้อง pinch zoom out เอง)
+  const init = useMemo(() => {
+    if (typeof window === "undefined") return { ss: 1, scaledW: A4_WIDTH_PX };
+    const w = window.innerWidth || A4_WIDTH_PX;
+    return computeScaleFromWidth(w);
+  }, []);
+
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState(1);
-  const [scaledWidth, setScaledWidth] = useState(A4_WIDTH_PX);
+  const [scale, setScale] = useState(init.ss);
+  const [scaledWidth, setScaledWidth] = useState(init.scaledW);
 
-  useEffect(() => {
+  // ✅ ใช้ useLayoutEffect เพื่อให้ “คำนวณสเกลก่อนวาด” (กัน flash ใหญ่เกินจอใน iOS)
+  useLayoutEffect(() => {
     const el = wrapRef.current;
-    if (!el) return;
 
-    const update = () => {
-      const w = el.getBoundingClientRect().width;
-      const safeW = Math.max(0, w - 16); // กันชิดขอบ
-      const s = Math.min(1, safeW / A4_WIDTH_PX);
-      const ss = Number.isFinite(s) ? s : 1;
+    const updateFromEl = () => {
+      const w = el?.getBoundingClientRect().width ?? window.innerWidth ?? A4_WIDTH_PX;
+      const { ss, scaledW } = computeScaleFromWidth(w);
       setScale(ss);
-      setScaledWidth(Math.max(1, Math.floor(A4_WIDTH_PX * ss)));
+      setScaledWidth(scaledW);
     };
 
-    update();
+    updateFromEl();
 
-    const ro = new ResizeObserver(() => update());
-    ro.observe(el);
-    return () => ro.disconnect();
+    // ResizeObserver (ปกติ)
+    let ro: ResizeObserver | null = null;
+    if (el && typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => updateFromEl());
+      ro.observe(el);
+    }
+
+    // ✅ Fallback สำหรับ iOS บางเคส
+    const onResize = () => updateFromEl();
+    window.addEventListener("resize", onResize, { passive: true });
+    window.addEventListener("orientationchange", onResize, { passive: true });
+
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+    };
   }, []);
 
   useEffect(() => {
@@ -400,7 +426,6 @@ export default function PreviewPage() {
           .subBar { background: #f4e8d4; font-weight: 700; text-align: center; }
 
           table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-          /* สำคัญ: ห้ามแตกเป็นตัวอักษรแนวตั้ง */
           th, td { overflow-wrap: break-word; word-break: normal; }
 
           .hMain { font-weight: 800; font-size: 18px; letter-spacing: 0.2px; }
@@ -417,14 +442,13 @@ export default function PreviewPage() {
           .issueImg { width: 100%; max-height: 240px; object-fit: contain; display: block; }
           .issueRowMin { min-height: 260px; }
 
-          /* ✅ Mobile only: ลด font/padding เพื่อไม่ให้แคบจนเรียงแนวตั้ง (Desktop/Notebook ไม่เปลี่ยน) */
+          /* ✅ Mobile only */
           @media (max-width: 640px) {
             .a4 { font-size: 11px; padding: 10px; }
             .hMain { font-size: 15px; }
             .hSub { font-size: 11px; }
             .cell, .cellCenter { padding: 5px 6px; }
             .mini th, .mini td { font-size: 10px; padding: 3px 4px; }
-            /* เวลาทำงาน/อากาศ ให้ยอมตัดบรรทัด (กันทับกัน) */
             .nowrap { white-space: normal; }
           }
 
