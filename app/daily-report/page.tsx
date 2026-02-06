@@ -98,6 +98,59 @@ async function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
+/** ✅ (แก้ปัญหามือถือ) บีบอัด/ย่อรูปก่อนแปลงเป็น dataURL เพื่อลดขนาด sessionStorage */
+async function compressImageToDataUrl(
+  file: File,
+  opts?: { maxSize?: number; quality?: number }
+): Promise<string> {
+  const maxSize = opts?.maxSize ?? 1280; // px
+  const quality = opts?.quality ?? 0.75; // 0..1
+
+  // ถ้าไม่ใช่รูปภาพ ให้ใช้วิธีเดิม
+  if (!file.type.startsWith("image/")) return fileToDataUrl(file);
+
+  // อ่านเป็น data url ก่อน
+  const srcDataUrl = await fileToDataUrl(file);
+
+  // สร้าง image เพื่อวาดลง canvas
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = reject;
+    im.src = srcDataUrl;
+  });
+
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  if (!w || !h) return srcDataUrl;
+
+  // คำนวณขนาดใหม่ (รักษาสัดส่วน)
+  const scale = Math.min(1, maxSize / Math.max(w, h));
+  const nw = Math.max(1, Math.round(w * scale));
+  const nh = Math.max(1, Math.round(h * scale));
+
+  // ถ้ารูปเล็กอยู่แล้ว ก็ส่งกลับเดิม (กันเสียคุณภาพเกินจำเป็น)
+  if (scale >= 1) return srcDataUrl;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = nw;
+  canvas.height = nh;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return srcDataUrl;
+
+  ctx.drawImage(img, 0, 0, nw, nh);
+
+  // แปลงเป็น JPEG เพื่อลดขนาด (กัน png ใหญ่)
+  try {
+    const out = canvas.toDataURL("image/jpeg", quality);
+    return out || srcDataUrl;
+  } catch {
+    // Safari บางเคสอาจมีปัญหา ให้ fallback
+    return srcDataUrl;
+  }
+}
+
 /** อุณหภูมิรายวัน (กันพังไว้ก่อน) */
 async function fetchDailyTemp(yyyyMmDd: string) {
   const lat = 18.7883;
@@ -350,7 +403,9 @@ export default function DailyReportPage() {
       updateRow(setIssues, id, { detail: "" } as any);
       return;
     }
-    const dataUrl = await fileToDataUrl(file);
+
+    // ✅ (แก้ปัญหามือถือ) บีบอัดก่อนเพื่อลดโอกาส sessionStorage เต็ม
+    const dataUrl = await compressImageToDataUrl(file, { maxSize: 1280, quality: 0.75 });
     updateRow(setIssues, id, { imageDataUrl: dataUrl } as any);
   }
 
@@ -376,7 +431,10 @@ export default function DailyReportPage() {
 
   // ✅ options: เอาจาก meta ของโครงการที่เลือกอยู่ ถ้าไม่มีให้มี “อื่นๆ” อย่างเดียว (SelectOrOther จะใส่ให้เอง)
   const contractorNameOptions = useMemo(
-    () => (project?.contractorNameOptions && project.contractorNameOptions.length ? project.contractorNameOptions : []),
+    () =>
+      project?.contractorNameOptions && project.contractorNameOptions.length
+        ? project.contractorNameOptions
+        : [],
     [project]
   );
   const contractorPositionOptions = useMemo(
@@ -444,7 +502,21 @@ export default function DailyReportPage() {
       safetyNote,
     };
 
-    sessionStorage.setItem("dailyReportPayload", JSON.stringify(payload));
+    // ✅ (แก้ปัญหามือถือ) กัน sessionStorage เต็ม/throw แล้วกดเหมือนไม่ได้
+    try {
+      sessionStorage.setItem("dailyReportPayload", JSON.stringify(payload));
+    } catch (err) {
+      // มักเกิดบนมือถือ/iOS เมื่อรูปเยอะหรือไฟล์ใหญ่
+      alert(
+        "❌ ไม่สามารถบันทึกข้อมูลเพื่อไปหน้า Preview ได้ (ไฟล์รูป/ข้อมูลมีขนาดใหญ่เกินไปบนมือถือ)\n\n" +
+          "แนะนำ:\n" +
+          "- ลดจำนวนรูป หรือเลือกรูปที่ขนาดเล็กลง\n" +
+          "- ถ่าย/เลือกภาพความละเอียดต่ำลง\n" +
+          "- ลองลบรูปบางรายการแล้วกดยืนยันใหม่"
+      );
+      return;
+    }
+
     router.push("/daily-report/preview");
   }
 
@@ -476,7 +548,6 @@ export default function DailyReportPage() {
                 ))
               )}
             </select>
-
           </div>
 
           <div>
@@ -484,11 +555,7 @@ export default function DailyReportPage() {
 
             {/* ✅ กล่องแสดงผลเป็น พ.ศ. แต่ให้เลือกจาก date picker ได้ */}
             <div className="relative">
-              <input
-                className="w-full rounded-lg border px-4 py-3 bg-background text-lg"
-                value={dateBE}
-                readOnly
-              />
+              <input className="w-full rounded-lg border px-4 py-3 bg-background text-lg" value={dateBE} readOnly />
               <input
                 type="date"
                 className="absolute inset-0 opacity-0 cursor-pointer"
@@ -567,10 +634,7 @@ export default function DailyReportPage() {
 
                   <div className="md:col-span-2">
                     <label className="text-xs opacity-70">จำนวน</label>
-                    <QtySelect
-                      value={r.qty}
-                      onChange={(n) => updateRow(setContractors, r.id, { qty: n } as any)}
-                    />
+                    <QtySelect value={r.qty} onChange={(n) => updateRow(setContractors, r.id, { qty: n } as any)} />
                   </div>
 
                   <div className="md:col-span-1">
@@ -629,10 +693,7 @@ export default function DailyReportPage() {
 
                   <div className="md:col-span-2">
                     <label className="text-xs opacity-70">ช่วงเช้า (เลือกจำนวน)</label>
-                    <QtySelect
-                      value={r.morning}
-                      onChange={(n) => updateRow(setSubContractors, r.id, { morning: n } as any)}
-                    />
+                    <QtySelect value={r.morning} onChange={(n) => updateRow(setSubContractors, r.id, { morning: n } as any)} />
                   </div>
 
                   <div className="md:col-span-2">
@@ -645,10 +706,7 @@ export default function DailyReportPage() {
 
                   <div className="md:col-span-2">
                     <label className="text-xs opacity-70">ล่วงเวลา (เลือกจำนวน)</label>
-                    <QtySelect
-                      value={r.overtime}
-                      onChange={(n) => updateRow(setSubContractors, r.id, { overtime: n } as any)}
-                    />
+                    <QtySelect value={r.overtime} onChange={(n) => updateRow(setSubContractors, r.id, { overtime: n } as any)} />
                   </div>
 
                   <div className="md:col-span-1">
@@ -709,26 +767,17 @@ export default function DailyReportPage() {
 
                   <div className="md:col-span-2">
                     <label className="text-xs opacity-70">ช่วงเช้า (เลือกจำนวน)</label>
-                    <QtySelect
-                      value={r.morning}
-                      onChange={(n) => updateRow(setMajorEquipment, r.id, { morning: n } as any)}
-                    />
+                    <QtySelect value={r.morning} onChange={(n) => updateRow(setMajorEquipment, r.id, { morning: n } as any)} />
                   </div>
 
                   <div className="md:col-span-2">
                     <label className="text-xs opacity-70">ช่วงบ่าย (เลือกจำนวน)</label>
-                    <QtySelect
-                      value={r.afternoon}
-                      onChange={(n) => updateRow(setMajorEquipment, r.id, { afternoon: n } as any)}
-                    />
+                    <QtySelect value={r.afternoon} onChange={(n) => updateRow(setMajorEquipment, r.id, { afternoon: n } as any)} />
                   </div>
 
                   <div className="md:col-span-2">
                     <label className="text-xs opacity-70">ล่วงเวลา (เลือกจำนวน)</label>
-                    <QtySelect
-                      value={r.overtime}
-                      onChange={(n) => updateRow(setMajorEquipment, r.id, { overtime: n } as any)}
-                    />
+                    <QtySelect value={r.overtime} onChange={(n) => updateRow(setMajorEquipment, r.id, { overtime: n } as any)} />
                   </div>
 
                   <div className="md:col-span-1">
@@ -820,9 +869,7 @@ export default function DailyReportPage() {
                   <input
                     className="w-full rounded-lg border px-3 py-2 bg-background"
                     value={r.materialDelivered}
-                    onChange={(e) =>
-                      updateRow(setWorkPerformed, r.id, { materialDelivered: e.target.value } as any)
-                    }
+                    onChange={(e) => updateRow(setWorkPerformed, r.id, { materialDelivered: e.target.value } as any)}
                   />
                 </div>
 
@@ -903,9 +950,7 @@ export default function DailyReportPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        รายละเอียด 
-                      </label>
+                      <label className="block text-sm font-semibold mb-2">รายละเอียด</label>
                       <textarea
                         className="w-full min-h-36 rounded-lg border px-3 py-2 bg-background disabled:opacity-50"
                         value={issue.detail}
