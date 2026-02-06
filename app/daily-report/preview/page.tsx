@@ -192,7 +192,7 @@ export default function PreviewPage() {
   const [wOvertime, setWOvertime] = useState<string>("-");
   const [wxLoading, setWxLoading] = useState(false);
 
-  // ✅ สำคัญ: ตั้งค่าเริ่มต้นจากหน้าจอจริง (ลดอาการ iPhone ต้อง pinch zoom out เอง)
+  // ✅ init scale ตั้งแต่ก่อนวาด
   const init = useMemo(() => {
     if (typeof window === "undefined") return { ss: 1, scaledW: A4_WIDTH_PX };
     const w = window.innerWidth || A4_WIDTH_PX;
@@ -203,7 +203,6 @@ export default function PreviewPage() {
   const [scale, setScale] = useState(init.ss);
   const [scaledWidth, setScaledWidth] = useState(init.scaledW);
 
-  // ✅ ใช้ useLayoutEffect เพื่อให้ “คำนวณสเกลก่อนวาด” (กัน flash ใหญ่เกินจอใน iOS)
   useLayoutEffect(() => {
     const el = wrapRef.current;
 
@@ -216,14 +215,12 @@ export default function PreviewPage() {
 
     updateFromEl();
 
-    // ResizeObserver (ปกติ)
     let ro: ResizeObserver | null = null;
     if (el && typeof ResizeObserver !== "undefined") {
       ro = new ResizeObserver(() => updateFromEl());
       ro.observe(el);
     }
 
-    // ✅ Fallback สำหรับ iOS บางเคส
     const onResize = () => updateFromEl();
     window.addEventListener("resize", onResize, { passive: true });
     window.addEventListener("orientationchange", onResize, { passive: true });
@@ -383,7 +380,8 @@ export default function PreviewPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-[1200px] px-3 md:px-6 py-4">
+      {/* ✅ ลด padding บนมือถือ เพื่อไม่ให้เหลือพื้นที่ว่างข้างล่างเยอะ */}
+      <div className="mx-auto max-w-[1200px] px-3 md:px-6 py-2 md:py-4">
         {/* Top actions (ไม่พิมพ์) */}
         <div className="flex items-center justify-between mb-3 print:hidden">
           <button className="rounded-lg border px-3 py-2" onClick={() => router.push("/daily-report")}>
@@ -403,9 +401,22 @@ export default function PreviewPage() {
 
         <style>{`
           /* ---------- Document look ---------- */
-          .previewWrap { width: 100%; }
-          .previewSized { margin: 0 auto; }
-          .previewScaled { transform-origin: top left; will-change: transform; }
+          /* ✅ ทำให้ Preview อยู่กลางจริง (ไม่ติดขวา) */
+          .previewWrap {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+          }
+
+          /* กล่องที่จองพื้นที่ตามสเกล */
+          .previewSized {
+            margin: 0;               /* ให้ flex คุมการจัดกลาง */
+          }
+
+          .previewScaled {
+            transform-origin: top left;
+            will-change: transform;
+          }
 
           .a4 {
             background: #fff;
@@ -471,9 +482,8 @@ export default function PreviewPage() {
           }
         `}</style>
 
-        {/* ✅ Scale แบบไม่โดนตัดครึ่งทุก platform */}
+        {/* ✅ Scale */}
         <div ref={wrapRef} className="previewWrap">
-          {/* จองพื้นที่ตามสเกลจริง */}
           <div className="previewSized" style={{ width: scaledWidth }}>
             <div
               className="previewScaled"
@@ -869,7 +879,8 @@ export default function PreviewPage() {
           </div>
         </div>
 
-        <div className="h-6" />
+        {/* ✅ เอา spacer ข้างล่างออก เพื่อไม่ให้เหลือพื้นที่ว่างเยอะ */}
+        {/* <div className="h-6" /> */}
       </div>
     </div>
   );
