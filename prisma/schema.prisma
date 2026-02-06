@@ -7,14 +7,10 @@ datasource db {
 }
 
 model Project {
-  id        String      @id @default(uuid())
-  name      String      @unique
-  createdAt DateTime    @default(now())
-
-  // ✅ เก็บ ProjectMeta ทั้งก้อน (JSON / jsonb ใน Postgres)
+  id        String        @id @default(dbgenerated("gen_random_uuid()"))
+  name      String        @unique
+  createdAt DateTime      @default(now())
   meta      Json?
-
-  // relations
   reports   DailyReport[]
 }
 
@@ -23,8 +19,6 @@ model DailyReport {
   projectId String
   date      DateTime
   createdAt DateTime @default(now())
-
-  // relations
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   issues    Issue[]
 
@@ -33,14 +27,53 @@ model DailyReport {
 }
 
 model Issue {
-  id        String   @id @default(uuid())
+  id        String      @id @default(uuid())
   reportId  String
   detail    String
   imageUrl  String?
-  createdAt DateTime @default(now())
-
-  // relations
+  createdAt DateTime    @default(now())
   report    DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@index([reportId])
+}
+
+/** =========================
+ *  Auth (Invite-only)
+ *  ========================= */
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model AllowedEmail {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  role      Role     @default(USER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  role         Role     @default(USER)
+  passwordHash String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model PasswordToken {
+  id        String   @id @default(cuid())
+  userEmail String
+  tokenHash String   @unique
+  purpose   String   // "reset"
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userEmail])
+  @@index([expiresAt])
 }

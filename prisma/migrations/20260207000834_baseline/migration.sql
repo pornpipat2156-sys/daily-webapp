@@ -1,8 +1,12 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
 -- CreateTable
 CREATE TABLE "Project" (
-    "id" TEXT NOT NULL,
+    "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
     "name" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "meta" JSONB,
 
     CONSTRAINT "Project_pkey" PRIMARY KEY ("id")
 );
@@ -31,8 +35,18 @@ CREATE TABLE "Issue" (
 -- CreateIndex
 CREATE UNIQUE INDEX "Project_name_key" ON "Project"("name");
 
--- AddForeignKey
-ALTER TABLE "DailyReport" ADD CONSTRAINT "DailyReport_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- CreateIndex
+CREATE INDEX "DailyReport_projectId_idx" ON "DailyReport"("projectId");
+
+-- CreateIndex
+CREATE INDEX "DailyReport_date_idx" ON "DailyReport"("date");
+
+-- CreateIndex
+CREATE INDEX "Issue_reportId_idx" ON "Issue"("reportId");
 
 -- AddForeignKey
-ALTER TABLE "Issue" ADD CONSTRAINT "Issue_reportId_fkey" FOREIGN KEY ("reportId") REFERENCES "DailyReport"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "DailyReport" ADD CONSTRAINT "DailyReport_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Issue" ADD CONSTRAINT "Issue_reportId_fkey" FOREIGN KEY ("reportId") REFERENCES "DailyReport"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
