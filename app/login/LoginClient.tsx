@@ -1,9 +1,9 @@
 "use client";
 
 import { signIn } from "next-auth/react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import Link from "next/link";
 
 export default function LoginClient() {
   const params = useSearchParams();
@@ -56,16 +56,22 @@ export default function LoginClient() {
                 required
                 autoComplete="current-password"
               />
+            </div>
 
-              {/* ✅ Forgot password link */}
-              <div className="mt-2 flex justify-end">
-                <Link
-                  href={`/forgot-password?email=${encodeURIComponent(email)}&from=${encodeURIComponent(from)}`}
-                  className="text-sm underline underline-offset-4 hover:opacity-80"
-                >
-                  ลืมรหัสผ่านใช่ไหม?
-                </Link>
-              </div>
+            <div className="flex items-center justify-between">
+              <Link
+                href={`/forgot-password?email=${encodeURIComponent(email || "")}&from=${encodeURIComponent(from)}`}
+                className="text-sm underline underline-offset-4 hover:opacity-80"
+              >
+                ลืมรหัสผ่านใช่ไหม?
+              </Link>
+
+              <Link
+                href="/"
+                className="text-sm text-muted-foreground hover:opacity-80"
+              >
+                กลับหน้าแรก
+              </Link>
             </div>
 
             {error && <div className="text-sm text-destructive">{error}</div>}
