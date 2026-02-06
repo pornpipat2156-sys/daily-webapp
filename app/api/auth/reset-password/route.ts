@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     // ถ้าใน User เป็น passwordHash -> เปลี่ยนเป็น { passwordHash: hashed }
     await prisma.user.update({
       where: { email: record.userEmail },
-      data: { password: hashed } as any,
+      data: { passwordHash: hashed } as any,
     });
 
     // 6) ปิด token (เลือกอย่างใดอย่างหนึ่ง)
