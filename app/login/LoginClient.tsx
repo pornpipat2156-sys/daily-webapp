@@ -30,7 +30,6 @@ export default function LoginClient() {
       <div className="mx-auto flex min-h-dvh max-w-7xl items-start justify-center px-3 pt-16 sm:px-6">
         <div className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-sm">
           <h1 className="mb-1 text-xl font-semibold">Login</h1>
-          <p className="mb-4 text-sm text-muted-foreground">Demo accounts ตาม .env.local</p>
 
           <form onSubmit={onSubmit} className="space-y-3">
             <div>
