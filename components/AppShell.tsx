@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import TopRightAuth from "./TopRightAuth";
 
 const nav = [
   { href: "/daily-report", label: "รายงานประจำวัน" },
@@ -34,9 +35,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="font-semibold tracking-wide">DAILY-WEBAPP</div>
 
           <div className="ml-auto">
-            <button type="button" className="rounded-full border px-4 py-2 text-sm">
-              Logout
-            </button>
+            {/* ✅ ใช้ตัวที่เชื่อม next-auth จริง */}
+            <TopRightAuth />
           </div>
         </div>
       </header>
@@ -139,9 +139,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           )}
 
           {/* ===== Main ===== */}
-          <main className="min-w-0">
-            {children}
-          </main>
+          <main className="min-w-0">{children}</main>
         </div>
       </div>
     </div>
