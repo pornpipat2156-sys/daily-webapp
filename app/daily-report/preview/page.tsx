@@ -929,7 +929,7 @@ export default function PreviewPage() {
                 {/* ===================== SUPERVISORS (ใช้ meta ใน DB เป็นหลัก) ===================== */}
                 <div className="box mt-4">
                   <div className="cell">
-                    <div className="font-semibold">รายชื่อผู้ควบคุมงาน (กำหนดโดย Generator)</div>
+                    <div className="font-semibold">รายชื่อผู้ควบคุมงาน</div>
                     <div className="mt-3">
                       <SignatureGrid names={supervisorsFinal} />
                     </div>
