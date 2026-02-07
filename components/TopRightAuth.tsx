@@ -22,7 +22,11 @@ export default function TopRightAuth() {
     );
   }
 
-  const name = data.user?.name || "Account";
+  const name =
+  (data.user?.name && data.user.name.trim()) ||
+  data.user.email ||
+  "Account";
+
   const role = (data.user as any)?.role || "USER";
 
   return (

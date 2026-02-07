@@ -21,7 +21,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
 
    const { data: session } = useSession();
-  const role = ((session?.user as any)?.role || "USER") as "USER" | "ADMIN" | "GENERATOR";
+   const role = ((session?.user as any)?.role || "USER") as string;
+
+   const displayName =
+    ((session?.user as any)?.name && String((session?.user as any).name).trim()) ||
+    session?.user?.email ||
+    "-";
 
   function isTabEnabled(href: string) {
     if (role !== "USER") return true; // ADMIN/GENERATOR กดได้หมด (ตามคำสั่งข้อ 1 UI)
@@ -112,8 +117,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="m-3 rounded-xl border bg-muted p-3">
-              <div className="text-xs font-semibold">Role</div>
-              <div className="text-sm">{role}</div>
+              <div className="text-xs font-semibold">Role : {role}</div>
+              <div className="text-sm">{displayName}</div>
             </div>
           </aside>
 
@@ -175,8 +180,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 </nav>
 
                 <div className="mt-4 rounded-xl border bg-muted p-3">
-                  <div className="text-xs font-semibold">Role</div>
-                  <div className="text-sm">USER</div>
+                  <div className="text-xs font-semibold">Role : {role}</div>
+                  <div className="text-sm">{displayName}</div>
                 </div>
               </div>
             </div>
