@@ -8,8 +8,8 @@ import { useState } from "react";
 export default function LoginClient() {
   const params = useSearchParams();
   const from = params.get("from") || "/daily-report";
-  const [email, setEmail] = useState("user@example.com");
-  const [password, setPassword] = useState("user123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   async function onSubmit(e: React.FormEvent) {
