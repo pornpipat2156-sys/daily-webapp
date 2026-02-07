@@ -22,17 +22,21 @@ export default function TopRightAuth() {
     );
   }
 
-  const name =
-  (data.user?.name && data.user.name.trim()) ||
-  data.user.email ||
-  "Account";
-
   const role = (data.user as any)?.role || "USER";
+  const email = data.user.email || "";
+
+  const rawName = (data.user as any)?.name ? String((data.user as any).name).trim() : "";
+
+  const displayName =
+    rawName && rawName.toLowerCase() !== email.toLowerCase()
+      ? rawName
+      : "Account";
+  const name = displayName;
 
   return (
     <div className="flex items-center gap-2">
       <div className="hidden sm:block text-right">
-        <div className="text-sm font-semibold leading-4">{name}</div>
+        <div className="text-sm font-semibold leading-4">{displayName}</div>
         <div className="text-xs opacity-60">{role}</div>
       </div>
 
