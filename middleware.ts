@@ -50,8 +50,10 @@ export const config = {
   matcher: [
     "/daily-report/:path*",
     "/commentator/:path*",
-    "/sumation/:path*",
+    "/summation/:path*", // ✅ แก้สะกดจาก sumation -> summation
+    "/input/:path*",     // ✅ เพิ่มให้ครอบ /input
     "/contact/:path*",
     "/generator/:path*",
   ],
 };
+

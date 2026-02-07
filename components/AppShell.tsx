@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import TopRightAuth from "./TopRightAuth";
+import { useSession } from "next-auth/react";
+
 
 const nav = [
   { href: "/daily-report", label: "รายงานประจำวัน" },
@@ -18,6 +20,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
+   const { data: session } = useSession();
+  const role = ((session?.user as any)?.role || "USER") as "USER" | "ADMIN" | "GENERATOR";
+
+  function isTabEnabled(href: string) {
+    if (role !== "USER") return true; // ADMIN/GENERATOR กดได้หมด (ตามคำสั่งข้อ 1 UI)
+    return href.startsWith("/daily-report") || href.startsWith("/contact");
+  }
+ 
   return (
     <div className="min-h-dvh bg-background text-foreground">
       {/* ===== Top bar ===== */}
@@ -67,15 +77,32 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <nav className="flex-1 space-y-2 px-2 pb-2">
               {nav.map((item) => {
                 const active = pathname === item.href;
+                const enabled = isTabEnabled(item.href);
+
+                const baseClass = [
+                "block rounded-xl border px-3 py-2 text-sm",
+                active ? "bg-foreground text-background border-foreground" : "hover:bg-muted",
+                collapsed ? "text-[0px] py-3" : "",
+                ].join(" ");
+
+                // ✅ USER เห็นทุกแท็บ แต่แท็บที่ไม่ได้สิทธิ์: จาง + กดไม่ได้
+                if (!enabled) {
+                  return (
+                    <div
+                      key={item.href}
+                      className={[baseClass, "opacity-40 cursor-not-allowed hover:bg-transparent"].join(" ")}
+                      title="ไม่มีสิทธิ์เข้าถึง"
+                      aria-disabled="true"
+                    >
+                      {item.label}
+                    </div>
+                  );
+                }
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={[
-                      "block rounded-xl border px-3 py-2 text-sm",
-                      active ? "bg-foreground text-background border-foreground" : "hover:bg-muted",
-                      collapsed ? "text-[0px] py-3" : "",
-                    ].join(" ")}
+                    className={baseClass}
                     title={collapsed ? item.label : undefined}
                   >
                     {item.label}
@@ -86,7 +113,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
             <div className="m-3 rounded-xl border bg-muted p-3">
               <div className="text-xs font-semibold">Role</div>
-              <div className="text-sm">USER</div>
+              <div className="text-sm">{role}</div>
             </div>
           </aside>
 
@@ -114,20 +141,37 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <nav className="mt-4 space-y-2">
                   {nav.map((item) => {
                     const active = pathname === item.href;
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setMobileOpen(false)}
-                        className={[
-                          "block rounded-xl border px-3 py-2 text-sm",
-                          active ? "bg-foreground text-background border-foreground" : "hover:bg-muted",
-                        ].join(" ")}
-                      >
-                        {item.label}
-                      </Link>
-                    );
-                  })}
+                    const enabled = isTabEnabled(item.href);
+                    
+                    const baseClass = [
+                      "block rounded-xl border px-3 py-2 text-sm",
+                      active ? "bg-foreground text-background border-foreground" : "hover:bg-muted",
+                    ].join(" ");
+
+                    if (!enabled) {
+                      return (
+                        <div
+                          key={item.href}
+                          className={[baseClass, "opacity-40 cursor-not-allowed hover:bg-transparent"].join(" ")}
+                          title="ไม่มีสิทธิ์เข้าถึง"
+                          aria-disabled="true"
+                        >
+                          {item.label}
+                        </div>
+                      );
+                    }
+
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setMobileOpen(false)}
+                          className={baseClass}
+                        >
+                          {item.label}
+                        </Link>
+                      );
+                    })}   
                 </nav>
 
                 <div className="mt-4 rounded-xl border bg-muted p-3">
