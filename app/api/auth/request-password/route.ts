@@ -38,7 +38,7 @@ export async function POST(req: Request) {
   });
 
   const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL;
-  const path = purpose === "SET_PASSWORD" ? "/set-password" : "/reset-password";
+  const path = purpose === "SET_PASSWORD" ? "/reset-password" : "/reset-password";
   const link = `${baseUrl}${path}?token=${raw}`;
 
   await sendEmail(
