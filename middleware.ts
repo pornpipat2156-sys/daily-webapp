@@ -6,13 +6,9 @@ type Role = "USER" | "ADMIN" | "GENERATOR";
 
 function isAllowed(pathname: string, role: Role) {
   if (role === "USER") return pathname.startsWith("/daily-report") || pathname.startsWith("/contact");
-  if (role === "ADMIN") {
-    if (pathname.startsWith("/generator")) return false;
-    return true;
+  if (role === "ADMIN") return true;
   }
-  if (role === "GENERATOR") return true;
-  return false;
-}
+
 
 export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
