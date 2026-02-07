@@ -516,7 +516,7 @@ export default function PreviewPage() {
                         </td>
 
                         <td className="cellCenter titleBar">
-                          <div className="hMain">รายงานการควบคุมงานก่อสร้างประจำวัน (DAILY CONSTRUCTION REPORT)</div>
+                          <div className="hMain">รายงานการควบคุมงานก่อสร้างประจำวัน (DAILY REPORT)</div>
                           <div className="mt-1 hSub">ประจำวันที่ {formatDateBE(data.date)}</div>
                           <div className="mt-1 hSub">โครงการ : {project.projectName}</div>
                         </td>
@@ -574,8 +574,8 @@ export default function PreviewPage() {
 
                         <div className="grid grid-cols-3 gap-x-10 numTab">
                           <div className="nowrap">ช่วงเช้า 08:30น.-12:00น.</div>
-                          <div className="nowrap text-center">ช่วงบ่าย 13:00น.-16:30น.</div>
-                          <div className="nowrap text-right">ล่วงเวลา 16:30น. ขึ้นไป</div>
+                          <div className="nowrap text-center">ช่วงบ่าย 13:00น.-17:00น.</div>
+                          <div className="nowrap text-right">ล่วงเวลา 17:00น. ขึ้นไป</div>
                         </div>
 
                         <div className="mt-2 font-semibold">สภาพอากาศ (WEATHER)</div>
