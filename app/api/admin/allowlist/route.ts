@@ -13,15 +13,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, message: "forbidden" }, { status: 403 });
   }
 
-  const { email, role: newRole = "USER" } = await req.json();
+  const { email,name, role: newRole = "USER" } = await req.json();
   const normalized = (email || "").toLowerCase().trim();
+  const displayName = typeof name === "string" ? name.trim() : null;
   if (!normalized) return NextResponse.json({ ok: false }, { status: 400 });
 
   const row = await prisma.allowedEmail.upsert({
-    where: { email: normalized },
-    create: { email: normalized, role: newRole, isActive: true },
-    update: { role: newRole, isActive: true },
-  });
+  where: { email: normalized },
+  create: { email: normalized, name: displayName || null, role: newRole, isActive: true },
+  update: { name: displayName || null, role: newRole, isActive: true },
+});
 
   return NextResponse.json({ ok: true, row });
 }

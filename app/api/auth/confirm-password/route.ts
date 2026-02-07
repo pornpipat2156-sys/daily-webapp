@@ -41,11 +41,13 @@ export async function POST(req: Request) {
     where: { email: t.userEmail },
     create: {
       email: t.userEmail,
+      name: allow.name ?? null,
       role: allow.role,
       isActive: true,
       passwordHash,
     },
     update: {
+      name: allow.name ?? null,
       role: allow.role, // กัน role เพี้ยน
       isActive: true,
       passwordHash,

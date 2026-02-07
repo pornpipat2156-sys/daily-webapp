@@ -34,7 +34,7 @@ const handler = NextAuth({
         if (!ok) return null;
 
         // คืนข้อมูลไปทำ session/jwt
-        return { id: user.id, email: user.email, role: user.role };
+        return { id: user.id, email: user.email, role: user.role, name: (user as any).name ?? null };
       },
     }),
   ],
@@ -42,11 +42,13 @@ const handler = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.role = (user as any).role;
+        token.name = (user as any).name ?? null;
       }
       return token;
     },
     async session({ session, token }) {
       (session.user as any).role = token.role;
+      (session.user as any).name = (token as any).name ?? null;
       return session;
     },
   },
