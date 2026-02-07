@@ -24,7 +24,7 @@ type ProjectMeta = {
   periodNo: string;
   weekNo: string;
 
-  supervisors: string[];
+  supervisors: string[]; // fallback (จาก payload)
 };
 
 type ContractorRow = { id: string; name: string; position: string; qty: number };
@@ -181,9 +181,43 @@ function computeScaleFromWidth(containerWidth: number) {
   return { ss, scaledW };
 }
 
+/** แบ่งรายชื่อเป็นแถว ๆ (แถวละไม่เกิน 5) */
+function chunk<T>(arr: T[], size: number) {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+function SignatureGrid({ names }: { names: string[] }) {
+  const clean = (names || []).map((x) => String(x || "").trim()).filter(Boolean);
+  if (!clean.length) return <div className="opacity-70">-</div>;
+
+  const rows = chunk(clean, 5);
+
+  return (
+    <div className="space-y-4">
+      {rows.map((row, ri) => (
+        <div
+          key={ri}
+          className="grid gap-4"
+          style={{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }}
+        >
+          {row.map((nm, i) => (
+            <div key={`${ri}-${i}`} className="text-center">
+              <div className="text-sm">ลงชื่อ ................................</div>
+              <div className="mt-1 text-sm">({nm})</div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function PreviewPage() {
   const router = useRouter();
   const [data, setData] = useState<DailyReportPayload | null>(null);
+  const [dbProjectMeta, setDbProjectMeta] = useState<any | null>(null);
 
   const [tempMax, setTempMax] = useState<number | null>(null);
   const [tempMin, setTempMin] = useState<number | null>(null);
@@ -246,6 +280,50 @@ export default function PreviewPage() {
   }, []);
 
   const project = useMemo(() => data?.projectMeta ?? null, [data]);
+
+  // ✅ ดึง meta จาก DB (Project.meta jsonb) มาใช้รายชื่อผู้ควบคุมงาน
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMeta() {
+      const id = (data?.projectId || "").trim();
+      if (!id) {
+        setDbProjectMeta(null);
+        return;
+      }
+
+      try {
+        // ต้องมี API นี้อยู่แล้ว/หรือสร้างให้ตรงนี้:
+        // GET /api/projects/[id] -> { ok: true, project: { id, meta, ... } }
+        const res = await fetch(`/api/projects/${id}`, { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+
+        if (!cancelled && res.ok && json?.ok) {
+          setDbProjectMeta(json.project?.meta ?? null);
+        } else if (!cancelled) {
+          setDbProjectMeta(null);
+        }
+      } catch {
+        if (!cancelled) setDbProjectMeta(null);
+      }
+    }
+
+    loadMeta();
+    return () => {
+      cancelled = true;
+    };
+  }, [data?.projectId]);
+
+  const supervisorsFromDb = useMemo(() => {
+    const raw = dbProjectMeta?.supervisors;
+    if (!Array.isArray(raw)) return [];
+    return raw.map((x: any) => String(x || "").trim()).filter(Boolean);
+  }, [dbProjectMeta]);
+
+  const supervisorsFinal = useMemo(() => {
+    const fallback = project?.supervisors || [];
+    return supervisorsFromDb.length ? supervisorsFromDb : fallback;
+  }, [supervisorsFromDb, project?.supervisors]);
 
   const hasOvertime = useMemo(() => {
     if (!data) return false;
@@ -380,9 +458,7 @@ export default function PreviewPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* ✅ ลด padding บนมือถือ เพื่อไม่ให้เหลือพื้นที่ว่างข้างล่างเยอะ */}
       <div className="mx-auto max-w-[1200px] px-3 md:px-6 py-2 md:py-4">
-        {/* Top actions (ไม่พิมพ์) */}
         <div className="flex items-center justify-between mb-3 print:hidden">
           <button className="rounded-lg border px-3 py-2" onClick={() => router.push("/daily-report")}>
             ← กลับไปแก้ไข
@@ -400,23 +476,9 @@ export default function PreviewPage() {
         </div>
 
         <style>{`
-          /* ---------- Document look ---------- */
-          /* ✅ ทำให้ Preview อยู่กลางจริง (ไม่ติดขวา) */
-          .previewWrap {
-            width: 100%;
-            display: flex;
-            justify-content: center;
-          }
-
-          /* กล่องที่จองพื้นที่ตามสเกล */
-          .previewSized {
-            margin: 0;               /* ให้ flex คุมการจัดกลาง */
-          }
-
-          .previewScaled {
-            transform-origin: top left;
-            will-change: transform;
-          }
+          .previewWrap { width: 100%; display: flex; justify-content: center; }
+          .previewSized { margin: 0; }
+          .previewScaled { transform-origin: top left; will-change: transform; }
 
           .a4 {
             background: #fff;
@@ -453,7 +515,6 @@ export default function PreviewPage() {
           .issueImg { width: 100%; max-height: 240px; object-fit: contain; display: block; }
           .issueRowMin { min-height: 260px; }
 
-          /* ✅ Mobile only */
           @media (max-width: 640px) {
             .a4 { font-size: 11px; padding: 10px; }
             .hMain { font-size: 15px; }
@@ -463,7 +524,6 @@ export default function PreviewPage() {
             .nowrap { white-space: normal; }
           }
 
-          /* ---------- Print ---------- */
           @media print {
             body { background: white; }
             .print\\:hidden { display: none !important; }
@@ -482,7 +542,6 @@ export default function PreviewPage() {
           }
         `}</style>
 
-        {/* ✅ Scale */}
         <div ref={wrapRef} className="previewWrap">
           <div className="previewSized" style={{ width: scaledWidth }}>
             <div
@@ -867,11 +926,13 @@ export default function PreviewPage() {
                   <div className="cell whitespace-pre-wrap min-h-[90px]">{data.safetyNote || " "}</div>
                 </div>
 
-                {/* ===================== SUPERVISORS ===================== */}
+                {/* ===================== SUPERVISORS (ใช้ meta ใน DB เป็นหลัก) ===================== */}
                 <div className="box mt-4">
                   <div className="cell">
                     <div className="font-semibold">รายชื่อผู้ควบคุมงาน (กำหนดโดย Generator)</div>
-                    <div className="mt-2">{project.supervisors?.length ? project.supervisors.join(" , ") : "-"}</div>
+                    <div className="mt-3">
+                      <SignatureGrid names={supervisorsFinal} />
+                    </div>
                   </div>
                 </div>
               </div>
