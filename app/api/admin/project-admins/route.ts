@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getToken } from "next-auth/jwt";
+import { getAuthUser, requireRole } from "@/lib/auth";
 
 async function requireSuperAdmin(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.AUTH_SECRET });
@@ -16,8 +17,10 @@ async function requireSuperAdmin(req: NextRequest) {
 
 // GET: list projects + current admins
 export async function GET(req: NextRequest) {
-  const ok = await requireSuperAdmin(req);
-  if (!ok) return NextResponse.json({ ok: false, message: "Forbidden" }, { status: 403 });
+  const user = await getAuthUser(req);
+  if (!user || !requireRole(user.role, ["SUPERADMIN"])) {
+    return NextResponse.json({ ok: false, message: "Forbidden" }, { status: 403 });
+  }
 
   const projects = await prisma.project.findMany({
     orderBy: { createdAt: "desc" },
