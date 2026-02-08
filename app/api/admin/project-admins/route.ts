@@ -5,7 +5,11 @@ import { getToken } from "next-auth/jwt";
 
 async function requireSuperAdmin(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.AUTH_SECRET });
+  console.log("DEBUG TOKEN:", token);
+  console.log("DEBUG ROLE:", (token as any)?.role);
+
   const role = String((token as any)?.role || "USER");
+  
   if (!token || role !== "SUPERADMIN") return null;
   return token;
 }
