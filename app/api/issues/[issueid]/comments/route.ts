@@ -6,12 +6,14 @@ import { getAuthUser } from "@/lib/auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Ctx = { params: Promise<{ issueId: string }> };
+type Ctx = { params: Promise<{ issueid: string }> };
 
 export async function GET(_req: NextRequest, ctx: Ctx) {
-  const { issueId } = await ctx.params;
-  if (!issueId) return NextResponse.json({ ok: false, message: "missing issueId" }, { status: 400 });
-
+  const { issueid } = await ctx.params;
+  const issueId = issueid;
+  if (!issueId) {
+    return NextResponse.json({ ok: false, message: "missing issueId" }, { status: 400 });
+  }
   const list = await prisma.issueComment.findMany({
     where: { issueId },
     orderBy: { createdAt: "asc" },
@@ -30,8 +32,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const user = await getAuthUser(req);
   if (!user) return NextResponse.json({ ok: false, message: "forbidden" }, { status: 403 });
 
-  const { issueId } = await ctx.params;
-  if (!issueId) return NextResponse.json({ ok: false, message: "missing issueId" }, { status: 400 });
+  const { issueid } = await ctx.params;
+  const issueId = issueid;
+  if (!user) return NextResponse.json({ ok: false, message: "forbidden" }, { status: 403 });
+
 
   const body = await req.json().catch(() => null);
   const comment = String(body?.comment || "").trim();
