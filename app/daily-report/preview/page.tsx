@@ -24,8 +24,10 @@ type ProjectMeta = {
   periodNo: string;
   weekNo: string;
 
-  supervisors: string[]; // fallback (จาก payload)
+  supervisors: string[]; // fallback (จาก payload) — ❌ แต่ไฟล์นี้จะใช้ DB เป็นหลักเท่านั้น
 };
+
+type Supervisor = { name: string; role: string };
 
 type ContractorRow = { id: string; name: string; position: string; qty: number };
 type SubContractorRow = { id: string; position: string; morning: number; afternoon: number; overtime: number };
@@ -188,8 +190,21 @@ function chunk<T>(arr: T[], size: number) {
   return out;
 }
 
-function SignatureGrid({ names }: { names: string[] }) {
-  const clean = (names || []).map((x) => String(x || "").trim()).filter(Boolean);
+/**
+ * ✅ SignatureGrid ใหม่: แสดง "ลงชื่อ .... <ตำแหน่ง>" และบรรทัดล่าง "(ชื่อ)"
+ * ✅ ข้อมูลมาจาก DB เท่านั้น: Project.meta.supervisors
+ * ✅ รองรับทั้ง:
+ *    - [{ role, name }] (แนะนำ)
+ *    - ["นาย ก", "ผู้ควบคุมงาน 1"] (legacy) -> จะพยายามเดาว่าเป็น role หรือ name
+ */
+function SignatureGrid({ items }: { items: Supervisor[] }) {
+  const clean = (items || [])
+    .map((x) => ({
+      name: String(x?.name || "").trim(),
+      role: String(x?.role || "").trim(),
+    }))
+    .filter((x) => x.name || x.role);
+
   if (!clean.length) return <div className="opacity-70">-</div>;
 
   const rows = chunk(clean, 5);
@@ -202,10 +217,12 @@ function SignatureGrid({ names }: { names: string[] }) {
           className="grid gap-4"
           style={{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }}
         >
-          {row.map((nm, i) => (
+          {row.map((it, i) => (
             <div key={`${ri}-${i}`} className="text-center">
-              <div className="text-sm">ลงชื่อ ................................</div>
-              <div className="mt-1 text-sm">({nm})</div>
+              <div className="text-sm">
+                ลงชื่อ ................................ {it.role || ""}
+              </div>
+              <div className="mt-1 text-sm">({it.name || "-"})</div>
             </div>
           ))}
         </div>
@@ -281,7 +298,7 @@ export default function PreviewPage() {
 
   const project = useMemo(() => data?.projectMeta ?? null, [data]);
 
-  // ✅ ดึง meta จาก DB (Project.meta jsonb) มาใช้รายชื่อผู้ควบคุมงาน
+  // ✅ ดึง meta จาก DB (Project.meta jsonb)
   useEffect(() => {
     let cancelled = false;
 
@@ -293,7 +310,6 @@ export default function PreviewPage() {
       }
 
       try {
-        // ต้องมี API นี้อยู่แล้ว/หรือสร้างให้ตรงนี้:
         // GET /api/projects/[id] -> { ok: true, project: { id, meta, ... } }
         const res = await fetch(`/api/projects/${id}`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
@@ -314,16 +330,33 @@ export default function PreviewPage() {
     };
   }, [data?.projectId]);
 
-  const supervisorsFromDb = useMemo(() => {
+  // ✅ supervisors จาก DB เท่านั้น (รองรับทั้ง object[] และ string[] legacy)
+  const supervisorsFinal = useMemo<Supervisor[]>(() => {
     const raw = dbProjectMeta?.supervisors;
     if (!Array.isArray(raw)) return [];
-    return raw.map((x: any) => String(x || "").trim()).filter(Boolean);
-  }, [dbProjectMeta]);
 
-  const supervisorsFinal = useMemo(() => {
-    const fallback = project?.supervisors || [];
-    return supervisorsFromDb.length ? supervisorsFromDb : fallback;
-  }, [supervisorsFromDb, project?.supervisors]);
+    const looksLikeRole = (s: string) =>
+      /(ผู้|หัวหน้า|ผอ|วิศวกร|ผู้ตรวจ|ผู้ออกแบบ|ผู้ควบคุม|ผู้แทน)/.test(s);
+
+    return raw
+      .map((x: any) => {
+        // แบบใหม่: { role, name }
+        if (x && typeof x === "object") {
+          return {
+            role: String(x?.role || "").trim(),
+            name: String(x?.name || "").trim(),
+          };
+        }
+
+        // แบบเดิม: string[]
+        const s = String(x || "").trim();
+        if (!s) return { role: "", name: "" };
+
+        // เดา: ถ้าดูเหมือนตำแหน่ง -> role, ไม่งั้น -> name
+        return looksLikeRole(s) ? { role: s, name: "" } : { role: "", name: s };
+      })
+      .filter((it) => it.role || it.name);
+  }, [dbProjectMeta]);
 
   const hasOvertime = useMemo(() => {
     if (!data) return false;
@@ -926,12 +959,12 @@ export default function PreviewPage() {
                   <div className="cell whitespace-pre-wrap min-h-[90px]">{data.safetyNote || " "}</div>
                 </div>
 
-                {/* ===================== SUPERVISORS (ใช้ meta ใน DB เป็นหลัก) ===================== */}
+                {/* ===================== SUPERVISORS (DB meta เท่านั้น) ===================== */}
                 <div className="box mt-4">
                   <div className="cell">
                     <div className="font-semibold">รายชื่อผู้ควบคุมงาน</div>
                     <div className="mt-3">
-                      <SignatureGrid names={supervisorsFinal} />
+                      <SignatureGrid items={supervisorsFinal} />
                     </div>
                   </div>
                 </div>
