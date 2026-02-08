@@ -219,10 +219,14 @@ function SignatureGrid({ items }: { items: Supervisor[] }) {
         >
           {row.map((it, i) => (
             <div key={`${ri}-${i}`} className="text-center">
-              <div className="text-sm">
-                ลงชื่อ ................................ {it.role || ""}
-              </div>
+              {/* บรรทัดบน: ลงชื่อ */}
+              <div className="text-sm">ลงชื่อ ................................</div>
+
+              {/* บรรทัดล่าง: (ชื่อ) */}
               <div className="mt-1 text-sm">({it.name || "-"})</div>
+
+              {/* บรรทัดล่างถัดไป: ตำแหน่ง */}
+              <div className="mt-1 text-sm">{it.role || " "}</div>
             </div>
           ))}
         </div>
@@ -230,6 +234,7 @@ function SignatureGrid({ items }: { items: Supervisor[] }) {
     </div>
   );
 }
+
 
 export default function PreviewPage() {
   const router = useRouter();
