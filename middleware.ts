@@ -2,11 +2,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-type Role = "USER" | "ADMIN" | "GENERATOR";
+type Role = "USER" | "ADMIN" | "SUPERADMIN" | "GENERATOR";
 
 function isAllowed(pathname: string, role: Role) {
   if (role === "USER") return pathname.startsWith("/daily-report") || pathname.startsWith("/contact");
   if (role === "ADMIN") return true;
+  if (role === "SUPERADMIN") return true;
   }
 
 

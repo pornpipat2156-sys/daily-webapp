@@ -12,6 +12,8 @@ model Project {
   createdAt DateTime      @default(now())
   meta      Json?
   reports   DailyReport[]
+
+  projectAdmins ProjectAdmin[]
 }
 
 model DailyReport {
@@ -34,16 +36,21 @@ model Issue {
   createdAt DateTime    @default(now())
   report    DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
+  comments IssueComment[]
+
   @@index([reportId])
 }
 
-/** =========================
- *  Auth (Invite-only)
- *  ========================= */
+/**
+ * =========================
+ * Auth (Invite-only)
+ * =========================
+ */
 
 enum Role {
   USER
   ADMIN
+  SUPERADMIN
 }
 
 model AllowedEmail {
@@ -65,17 +72,50 @@ model User {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  projectAdminOf ProjectAdmin[]
+  issueComments  IssueComment[]
 }
 
 model PasswordToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userEmail String
-  tokenHash String   @unique
-  purpose   String   // "reset"
+  tokenHash String    @unique
+  purpose   String // "reset"
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([userEmail])
   @@index([expiresAt])
 }
+
+model IssueComment {
+  id        String   @id @default(cuid())
+  issueId   String
+  authorId  String
+  comment   String
+  createdAt DateTime @default(now())
+
+  issue  Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([issueId])
+  @@index([authorId])
+}
+
+model ProjectAdmin {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+}
+
