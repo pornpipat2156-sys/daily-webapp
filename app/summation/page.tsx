@@ -3,7 +3,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ReportPreviewReadonly } from "@/components/ReportPreviewReadonly";
 
 type ProjectRow = { id: string; projectName: string };
 type ReportRow = { id: string; date: string };
@@ -364,7 +363,6 @@ export default function SummationPage() {
             </div>
           )}
         </div>
-        <div className="mt-4">{reportId ? <ReportPreviewReadonly reportId={reportId} /> : null}</div>
       </div>
     </div>
   );
