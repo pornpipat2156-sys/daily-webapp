@@ -3,7 +3,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ReportPreviewReadonly } from "@/components/ReportPreviewReadonly";
 
 type ProjectRow = { id: string; projectName: string };
 type ReportRow = { id: string; date: string }; // ISO string
@@ -357,16 +356,21 @@ export default function CommentatorPage() {
                           <div className="rounded-lg border p-3 whitespace-pre-wrap min-h-[120px]">{it.detail || "-"}</div>
                         </div>
 
+                        {/* ✅ ความเห็น + รายการความเห็น อยู่ “ในฟอร์ม” โดยตรง */}
                         <div className="md:col-span-1">
                           <div className="text-sm font-medium mb-1">ความเห็นของผู้ควบคุมงาน</div>
+
                           <textarea
                             className="w-full rounded-lg border p-3 min-h-[120px] bg-background"
                             placeholder="พิมพ์ความเห็น..."
                             value={draft[it.id] ?? ""}
                             onChange={(e) => setDraft((m) => ({ ...m, [it.id]: e.target.value }))}
                           />
+
                           <div className="mt-2 flex items-center justify-between gap-2">
-                            <div className="text-xs opacity-70">ความเห็นเดิม: {(it.comments || []).length} รายการ</div>
+                            <div className="text-xs opacity-70">
+                              ความเห็นเดิม: {(it.comments || []).length} รายการ
+                            </div>
                             <button
                               className="rounded-lg border px-3 py-2 disabled:opacity-60"
                               disabled={posting[it.id] || !(draft[it.id] || "").trim()}
@@ -375,26 +379,32 @@ export default function CommentatorPage() {
                               {posting[it.id] ? "กำลังส่ง..." : "ส่งความเห็น"}
                             </button>
                           </div>
+
+                          <div className="mt-3 rounded-lg border p-3">
+                            <div className="text-sm font-medium mb-2">
+                              รายการความเห็น ({(it.comments || []).length})
+                            </div>
+
+                            {(it.comments || []).length === 0 ? (
+                              <div className="text-sm opacity-70">ยังไม่มีความเห็น</div>
+                            ) : (
+                              <div className="space-y-2 max-h-[220px] overflow-auto pr-1">
+                                {it.comments.map((c) => (
+                                  <div key={c.id} className="rounded-lg border p-2">
+                                    <div className="text-xs opacity-70">
+                                      โดย {c.author?.name || c.author?.email || "-"} ({c.author?.role || "-"}) —{" "}
+                                      {formatDateBE(c.createdAt)}
+                                    </div>
+                                    <div className="whitespace-pre-wrap text-sm mt-1">{c.comment}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      {/* comments list */}
-                      {(it.comments || []).length > 0 ? (
-                        <div className="mt-3 rounded-xl border p-3">
-                          <div className="text-sm font-medium mb-2">รายการความเห็น</div>
-                          <div className="space-y-2">
-                            {it.comments.map((c) => (
-                              <div key={c.id} className="rounded-lg border p-2">
-                                <div className="text-xs opacity-70">
-                                  โดย {c.author?.name || c.author?.email || "-"} ({c.author?.role || "-"}) —{" "}
-                                  {formatDateBE(c.createdAt)}
-                                </div>
-                                <div className="whitespace-pre-wrap text-sm mt-1">{c.comment}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
+                      {/* ❌ เดิมมี comments list แยกด้านล่าง — เอาออกแล้ว */}
                     </div>
                   ))}
                 </div>
@@ -402,7 +412,6 @@ export default function CommentatorPage() {
             </div>
           )}
         </div>
-        <div className="mt-4">{reportId ? <ReportPreviewReadonly reportId={reportId} /> : null}</div>
       </div>
     </div>
   );
