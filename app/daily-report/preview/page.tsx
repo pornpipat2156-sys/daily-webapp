@@ -193,9 +193,6 @@ function chunk<T>(arr: T[], size: number) {
 /**
  * ✅ SignatureGrid ใหม่: แสดง "ลงชื่อ .... <ตำแหน่ง>" และบรรทัดล่าง "(ชื่อ)"
  * ✅ ข้อมูลมาจาก DB เท่านั้น: Project.meta.supervisors
- * ✅ รองรับทั้ง:
- *    - [{ role, name }] (แนะนำ)
- *    - ["นาย ก", "ผู้ควบคุมงาน 1"] (legacy) -> จะพยายามเดาว่าเป็น role หรือ name
  */
 function SignatureGrid({ items }: { items: Supervisor[] }) {
   const clean = (items || [])
@@ -219,13 +216,8 @@ function SignatureGrid({ items }: { items: Supervisor[] }) {
         >
           {row.map((it, i) => (
             <div key={`${ri}-${i}`} className="text-center">
-              {/* บรรทัดบน: ลงชื่อ */}
               <div className="text-sm">ลงชื่อ ................................</div>
-
-              {/* บรรทัดล่าง: (ชื่อ) */}
               <div className="mt-1 text-sm">({it.name || "-"})</div>
-
-              {/* บรรทัดล่างถัดไป: ตำแหน่ง */}
               <div className="mt-1 text-sm">{it.role || " "}</div>
             </div>
           ))}
@@ -234,7 +226,6 @@ function SignatureGrid({ items }: { items: Supervisor[] }) {
     </div>
   );
 }
-
 
 export default function PreviewPage() {
   const router = useRouter();
@@ -247,6 +238,10 @@ export default function PreviewPage() {
   const [wAfternoon, setWAfternoon] = useState<string>("-");
   const [wOvertime, setWOvertime] = useState<string>("-");
   const [wxLoading, setWxLoading] = useState(false);
+
+  // ✅ submit state (ใหม่)
+  const [submitting, setSubmitting] = useState(false);
+  const [submitErr, setSubmitErr] = useState<string>("");
 
   // ✅ init scale ตั้งแต่ก่อนวาด
   const init = useMemo(() => {
@@ -315,7 +310,6 @@ export default function PreviewPage() {
       }
 
       try {
-        // GET /api/projects/[id] -> { ok: true, project: { id, meta, ... } }
         const res = await fetch(`/api/projects/${id}`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
 
@@ -345,7 +339,6 @@ export default function PreviewPage() {
 
     return raw
       .map((x: any) => {
-        // แบบใหม่: { role, name }
         if (x && typeof x === "object") {
           return {
             role: String(x?.role || "").trim(),
@@ -353,11 +346,9 @@ export default function PreviewPage() {
           };
         }
 
-        // แบบเดิม: string[]
         const s = String(x || "").trim();
         if (!s) return { role: "", name: "" };
 
-        // เดา: ถ้าดูเหมือนตำแหน่ง -> role, ไม่งั้น -> name
         return looksLikeRole(s) ? { role: s, name: "" } : { role: "", name: s };
       })
       .filter((it) => it.role || it.name);
@@ -397,6 +388,42 @@ export default function PreviewPage() {
     const list = data?.issues || [];
     return list.some((x) => (x.detail || "").trim() || (x.imageDataUrl || "").trim());
   }, [data]);
+
+  // ✅ submit จริงลง DB + redirect ตาม hasIssues (ใหม่)
+  async function onSubmit() {
+    if (!data) return;
+    setSubmitting(true);
+    setSubmitErr("");
+
+    try {
+      const res = await fetch("/api/daily-reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: data.projectId,
+          date: data.date,
+          issues: (data.issues || []).map((x) => ({
+            detail: x.detail,
+            imageDataUrl: x.imageDataUrl,
+          })),
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) throw new Error(json?.message || "submit failed");
+
+      sessionStorage.setItem("dailyReportPayload", JSON.stringify(data));
+      sessionStorage.setItem("lastSubmittedReportId", String(json.reportId));
+      sessionStorage.setItem("lastSubmittedProjectId", String(json.projectId));
+      sessionStorage.setItem("lastSubmittedDate", String(data.date));
+
+      router.push(json.hasIssues ? "/commentator" : "/summation");
+    } catch (e: any) {
+      setSubmitErr(e?.message ?? "submit failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -502,15 +529,18 @@ export default function PreviewPage() {
             ← กลับไปแก้ไข
           </button>
 
-          <button
-            className="rounded-lg border px-3 py-2"
-            onClick={() => {
-              sessionStorage.setItem("dailyReportPayload", JSON.stringify(data));
-              router.push(hasIssues ? "/commentator" : "/summation");
-            }}
-          >
-            ส่ง →
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              className="rounded-lg border px-3 py-2 disabled:opacity-60"
+              disabled={submitting}
+              onClick={onSubmit}
+              title={hasIssues ? "ส่งเพื่อไปหน้าแสดงความคิดเห็น" : "ส่งเพื่อไปหน้าตรวจสอบและอนุมัติ"}
+            >
+              {submitting ? "กำลังส่ง..." : "ส่ง →"}
+            </button>
+
+            {submitErr ? <div className="text-xs text-red-600">{submitErr}</div> : null}
+          </div>
         </div>
 
         <style>{`

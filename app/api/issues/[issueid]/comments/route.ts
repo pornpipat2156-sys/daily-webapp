@@ -1,4 +1,4 @@
-// app/api/issues/[issueId]/comments/route.ts
+// app/api/issues/[issueid]/comments/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
@@ -8,24 +8,55 @@ export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ issueid: string }> };
 
-export async function GET(_req: NextRequest, ctx: Ctx) {
-  const { issueid } = await ctx.params;
-  const issueId = issueid;
-  if (!issueId) {
-    return NextResponse.json({ ok: false, message: "missing issueId" }, { status: 400 });
-  }
-  const list = await prisma.issueComment.findMany({
-    where: { issueId },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      comment: true,
-      createdAt: true,
-      author: { select: { id: true, email: true, name: true, role: true } },
-    },
-  });
+async function canComment(userId: string, role: string, projectId: string) {
+  if (role === "SUPERADMIN") return true;
+  if (role !== "ADMIN") return false;
 
-  return NextResponse.json({ ok: true, comments: list });
+  const pa = await prisma.projectAdmin.findFirst({
+    where: { userId, projectId, isActive: true },
+    select: { id: true },
+  });
+  return Boolean(pa);
+}
+
+export async function GET(req: NextRequest, ctx: Ctx) {
+  const user = await getAuthUser(req);
+  if (!user) return NextResponse.json({ ok: false, message: "forbidden" }, { status: 403 });
+
+  const { issueid } = await ctx.params;
+  if (!issueid) return NextResponse.json({ ok: false, message: "missing issueid" }, { status: 400 });
+
+  try {
+    const issue = await prisma.issue.findUnique({
+      where: { id: issueid },
+      select: {
+        id: true,
+        report: { select: { projectId: true } },
+      },
+    });
+    if (!issue) return NextResponse.json({ ok: false, message: "issue not found" }, { status: 404 });
+
+    const ok = await canComment(user.id, user.role, issue.report.projectId);
+    if (!ok) return NextResponse.json({ ok: false, message: "forbidden" }, { status: 403 });
+
+    const list = await prisma.issueComment.findMany({
+      where: { issueId: issueid },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        comment: true,
+        createdAt: true,
+        author: { select: { id: true, email: true, name: true, role: true } },
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      comments: list.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() })),
+    });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, message: e?.message ?? "Internal server error" }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest, ctx: Ctx) {
@@ -33,38 +64,40 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   if (!user) return NextResponse.json({ ok: false, message: "forbidden" }, { status: 403 });
 
   const { issueid } = await ctx.params;
-  const issueId = issueid;
-  if (!user) return NextResponse.json({ ok: false, message: "forbidden" }, { status: 403 });
-
+  if (!issueid) return NextResponse.json({ ok: false, message: "missing issueid" }, { status: 400 });
 
   const body = await req.json().catch(() => null);
   const comment = String(body?.comment || "").trim();
   if (!comment) return NextResponse.json({ ok: false, message: "missing comment" }, { status: 400 });
 
-  // ✅ check ว่าผู้ใช้มีสิทธิ์คอมเมนต์ issue นี้ไหม:
-  // - SUPERADMIN/ADMIN ผ่านเลย
-  // - USER ผ่านเฉพาะถ้าเป็น ProjectAdmin ของ project ที่ issue อยู่
-  const issue = await prisma.issue.findUnique({
-    where: { id: issueId },
-    select: { report: { select: { projectId: true } } },
-  });
-  const projectId = issue?.report?.projectId;
-  if (!projectId) return NextResponse.json({ ok: false, message: "issue not found" }, { status: 404 });
-
-  const role = user.role;
-
-  if (role !== "SUPERADMIN" && role !== "ADMIN") {
-    const link = await prisma.projectAdmin.findFirst({
-      where: { projectId, userId: user.id, isActive: true },
-      select: { id: true },
+  try {
+    const issue = await prisma.issue.findUnique({
+      where: { id: issueid },
+      select: {
+        id: true,
+        report: { select: { projectId: true } },
+      },
     });
-    if (!link) return NextResponse.json({ ok: false, message: "forbidden" }, { status: 403 });
+    if (!issue) return NextResponse.json({ ok: false, message: "issue not found" }, { status: 404 });
+
+    const ok = await canComment(user.id, user.role, issue.report.projectId);
+    if (!ok) return NextResponse.json({ ok: false, message: "forbidden" }, { status: 403 });
+
+    const created = await prisma.issueComment.create({
+      data: { issueId: issueid, comment, authorId: user.id },
+      select: {
+        id: true,
+        comment: true,
+        createdAt: true,
+        author: { select: { id: true, email: true, name: true, role: true } },
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      comment: { ...created, createdAt: created.createdAt.toISOString() },
+    });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, message: e?.message ?? "Internal server error" }, { status: 500 });
   }
-
-  const row = await prisma.issueComment.create({
-    data: { issueId, authorId: user.id, comment },
-    select: { id: true, comment: true, createdAt: true },
-  });
-
-  return NextResponse.json({ ok: true, row });
 }

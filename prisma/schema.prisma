@@ -17,12 +17,13 @@ model Project {
 }
 
 model DailyReport {
-  id        String   @id @default(uuid())
+  id        String           @id @default(uuid())
   projectId String
   date      DateTime
-  createdAt DateTime @default(now())
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   issues    Issue[]
+  approvals ReportApproval[] @relation("ReportApprovals")
 
   @@index([projectId])
   @@index([date])
@@ -73,8 +74,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  projectAdminOf ProjectAdmin[]
-  issueComments  IssueComment[]
+  projectAdminOf  ProjectAdmin[]
+  issueComments   IssueComment[]
+  reportApprovals ReportApproval[] @relation("UserApprovals")
 }
 
 model PasswordToken {
@@ -119,3 +121,19 @@ model ProjectAdmin {
   @@index([userId])
 }
 
+model ReportApproval {
+  id             String   @id @default(cuid())
+  reportId       String
+  approverName   String
+  approverRole   String?
+  approverUserId String?
+  approvedAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  report   DailyReport @relation("ReportApprovals", fields: [reportId], references: [id], onDelete: Cascade)
+  approver User?       @relation("UserApprovals", fields: [approverUserId], references: [id], onDelete: SetNull)
+
+  @@unique([reportId, approverName])
+  @@index([reportId])
+  @@index([approverUserId])
+}
