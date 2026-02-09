@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 
-// ✅ Next.js App Router: ctx.params เป็น object ไม่ใช่ Promise
-type Ctx = { params: { id: string } };
+// ✅ Next.js 16 (Turbopack): ctx.params เป็น Promise
+type Ctx = { params: Promise<{ id: string }> };
 
 function norm(s: string) {
   return String(s || "")
@@ -35,7 +35,8 @@ function normalizeSupervisors(raw: any): { name: string; role: string }[] {
  * ดึงสถานะการอนุมัติทั้งหมดของรายงาน
  */
 export async function GET(_req: NextRequest, ctx: Ctx) {
-  const reportId = String(ctx.params?.id || "").trim();
+  const { id } = await ctx.params;
+  const reportId = String(id || "").trim();
 
   if (!reportId) {
     return NextResponse.json({ ok: false, message: "missing report id" }, { status: 400 });
@@ -62,7 +63,10 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       })),
     });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, message: e?.message ?? "internal error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, message: e?.message ?? "internal error" },
+      { status: 500 }
+    );
   }
 }
 
@@ -71,7 +75,8 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
  * ผู้ควบคุมงาน "ยืนยันของฉัน"
  */
 export async function POST(req: NextRequest, ctx: Ctx) {
-  const reportId = String(ctx.params?.id || "").trim();
+  const { id } = await ctx.params;
+  const reportId = String(id || "").trim();
 
   if (!reportId) {
     return NextResponse.json({ ok: false, message: "missing report id" }, { status: 400 });
@@ -99,7 +104,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
     const supervisors = normalizeSupervisors((report.project?.meta as any)?.supervisors);
     if (supervisors.length === 0) {
-      return NextResponse.json({ ok: false, message: "project has no supervisors in DB" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, message: "project has no supervisors in DB" },
+        { status: 400 }
+      );
     }
 
     // ✅ ดึงชื่อจริงจาก DB เพื่อเอาไป match
@@ -115,7 +123,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
     const mySupervisor = supervisors.find((s) => norm(s.name) === norm(meName));
     if (!mySupervisor) {
-      return NextResponse.json({ ok: false, message: "คุณไม่ใช่ผู้ควบคุมงานของโครงการนี้" }, { status: 403 });
+      return NextResponse.json(
+        { ok: false, message: "คุณไม่ใช่ผู้ควบคุมงานของโครงการนี้" },
+        { status: 403 }
+      );
     }
 
     const exists = await prisma.reportApproval.findFirst({
@@ -143,6 +154,9 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       date: report.date.toISOString(),
     });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, message: e?.message ?? "internal error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, message: e?.message ?? "internal error" },
+      { status: 500 }
+    );
   }
 }
