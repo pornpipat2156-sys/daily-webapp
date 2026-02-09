@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ReportPreviewReadonly } from "@/components/ReportPreviewReadonly";
 
 type ProjectRow = { id: string; projectName: string };
 type ReportRow = { id: string; date: string }; // ISO string
@@ -341,8 +342,6 @@ export default function CommentatorPage() {
                         <div className="md:col-span-1">
                           <div className="text-sm font-medium mb-1">ภาพ</div>
                           {it.imageUrl ? (
-                            // ถ้าเก็บเป็น base64 ก็แสดงได้เลย
-                            // ถ้าเป็น URL ก็แสดงได้เช่นกัน
                             <img
                               src={it.imageUrl}
                               alt={`issue-${idx + 1}`}
@@ -367,9 +366,7 @@ export default function CommentatorPage() {
                             onChange={(e) => setDraft((m) => ({ ...m, [it.id]: e.target.value }))}
                           />
                           <div className="mt-2 flex items-center justify-between gap-2">
-                            <div className="text-xs opacity-70">
-                              ความเห็นเดิม: {(it.comments || []).length} รายการ
-                            </div>
+                            <div className="text-xs opacity-70">ความเห็นเดิม: {(it.comments || []).length} รายการ</div>
                             <button
                               className="rounded-lg border px-3 py-2 disabled:opacity-60"
                               disabled={posting[it.id] || !(draft[it.id] || "").trim()}
@@ -405,6 +402,7 @@ export default function CommentatorPage() {
             </div>
           )}
         </div>
+        <div className="mt-4">{reportId ? <ReportPreviewReadonly reportId={reportId} /> : null}</div>
       </div>
     </div>
   );
