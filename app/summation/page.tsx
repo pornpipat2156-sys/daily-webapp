@@ -3,7 +3,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 
 type ProjectRow = { id: string; projectName: string };
 type ReportRow = { id: string; date: string };
@@ -15,7 +14,7 @@ type ApprovalRow = {
   approverName: string;
   approverRole: string | null;
   approverUserId: string | null;
-  approvedAt: string; // ISO string (มาจาก API)
+  approvedAt: string; // ISO string
 };
 
 function formatDateBE(iso?: string) {
@@ -37,7 +36,6 @@ function norm(s: string) {
 
 export default function SummationPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [projectId, setProjectId] = useState<string>("");
@@ -56,13 +54,6 @@ export default function SummationPage() {
   const [err, setErr] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
-  const meDisplay = useMemo(() => {
-    const name = String((session as any)?.user?.name || "").trim();
-    const email = String((session as any)?.user?.email || "").trim();
-    // ให้ name มาก่อน ถ้าไม่มีใช้ email
-    return name || email || "";
-  }, [session]);
-
   // load projects
   useEffect(() => {
     let cancel = false;
@@ -72,10 +63,7 @@ export default function SummationPage() {
         const res = await fetch("/api/projects", { cache: "no-store" });
         const json = await res.json().catch(() => null);
         const list: ProjectRow[] = Array.isArray(json)
-          ? json.map((p: any) => ({
-              id: String(p.id),
-              projectName: String(p.projectName || p.name || ""),
-            }))
+          ? json.map((p: any) => ({ id: String(p.id), projectName: String(p.projectName || p.name || "") }))
           : [];
         if (!cancel) setProjects(list);
       } catch {
@@ -90,7 +78,7 @@ export default function SummationPage() {
     };
   }, []);
 
-  // prefill from sessionStorage
+  // prefill from sessionStorage (มาจาก preview/commentator)
   useEffect(() => {
     const rid =
       sessionStorage.getItem("lastSubmittedReportId") ||
@@ -106,7 +94,7 @@ export default function SummationPage() {
     let cancel = false;
     async function run() {
       setReports([]);
-      setReportId((prev) => (projectId ? prev : "")); // ถ้าเคลียร์ project ก็เคลียร์ report
+      setReportId(""); // reset when project changes (แต่ถ้ามี prefill จาก sessionStorage ให้ useEffect prefill จัดการเอง)
       if (!projectId) return;
 
       setLoadingReports(true);
@@ -131,25 +119,25 @@ export default function SummationPage() {
     };
   }, [projectId]);
 
-  // load supervisors from /api/projects/[id] meta.supervisors (DB only)
+  // load supervisors from DB meta.supervisors
   useEffect(() => {
     let cancel = false;
     async function run() {
       setErr("");
       setSupervisors([]);
+      setApprovals([]);
       if (!projectId) return;
 
       setLoadingSup(true);
       try {
         const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
-        if (!res.ok || !json?.ok) throw new Error(json?.message || "โหลดรายชื่อผู้ควบคุมงานไม่สำเร็จ");
+        if (!res.ok || !json?.ok) throw new Error(json?.message || "โหลด supervisors ไม่สำเร็จ");
 
         const raw = json.project?.meta?.supervisors;
         const arr = Array.isArray(raw) ? raw : [];
 
-        const looksLikeRole = (s: string) =>
-          /(ผู้|หัวหน้า|ผอ|วิศวกร|ผู้ตรวจ|ผู้ควบคุม|ผู้แทน)/.test(s);
+        const looksLikeRole = (s: string) => /(ผู้|หัวหน้า|ผอ|วิศวกร|ผู้ตรวจ|ผู้ควบคุม|ผู้แทน)/.test(s);
 
         const sup: Supervisor[] = arr
           .map((x: any) => {
@@ -160,11 +148,11 @@ export default function SummationPage() {
             if (!s) return { name: "", role: "" };
             return looksLikeRole(s) ? { name: "", role: s } : { name: s, role: "" };
           })
-          .filter((x) => x.name || x.role);
+          .filter((x) => x.name); // ต้องมีชื่อเพื่อ match
 
         if (!cancel) setSupervisors(sup);
       } catch (e: any) {
-        if (!cancel) setErr(e?.message ?? "โหลดรายชื่อผู้ควบคุมงานไม่สำเร็จ");
+        if (!cancel) setErr(e?.message ?? "โหลด supervisors ไม่สำเร็จ");
       } finally {
         if (!cancel) setLoadingSup(false);
       }
@@ -175,7 +163,7 @@ export default function SummationPage() {
     };
   }, [projectId]);
 
-  // load approvals for report
+  // load approvals for selected report
   useEffect(() => {
     let cancel = false;
     async function run() {
@@ -189,21 +177,12 @@ export default function SummationPage() {
           cache: "no-store",
         });
         const json = await res.json().catch(() => null);
-        if (!res.ok || !json?.ok) throw new Error(json?.message || "โหลดสถานะการอนุมัติไม่สำเร็จ");
+        if (!res.ok || !json?.ok) throw new Error(json?.message || "โหลด approvals ไม่สำเร็จ");
 
-        const list: ApprovalRow[] = Array.isArray(json?.approvals)
-          ? json.approvals.map((a: any) => ({
-              id: String(a.id),
-              approverName: String(a.approverName || ""),
-              approverRole: a.approverRole == null ? null : String(a.approverRole),
-              approverUserId: a.approverUserId == null ? null : String(a.approverUserId),
-              approvedAt: String(a.approvedAt || ""),
-            }))
-          : [];
-
+        const list: ApprovalRow[] = Array.isArray(json?.approvals) ? json.approvals : [];
         if (!cancel) setApprovals(list);
       } catch (e: any) {
-        if (!cancel) setErr(e?.message ?? "โหลดสถานะการอนุมัติไม่สำเร็จ");
+        if (!cancel) setErr(e?.message ?? "โหลด approvals ไม่สำเร็จ");
       } finally {
         if (!cancel) setLoadingApprovals(false);
       }
@@ -214,54 +193,22 @@ export default function SummationPage() {
     };
   }, [reportId]);
 
-  const approvedNameSet = useMemo(() => {
-    const s = new Set<string>();
-    approvals.forEach((a) => {
-      const k = norm(a.approverName);
-      if (k) s.add(k);
-    });
-    return s;
+  const approvalsMap = useMemo(() => {
+    const m = new Map<string, ApprovalRow>();
+    for (const a of approvals) m.set(norm(a.approverName), a);
+    return m;
   }, [approvals]);
 
-  const totalSup = supervisors.filter((s) => norm(s.name)).length; // นับเฉพาะรายการที่มีชื่อ
-  const approvedCount = useMemo(() => {
-    if (!supervisors.length) return 0;
-    let c = 0;
-    for (const sup of supervisors) {
-      const k = norm(sup.name);
-      if (!k) continue;
-      if (approvedNameSet.has(k)) c++;
-    }
-    return c;
-  }, [supervisors, approvedNameSet]);
-
-  const isFullyApproved = totalSup > 0 && approvedCount >= totalSup;
-
-  const mySupervisor = useMemo(() => {
-    const me = norm(meDisplay);
-    if (!me) return null;
-    // match ชื่อ supervisor เท่านั้น (ตาม requirement)
-    return supervisors.find((s) => norm(s.name) === me) || null;
-  }, [supervisors, meDisplay]);
-
-  const iCanApprove = useMemo(() => {
-    if (!projectId || !reportId) return false;
-    if (status === "loading") return false;
-    if (!meDisplay) return false;
-    if (!mySupervisor) return false;
-    // ถ้าเคยอนุมัติแล้ว กดซ้ำไม่ได้
-    if (approvedNameSet.has(norm(mySupervisor.name))) return false;
-    return true;
-  }, [projectId, reportId, status, meDisplay, mySupervisor, approvedNameSet]);
+  const allApproved = useMemo(() => {
+    if (!supervisors.length) return false;
+    if (!reportId) return false;
+    return supervisors.every((s) => approvalsMap.has(norm(s.name)));
+  }, [supervisors, approvalsMap, reportId]);
 
   async function onApproveMe() {
     setErr("");
-    if (!projectId || !reportId) {
-      setErr("กรุณาเลือกโครงการและรายงานก่อน");
-      return;
-    }
-    if (!iCanApprove) {
-      setErr("คุณไม่มีสิทธิ์ยืนยัน (ต้องเป็นผู้ควบคุมงานที่มีชื่ออยู่ในรายชื่อ)");
+    if (!reportId) {
+      setErr("กรุณาเลือกรายงานก่อน");
       return;
     }
 
@@ -270,35 +217,22 @@ export default function SummationPage() {
       const res = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // ส่ง projectId ไปเผื่อฝั่ง API ใช้ตรวจ/หา supervisors (ปลอดภัย)
-        body: JSON.stringify({ projectId }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) throw new Error(json?.message || "บันทึกการอนุมัติไม่สำเร็จ");
+      if (!res.ok || !json?.ok) throw new Error(json?.message || "ยืนยันไม่สำเร็จ");
 
-      // refresh approvals
+      // reload approvals
       const res2 = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, {
         cache: "no-store",
       });
       const json2 = await res2.json().catch(() => null);
-      if (res2.ok && json2?.ok) {
-        const list: ApprovalRow[] = Array.isArray(json2?.approvals)
-          ? json2.approvals.map((a: any) => ({
-              id: String(a.id),
-              approverName: String(a.approverName || ""),
-              approverRole: a.approverRole == null ? null : String(a.approverRole),
-              approverUserId: a.approverUserId == null ? null : String(a.approverUserId),
-              approvedAt: String(a.approvedAt || ""),
-            }))
-          : [];
-        setApprovals(list);
-      }
+      if (res2.ok && json2?.ok && Array.isArray(json2.approvals)) setApprovals(json2.approvals);
 
-      // เก็บเพื่อใช้งานต่อ
-      sessionStorage.setItem("lastSubmittedProjectId", String(projectId));
-      sessionStorage.setItem("lastSubmittedReportId", String(reportId));
+      // แจ้งชื่อรายงานตาม requirement
+      const title = `รายงานการก่อสร้างโครงการ ${json.projectName || ""} ประจำวันที่ ${formatDateBE(json.date)}`;
+      alert(`ยืนยันสำเร็จ ✅\n${title}`);
     } catch (e: any) {
-      setErr(e?.message ?? "บันทึกการอนุมัติไม่สำเร็จ");
+      setErr(e?.message ?? "ยืนยันไม่สำเร็จ");
     } finally {
       setSaving(false);
     }
@@ -311,7 +245,7 @@ export default function SummationPage() {
           <div>
             <div className="text-lg font-semibold">การตรวจสอบและการอนุมัติ</div>
             <div className="text-sm opacity-70">
-              เลือกโครงการ → เลือกรายงาน → ผู้ควบคุมงานแต่ละคนกด “ยืนยันของฉัน” ด้วยบัญชีตัวเอง
+              เลือกโครงการ → เลือกรายงาน → ผู้ควบคุมงานแต่ละคน login มากด “ยืนยันของฉัน”
             </div>
           </div>
           <button className="rounded-lg border px-3 py-2" onClick={() => router.push("/daily-report")}>
@@ -326,11 +260,7 @@ export default function SummationPage() {
               <select
                 className="w-full rounded-lg border px-3 py-2 bg-background"
                 value={projectId}
-                onChange={(e) => {
-                  setProjectId(e.target.value);
-                  setReportId("");
-                  setApprovals([]);
-                }}
+                onChange={(e) => setProjectId(e.target.value)}
                 disabled={loadingProjects}
               >
                 <option value="">{loadingProjects ? "กำลังโหลด..." : "— เลือกโครงการ —"}</option>
@@ -359,100 +289,72 @@ export default function SummationPage() {
                   </option>
                 ))}
               </select>
-              <div className="text-xs opacity-70 mt-1">ถ้าเด้งมาจาก Preview ระบบจะเลือกให้อัตโนมัติ</div>
+              <div className="text-xs opacity-70 mt-1">ถ้าเด้งมาจาก Preview ระบบจะเลือกให้อัตโนมัติ (ถ้ามี)</div>
             </div>
 
-            <div className="flex flex-col justify-end gap-2">
-              <div className="text-xs opacity-70">
-                ผู้ใช้งาน:{" "}
-                {status === "loading" ? "กำลังโหลด..." : meDisplay ? meDisplay : "ไม่พบข้อมูลผู้ใช้งาน (กรุณา login)"}
-              </div>
-
+            <div className="flex items-end">
               <button
                 className="w-full rounded-lg border px-3 py-2 disabled:opacity-60"
-                disabled={!iCanApprove || saving}
+                disabled={!reportId || saving}
                 onClick={onApproveMe}
-                title={
-                  !meDisplay
-                    ? "กรุณา login"
-                    : !mySupervisor
-                    ? "ชื่อผู้ใช้ต้องตรงกับรายชื่อผู้ควบคุมงาน"
-                    : approvedNameSet.has(norm(mySupervisor.name))
-                    ? "คุณอนุมัติแล้ว"
-                    : "ยืนยันของฉัน"
-                }
+                title="ผู้ควบคุมงานแต่ละคนต้อง login มากดของตัวเอง"
               >
-                {saving ? "กำลังบันทึก..." : "ยืนยันของฉัน"}
+                {saving ? "กำลังยืนยัน..." : "ยืนยันของฉัน"}
               </button>
-
-              <div className="text-sm">
-                สถานะ:{" "}
-                <span className="font-semibold">
-                  {totalSup === 0 ? "-" : `${approvedCount}/${totalSup} คน`}
-                </span>{" "}
-                {isFullyApproved ? <span className="ml-2 text-green-700 font-semibold">อนุมัติครบแล้ว</span> : null}
-              </div>
             </div>
           </div>
 
           {err ? <div className="mt-3 text-sm text-red-600">{err}</div> : null}
+
+          <div className="mt-3 text-sm">
+            {reportId ? (
+              loadingApprovals ? (
+                <span className="opacity-70">กำลังโหลดสถานะการอนุมัติ...</span>
+              ) : allApproved ? (
+                <span className="font-semibold">อนุมัติครบแล้ว ✅</span>
+              ) : (
+                <span className="opacity-70">สถานะ: รออนุมัติ</span>
+              )
+            ) : (
+              <span className="opacity-70">เลือก “รายงาน” เพื่อดูสถานะการอนุมัติ</span>
+            )}
+          </div>
         </div>
 
         <div className="mt-4 rounded-2xl border bg-card p-4">
-          <div className="mb-2 font-semibold">รายชื่อผู้ควบคุมงาน + สถานะการอนุมัติ (จาก DB)</div>
+          <div className="mb-2 font-semibold">รายชื่อผู้ควบคุมงาน (จาก DB เท่านั้น)</div>
 
           {loadingSup ? (
-            <div className="opacity-70">กำลังโหลดรายชื่อผู้ควบคุมงาน...</div>
+            <div className="opacity-70">กำลังโหลดรายชื่อ...</div>
           ) : supervisors.length === 0 ? (
             <div className="opacity-70">ไม่พบรายชื่อผู้ควบคุมงานใน Project.meta.supervisors</div>
           ) : (
             <div className="space-y-2">
               {supervisors.map((s, i) => {
-                const key = norm(s.name);
-                const ok = key ? approvedNameSet.has(key) : false;
-                const who = key ? s.name : "(ไม่ระบุชื่อ)";
-                const isMe = key && norm(meDisplay) === key;
-
+                const a = approvalsMap.get(norm(s.name));
+                const ok = Boolean(a);
                 return (
                   <div key={i} className="flex items-center justify-between gap-3 rounded-xl border p-3">
-                    <div className="min-w-0">
-                      <div className="font-medium truncate">
-                        {who} {isMe ? <span className="ml-2 text-xs rounded bg-black/5 px-2 py-0.5">คุณ</span> : null}
-                      </div>
+                    <div>
+                      <div className="font-medium">{s.name}</div>
                       <div className="text-sm opacity-70">{s.role || ""}</div>
+                      {ok ? (
+                        <div className="text-xs opacity-70 mt-1">ยืนยันเมื่อ: {formatDateBE(a!.approvedAt)}</div>
+                      ) : null}
                     </div>
 
-                    <div className="shrink-0">
-                      {ok ? (
-                        <div className="text-sm font-semibold text-green-700">
-                          อนุมัติแล้ว
-                          <div className="text-xs opacity-70 text-right">
-                            {(() => {
-                              const a = approvals.find((x) => norm(x.approverName) === key);
-                              return a?.approvedAt ? formatDateBE(a.approvedAt) : "";
-                            })()}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-sm font-semibold text-amber-700">รออนุมัติ</div>
-                      )}
+                    <div
+                      className={`rounded-full border px-3 py-1 text-sm ${
+                        ok ? "bg-green-50" : "bg-yellow-50"
+                      }`}
+                    >
+                      {ok ? "อนุมัติแล้ว" : "รออนุมัติ"}
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
-
-          {loadingApprovals ? <div className="mt-3 text-sm opacity-70">กำลังโหลดสถานะการอนุมัติ...</div> : null}
-
-          {isFullyApproved ? (
-            <div className="mt-4 rounded-xl border bg-green-50 p-3">
-              <div className="font-semibold text-green-800">อนุมัติครบทุกคนแล้ว</div>
-              <div className="text-sm text-green-800 mt-1">
-                ระบบสามารถถือว่ารายงาน “รายงานการก่อสร้างโครงการ... ประจำวันที่ ...” เสร็จสมบูรณ์ได้แล้ว
-              </div>
-            </div>
-          ) : null}
         </div>
       </div>
     </div>
