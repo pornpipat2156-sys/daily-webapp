@@ -7,11 +7,46 @@ type Ctx = { params: Promise<{ id: string }> };
 
 // normalize ทั่วไป
 function norm(s: string) {
-  return String(s || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
+  return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
+
+const [approvals, setApprovals] = useState<
+  { approverName: string; approvedAt: string }[]
+>([]);
+
+async function loadApprovals(reportId: string) {
+  const res = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, { cache: "no-store" });
+  const json = await res.json().catch(() => null);
+  if (res.ok && json?.ok) setApprovals(json.approvals || []);
+  else setApprovals([]);
+}
+
+const approvedSet = useMemo(() => {
+  return new Set((approvals || []).map((a) => norm(a.approverName)));
+}, [approvals]);
+
+function isApproved(supervisorName: string) {
+  return approvedSet.has(norm(supervisorName));
+}
+
+// หลังเลือก reportId ให้เรียก
+useEffect(() => {
+  if (reportId) loadApprovals(reportId);
+}, [reportId]);
+
+async function onApproveMine() {
+  const res = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, { method: "POST" });
+  const json = await res.json().catch(() => null);
+
+  // ✅ สำคัญ: 409 ก็ถือว่า “อนุมัติแล้ว” ให้รีเฟรชสถานะด้วย
+  if (res.ok || res.status === 409) {
+    await loadApprovals(reportId);
+    return;
+  }
+
+  alert(json?.message || "ยืนยันไม่สำเร็จ");
+}
+
 
 // normalize ชื่อคน (เพิ่ม: ตัดคำนำหน้า/ตำแหน่งทางวิชาการ/ลบจุด)
 function normPersonName(s: string) {

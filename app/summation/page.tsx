@@ -28,10 +28,7 @@ function formatDateBE(iso?: string) {
 }
 
 function norm(s: string) {
-  return String(s || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
+  return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 export default function SummationPage() {
@@ -54,7 +51,7 @@ export default function SummationPage() {
   const [err, setErr] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
-  // load projects
+  // ----- load projects -----
   useEffect(() => {
     let cancel = false;
     async function run() {
@@ -63,7 +60,10 @@ export default function SummationPage() {
         const res = await fetch("/api/projects", { cache: "no-store" });
         const json = await res.json().catch(() => null);
         const list: ProjectRow[] = Array.isArray(json)
-          ? json.map((p: any) => ({ id: String(p.id), projectName: String(p.projectName || p.name || "") }))
+          ? json.map((p: any) => ({
+              id: String(p.id),
+              projectName: String(p.projectName || p.name || ""),
+            }))
           : [];
         if (!cancel) setProjects(list);
       } catch {
@@ -78,7 +78,7 @@ export default function SummationPage() {
     };
   }, []);
 
-  // prefill from sessionStorage (มาจาก preview/commentator)
+  // ----- prefill from sessionStorage (มาจาก preview/commentator) -----
   useEffect(() => {
     const rid =
       sessionStorage.getItem("lastSubmittedReportId") ||
@@ -89,12 +89,16 @@ export default function SummationPage() {
     if (rid) setReportId(rid);
   }, []);
 
-  // load reports list for project
+  // ----- load reports list for project -----
   useEffect(() => {
     let cancel = false;
+
     async function run() {
       setReports([]);
-      setReportId(""); // reset when project changes (แต่ถ้ามี prefill จาก sessionStorage ให้ useEffect prefill จัดการเอง)
+      setApprovals([]);
+      // reset report when changing project (ถ้า prefill มาทีหลัง useEffect prefill จะ set ให้เอง)
+      setReportId("");
+
       if (!projectId) return;
 
       setLoadingReports(true);
@@ -113,15 +117,17 @@ export default function SummationPage() {
         if (!cancel) setLoadingReports(false);
       }
     }
+
     run();
     return () => {
       cancel = true;
     };
   }, [projectId]);
 
-  // load supervisors from DB meta.supervisors
+  // ----- load supervisors from DB meta.supervisors -----
   useEffect(() => {
     let cancel = false;
+
     async function run() {
       setErr("");
       setSupervisors([]);
@@ -137,7 +143,8 @@ export default function SummationPage() {
         const raw = json.project?.meta?.supervisors;
         const arr = Array.isArray(raw) ? raw : [];
 
-        const looksLikeRole = (s: string) => /(ผู้|หัวหน้า|ผอ|วิศวกร|ผู้ตรวจ|ผู้ควบคุม|ผู้แทน)/.test(s);
+        const looksLikeRole = (s: string) =>
+          /(ผู้|หัวหน้า|ผอ|วิศวกร|ผู้ตรวจ|ผู้ควบคุม|ผู้แทน)/.test(s);
 
         const sup: Supervisor[] = arr
           .map((x: any) => {
@@ -148,7 +155,7 @@ export default function SummationPage() {
             if (!s) return { name: "", role: "" };
             return looksLikeRole(s) ? { name: "", role: s } : { name: s, role: "" };
           })
-          .filter((x) => x.name); // ต้องมีชื่อเพื่อ match
+          .filter((x) => x.name); // ต้องมีชื่อเพื่อ match กับ approvals
 
         if (!cancel) setSupervisors(sup);
       } catch (e: any) {
@@ -157,40 +164,43 @@ export default function SummationPage() {
         if (!cancel) setLoadingSup(false);
       }
     }
+
     run();
     return () => {
       cancel = true;
     };
   }, [projectId]);
 
-  // load approvals for selected report
-  useEffect(() => {
-    let cancel = false;
-    async function run() {
-      setErr("");
+  // ----- helper: load approvals for report -----
+  async function loadApprovals(rid: string) {
+    if (!rid) {
       setApprovals([]);
-      if (!reportId) return;
-
-      setLoadingApprovals(true);
-      try {
-        const res = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, {
-          cache: "no-store",
-        });
-        const json = await res.json().catch(() => null);
-        if (!res.ok || !json?.ok) throw new Error(json?.message || "โหลด approvals ไม่สำเร็จ");
-
-        const list: ApprovalRow[] = Array.isArray(json?.approvals) ? json.approvals : [];
-        if (!cancel) setApprovals(list);
-      } catch (e: any) {
-        if (!cancel) setErr(e?.message ?? "โหลด approvals ไม่สำเร็จ");
-      } finally {
-        if (!cancel) setLoadingApprovals(false);
-      }
+      return;
     }
-    run();
-    return () => {
-      cancel = true;
-    };
+    setLoadingApprovals(true);
+    try {
+      const res = await fetch(`/api/daily-reports/${encodeURIComponent(rid)}/approvals`, {
+        cache: "no-store",
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) throw new Error(json?.message || "โหลด approvals ไม่สำเร็จ");
+      const list: ApprovalRow[] = Array.isArray(json?.approvals) ? json.approvals : [];
+      setApprovals(list);
+    } catch (e: any) {
+      setApprovals([]);
+      setErr(e?.message ?? "โหลด approvals ไม่สำเร็จ");
+    } finally {
+      setLoadingApprovals(false);
+    }
+  }
+
+  // ----- load approvals when report changes -----
+  useEffect(() => {
+    setErr("");
+    setApprovals([]);
+    if (!reportId) return;
+    loadApprovals(reportId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reportId]);
 
   const approvalsMap = useMemo(() => {
@@ -218,19 +228,26 @@ export default function SummationPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
+
       const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) throw new Error(json?.message || "ยืนยันไม่สำเร็จ");
 
-      // reload approvals
-      const res2 = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, {
-        cache: "no-store",
-      });
-      const json2 = await res2.json().catch(() => null);
-      if (res2.ok && json2?.ok && Array.isArray(json2.approvals)) setApprovals(json2.approvals);
+      // ✅ ถ้าเคยยืนยันแล้ว (409) ก็ถือว่าควร reload สถานะเหมือนกัน
+      if (res.ok || res.status === 409) {
+        await loadApprovals(reportId);
 
-      // แจ้งชื่อรายงานตาม requirement
-      const title = `รายงานการก่อสร้างโครงการ ${json.projectName || ""} ประจำวันที่ ${formatDateBE(json.date)}`;
-      alert(`ยืนยันสำเร็จ ✅\n${title}`);
+        if (res.ok && json?.ok) {
+          const title = `รายงานการก่อสร้างโครงการ ${json.projectName || ""} ประจำวันที่ ${formatDateBE(
+            json.date
+          )}`;
+          alert(`ยืนยันสำเร็จ ✅\n${title}`);
+        } else {
+          // 409
+          alert("คุณได้ยืนยันไปแล้ว ✅");
+        }
+        return;
+      }
+
+      throw new Error(json?.message || "ยืนยันไม่สำเร็จ");
     } catch (e: any) {
       setErr(e?.message ?? "ยืนยันไม่สำเร็จ");
     } finally {
@@ -343,11 +360,7 @@ export default function SummationPage() {
                       ) : null}
                     </div>
 
-                    <div
-                      className={`rounded-full border px-3 py-1 text-sm ${
-                        ok ? "bg-green-50" : "bg-yellow-50"
-                      }`}
-                    >
+                    <div className={`rounded-full border px-3 py-1 text-sm ${ok ? "bg-green-50" : "bg-yellow-50"}`}>
                       {ok ? "อนุมัติแล้ว" : "รออนุมัติ"}
                     </div>
                   </div>
