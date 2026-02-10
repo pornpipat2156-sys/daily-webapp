@@ -19,7 +19,7 @@ type ApprovalRow = {
   approverName: string;
   approverRole: string | null;
   approverUserId: string | null;
-  approvedAt: string; // ISO string
+  approvedAt: string; // ISO
 };
 
 type ProjectMeta = {
@@ -82,7 +82,10 @@ function formatDateBE(yyyyMmDdOrIso?: string) {
 }
 
 function norm(s: string) {
-  return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 }
 
 function padArray<T>(arr: T[], targetLen: number, makeEmpty: (idx: number) => T): T[] {
@@ -326,8 +329,6 @@ export default function SummationPage() {
     async function run() {
       setReports([]);
       setApprovals([]);
-      setDetail(null);
-
       if (!projectId) return;
 
       setLoadingReports(true);
@@ -417,7 +418,7 @@ export default function SummationPage() {
     };
   }, [projectId]);
 
-  // ✅ load approvals (เพิ่มกลับมา)
+  // ✅ load approvals for selected report
   useEffect(() => {
     let cancel = false;
     async function run() {
@@ -430,7 +431,6 @@ export default function SummationPage() {
         const res = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.ok) throw new Error(json?.message || "โหลด approvals ไม่สำเร็จ");
-
         const list: ApprovalRow[] = Array.isArray(json?.approvals) ? json.approvals : [];
         if (!cancel) setApprovals(list);
       } catch (e: any) {
@@ -451,6 +451,7 @@ export default function SummationPage() {
     return Boolean(subOt || eqOt);
   }, [detail?.subContractors, detail?.majorEquipment]);
 
+  // ✅ Weather fetch
   useEffect(() => {
     let cancelled = false;
     async function run() {
@@ -476,8 +477,9 @@ export default function SummationPage() {
         }
       } catch {
         if (!cancelled) {
-          setTempMax(detail.tempMaxC ?? null);
-          setTempMin(detail.tempMinC ?? null);
+          // ✅ ต้องให้คืนค่าเป็น "-" เท่านั้น (ไม่ fallback ไปใช้ค่าจาก DB)
+          setTempMax(null);
+          setTempMin(null);
           setWMorning("-");
           setWAfternoon("-");
           setWOvertime("-");
@@ -490,67 +492,9 @@ export default function SummationPage() {
     return () => {
       cancelled = true;
     };
-  }, [detail?.date, hasOvertime, detail?.tempMaxC, detail?.tempMinC]);
+  }, [detail?.date, hasOvertime]);
 
   const canShowReport = Boolean(projectId && reportId && detail);
-
-  // ✅ เงื่อนไขคอมเมนต์ครบก่อนยืนยัน (เหมือน code เก่า)
-  const issueCount = useMemo(() => detail?.issues?.length ?? 0, [detail]);
-  const allIssuesHaveAtLeastOneComment = useMemo(() => {
-    const list = detail?.issues || [];
-    if (!list.length) return true;
-    return list.every((it) => (it.comments || []).length > 0);
-  }, [detail]);
-
-  const disableApproveBecauseComments = issueCount > 0 && !allIssuesHaveAtLeastOneComment;
-
-  const approvalsMap = useMemo(() => {
-    const m = new Map<string, ApprovalRow>();
-    for (const a of approvals) m.set(norm(a.approverName), a);
-    return m;
-  }, [approvals]);
-
-  const allApproved = useMemo(() => {
-    if (!supervisors.length) return false;
-    if (!reportId) return false;
-    return supervisors.every((s) => (s.name ? approvalsMap.has(norm(s.name)) : false));
-  }, [supervisors, approvalsMap, reportId]);
-
-  async function onApproveMe() {
-    setErr("");
-
-    if (!reportId) {
-      setErr("กรุณาเลือกรายงานก่อน");
-      return;
-    }
-
-    if (disableApproveBecauseComments) {
-      setErr("ยังแสดงความคิดเห็นไม่ครบทุกปัญหา กรุณาไปแท็บ “แสดงความคิดเห็น” ก่อน");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) throw new Error(json?.message || "ยืนยันไม่สำเร็จ");
-
-      // reload approvals
-      const res2 = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, { cache: "no-store" });
-      const json2 = await res2.json().catch(() => null);
-      if (res2.ok && json2?.ok && Array.isArray(json2.approvals)) setApprovals(json2.approvals);
-
-      const title = `รายงานการก่อสร้างโครงการ ${json.projectName || ""} ประจำวันที่ ${formatDateBE(json.date)}`;
-      alert(`ยืนยันสำเร็จ ✅\n${title}`);
-    } catch (e: any) {
-      setErr(e?.message ?? "ยืนยันไม่สำเร็จ");
-    } finally {
-      setSaving(false);
-    }
-  }
 
   const pm = detail?.projectMeta || {};
   const contractors = detail?.contractors || [];
@@ -614,13 +558,68 @@ export default function SummationPage() {
     };
   }, [majorEquipment]);
 
+  const issueCount = useMemo(() => detail?.issues?.length ?? 0, [detail]);
+  const allIssuesHaveAtLeastOneComment = useMemo(() => {
+    const list = detail?.issues || [];
+    if (!list.length) return true;
+    return list.every((it) => (it.comments || []).length > 0);
+  }, [detail]);
+
+  const disableApproveBecauseComments = issueCount > 0 && !allIssuesHaveAtLeastOneComment;
+
+  const approvalsMap = useMemo(() => {
+    const m = new Map<string, ApprovalRow>();
+    for (const a of approvals) m.set(norm(a.approverName), a);
+    return m;
+  }, [approvals]);
+
+  const allApproved = useMemo(() => {
+    if (!supervisors.length) return false;
+    if (!reportId) return false;
+    return supervisors.every((s) => approvalsMap.has(norm(s.name)));
+  }, [supervisors, approvalsMap, reportId]);
+
+  async function onApproveMe() {
+    setErr("");
+
+    if (!reportId) {
+      setErr("กรุณาเลือกรายงานก่อน");
+      return;
+    }
+    if (disableApproveBecauseComments) {
+      setErr("ยังแสดงความคิดเห็นไม่ครบทุกปัญหา กรุณาไปแท็บ “แสดงความคิดเห็น” ก่อน");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) throw new Error(json?.message || "ยืนยันไม่สำเร็จ");
+
+      // reload approvals
+      const res2 = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, { cache: "no-store" });
+      const json2 = await res2.json().catch(() => null);
+      if (res2.ok && json2?.ok && Array.isArray(json2.approvals)) setApprovals(json2.approvals);
+
+      alert("ยืนยันสำเร็จ ✅");
+    } catch (e: any) {
+      setErr(e?.message ?? "ยืนยันไม่สำเร็จ");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-[1200px] px-3 md:px-6 py-4">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <div className="text-lg font-semibold">การตรวจสอบและการอนุมัติ</div>
-            <div className="text-sm opacity-70">เลือกโครงการ → เลือกรายงาน → ตรวจสอบข้อมูล (อ่านอย่างเดียว)</div>
+            <div className="text-sm opacity-70">เลือกโครงการ → เลือกรายงาน → ตรวจสอบข้อมูล (อ่านอย่างเดียว) → ผู้ควบคุมงานกด “ยืนยันของฉัน”</div>
           </div>
           <div className="flex gap-2">
             <button className="rounded-lg border px-3 py-2" onClick={() => router.push("/commentator")}>
@@ -675,8 +674,7 @@ export default function SummationPage() {
               </select>
             </div>
 
-            {/* ✅ เพิ่มปุ่ม “ยืนยันของฉัน” กลับมา (และยังมีปุ่มไป Preview) */}
-            <div className="flex flex-col justify-end gap-2">
+            <div className="flex items-end">
               <button
                 className="w-full rounded-lg border px-3 py-2 disabled:opacity-60"
                 disabled={!reportId || saving || disableApproveBecauseComments}
@@ -684,14 +682,6 @@ export default function SummationPage() {
                 title={disableApproveBecauseComments ? "ต้องแสดงความคิดเห็นให้ครบก่อน" : "ผู้ควบคุมงานแต่ละคนต้อง login มากดยืนยันของตัวเอง"}
               >
                 {saving ? "กำลังยืนยัน..." : "ยืนยันของฉัน"}
-              </button>
-
-              <button
-                className="w-full rounded-lg border px-3 py-2 disabled:opacity-60"
-                disabled={!canShowReport}
-                onClick={() => router.push("/daily-report/preview")}
-              >
-                ไปหน้า Preview
               </button>
             </div>
           </div>
@@ -713,6 +703,7 @@ export default function SummationPage() {
           </div>
         </div>
 
+        {/* Preview Form */}
         <div className="mt-4">
           {!reportId ? null : loadingDetail ? (
             <div className="rounded-xl border bg-card p-4 opacity-80">กำลังโหลดข้อมูลรายงาน...</div>
@@ -1140,6 +1131,39 @@ export default function SummationPage() {
 
               {err ? <div className="mt-3 text-sm text-red-600">{err}</div> : null}
             </>
+          )}
+        </div>
+
+        {/* ✅ สถานะการอนุมัติรายชื่อผู้ควบคุมงาน */}
+        <div className="mt-4 rounded-2xl border bg-card p-4">
+          <div className="mb-2 font-semibold">สถานะการอนุมัติ</div>
+
+          {!reportId ? (
+            <div className="opacity-70">เลือก “รายงาน” เพื่อดูสถานะ</div>
+          ) : loadingApprovals ? (
+            <div className="opacity-70">กำลังโหลดสถานะการอนุมัติ...</div>
+          ) : supervisors.length === 0 ? (
+            <div className="opacity-70">ไม่พบรายชื่อผู้ควบคุมงานใน Project.meta.supervisors</div>
+          ) : (
+            <div className="space-y-2">
+              {supervisors.map((s, i) => {
+                const a = approvalsMap.get(norm(s.name));
+                const ok = Boolean(a);
+                return (
+                  <div key={i} className="flex items-center justify-between gap-3 rounded-xl border p-3">
+                    <div>
+                      <div className="font-medium">{s.name || "-"}</div>
+                      <div className="text-sm opacity-70">{s.role || ""}</div>
+                      {ok ? <div className="text-xs opacity-70 mt-1">ยืนยันเมื่อ: {formatDateBE(a!.approvedAt)}</div> : null}
+                    </div>
+
+                    <div className={`rounded-full border px-3 py-1 text-sm ${ok ? "bg-green-50" : "bg-yellow-50"}`}>
+                      {ok ? "อนุมัติแล้ว" : "รออนุมัติ"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
