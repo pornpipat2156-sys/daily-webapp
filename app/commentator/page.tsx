@@ -167,6 +167,9 @@ function weatherTextFromCode(code: number | null | undefined) {
 }
 
 async function fetchHourlyWeather(dateISO: string) {
+  // ✅ FIX: Open-Meteo start_date/end_date ต้องเป็น YYYY-MM-DD เท่านั้น
+  const dateOnly = String(dateISO || "").includes("T") ? String(dateISO).slice(0, 10) : String(dateISO);
+
   const lat = 18.7883;
   const lon = 98.9853;
   const url =
@@ -174,7 +177,7 @@ async function fetchHourlyWeather(dateISO: string) {
     `?latitude=${lat}&longitude=${lon}` +
     `&hourly=temperature_2m,weathercode` +
     `&timezone=Asia%2FBangkok` +
-    `&start_date=${dateISO}&end_date=${dateISO}`;
+    `&start_date=${dateOnly}&end_date=${dateOnly}`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error("hourly weather fetch failed");

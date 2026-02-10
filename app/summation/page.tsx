@@ -14,6 +14,14 @@ type Issue = { id: string; detail: string; imageUrl: string | null; createdAt: s
 
 type Supervisor = { name: string; role: string };
 
+type ApprovalRow = {
+  id: string;
+  approverName: string;
+  approverRole: string | null;
+  approverUserId: string | null;
+  approvedAt: string; // ISO string
+};
+
 type ProjectMeta = {
   contractNo?: string;
   annexNo?: string;
@@ -71,6 +79,10 @@ function formatDateBE(yyyyMmDdOrIso?: string) {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yyyy = d.getFullYear() + 543;
   return `${dd}/${mm}/${yyyy}`;
+}
+
+function norm(s: string) {
+  return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function padArray<T>(arr: T[], targetLen: number, makeEmpty: (idx: number) => T): T[] {
@@ -228,6 +240,11 @@ export default function SummationPage() {
   const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
   const [loadingSup, setLoadingSup] = useState(false);
 
+  // ✅ approvals (เพิ่มกลับมา)
+  const [approvals, setApprovals] = useState<ApprovalRow[]>([]);
+  const [loadingApprovals, setLoadingApprovals] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const init = useMemo(() => {
     if (typeof window === "undefined") return { ss: 1, scaledW: A4_WIDTH_PX };
     return computeScaleFromWidth(window.innerWidth || A4_WIDTH_PX);
@@ -308,6 +325,9 @@ export default function SummationPage() {
     let cancel = false;
     async function run() {
       setReports([]);
+      setApprovals([]);
+      setDetail(null);
+
       if (!projectId) return;
 
       setLoadingReports(true);
@@ -397,6 +417,34 @@ export default function SummationPage() {
     };
   }, [projectId]);
 
+  // ✅ load approvals (เพิ่มกลับมา)
+  useEffect(() => {
+    let cancel = false;
+    async function run() {
+      setErr("");
+      setApprovals([]);
+      if (!reportId) return;
+
+      setLoadingApprovals(true);
+      try {
+        const res = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok) throw new Error(json?.message || "โหลด approvals ไม่สำเร็จ");
+
+        const list: ApprovalRow[] = Array.isArray(json?.approvals) ? json.approvals : [];
+        if (!cancel) setApprovals(list);
+      } catch (e: any) {
+        if (!cancel) setErr(e?.message ?? "โหลด approvals ไม่สำเร็จ");
+      } finally {
+        if (!cancel) setLoadingApprovals(false);
+      }
+    }
+    run();
+    return () => {
+      cancel = true;
+    };
+  }, [reportId]);
+
   const hasOvertime = useMemo(() => {
     const subOt = (detail?.subContractors || []).some((r) => (Number(r.overtime) || 0) > 0);
     const eqOt = (detail?.majorEquipment || []).some((r) => (Number(r.overtime) || 0) > 0);
@@ -445,6 +493,64 @@ export default function SummationPage() {
   }, [detail?.date, hasOvertime, detail?.tempMaxC, detail?.tempMinC]);
 
   const canShowReport = Boolean(projectId && reportId && detail);
+
+  // ✅ เงื่อนไขคอมเมนต์ครบก่อนยืนยัน (เหมือน code เก่า)
+  const issueCount = useMemo(() => detail?.issues?.length ?? 0, [detail]);
+  const allIssuesHaveAtLeastOneComment = useMemo(() => {
+    const list = detail?.issues || [];
+    if (!list.length) return true;
+    return list.every((it) => (it.comments || []).length > 0);
+  }, [detail]);
+
+  const disableApproveBecauseComments = issueCount > 0 && !allIssuesHaveAtLeastOneComment;
+
+  const approvalsMap = useMemo(() => {
+    const m = new Map<string, ApprovalRow>();
+    for (const a of approvals) m.set(norm(a.approverName), a);
+    return m;
+  }, [approvals]);
+
+  const allApproved = useMemo(() => {
+    if (!supervisors.length) return false;
+    if (!reportId) return false;
+    return supervisors.every((s) => (s.name ? approvalsMap.has(norm(s.name)) : false));
+  }, [supervisors, approvalsMap, reportId]);
+
+  async function onApproveMe() {
+    setErr("");
+
+    if (!reportId) {
+      setErr("กรุณาเลือกรายงานก่อน");
+      return;
+    }
+
+    if (disableApproveBecauseComments) {
+      setErr("ยังแสดงความคิดเห็นไม่ครบทุกปัญหา กรุณาไปแท็บ “แสดงความคิดเห็น” ก่อน");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) throw new Error(json?.message || "ยืนยันไม่สำเร็จ");
+
+      // reload approvals
+      const res2 = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, { cache: "no-store" });
+      const json2 = await res2.json().catch(() => null);
+      if (res2.ok && json2?.ok && Array.isArray(json2.approvals)) setApprovals(json2.approvals);
+
+      const title = `รายงานการก่อสร้างโครงการ ${json.projectName || ""} ประจำวันที่ ${formatDateBE(json.date)}`;
+      alert(`ยืนยันสำเร็จ ✅\n${title}`);
+    } catch (e: any) {
+      setErr(e?.message ?? "ยืนยันไม่สำเร็จ");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const pm = detail?.projectMeta || {};
   const contractors = detail?.contractors || [];
@@ -537,6 +643,7 @@ export default function SummationPage() {
                   setProjectId(e.target.value);
                   setReportId("");
                   setDetail(null);
+                  setApprovals([]);
                 }}
                 disabled={loadingProjects}
               >
@@ -568,14 +675,42 @@ export default function SummationPage() {
               </select>
             </div>
 
-            <div className="flex items-end">
-              <button className="w-full rounded-lg border px-3 py-2" disabled={!canShowReport} onClick={() => router.push("/daily-report/preview")}>
+            {/* ✅ เพิ่มปุ่ม “ยืนยันของฉัน” กลับมา (และยังมีปุ่มไป Preview) */}
+            <div className="flex flex-col justify-end gap-2">
+              <button
+                className="w-full rounded-lg border px-3 py-2 disabled:opacity-60"
+                disabled={!reportId || saving || disableApproveBecauseComments}
+                onClick={onApproveMe}
+                title={disableApproveBecauseComments ? "ต้องแสดงความคิดเห็นให้ครบก่อน" : "ผู้ควบคุมงานแต่ละคนต้อง login มากดยืนยันของตัวเอง"}
+              >
+                {saving ? "กำลังยืนยัน..." : "ยืนยันของฉัน"}
+              </button>
+
+              <button
+                className="w-full rounded-lg border px-3 py-2 disabled:opacity-60"
+                disabled={!canShowReport}
+                onClick={() => router.push("/daily-report/preview")}
+              >
                 ไปหน้า Preview
               </button>
             </div>
           </div>
 
           {err ? <div className="mt-3 text-sm text-red-600">{err}</div> : null}
+
+          <div className="mt-3 text-sm">
+            {reportId ? (
+              loadingApprovals ? (
+                <span className="opacity-70">กำลังโหลดสถานะการอนุมัติ...</span>
+              ) : allApproved ? (
+                <span className="font-semibold">อนุมัติครบแล้ว ✅</span>
+              ) : (
+                <span className="opacity-70">สถานะ: รออนุมัติ</span>
+              )
+            ) : (
+              <span className="opacity-70">เลือก “รายงาน” เพื่อดูสถานะการอนุมัติ</span>
+            )}
+          </div>
         </div>
 
         <div className="mt-4">
