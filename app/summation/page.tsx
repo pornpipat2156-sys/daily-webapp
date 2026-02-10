@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ReportPreviewReadonly } from "@/components/ReportPreviewReadonly";
 
 type ProjectRow = { id: string; projectName: string };
 type ReportRow = { id: string; date: string };
@@ -17,6 +18,26 @@ type ApprovalRow = {
   approvedAt: string; // ISO string
 };
 
+type IssueCommentRow = {
+  id: string;
+  comment: string;
+  createdAt: string; // ISO
+  author?: { name?: string | null; email?: string | null } | null;
+};
+
+type IssueRow = {
+  id: string;
+  title?: string | null;
+  detail?: string | null;
+  comments?: IssueCommentRow[];
+};
+
+type ReportDetail = {
+  ok?: boolean;
+  report?: { id: string; date?: string | null } | null;
+  issues?: IssueRow[];
+};
+
 function formatDateBE(iso?: string) {
   if (!iso) return "-";
   const d = new Date(iso);
@@ -29,6 +50,13 @@ function formatDateBE(iso?: string) {
 
 function norm(s: string) {
   return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function formatDateTimeTH(iso?: string) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("th-TH");
 }
 
 export default function SummationPage() {
@@ -47,6 +75,9 @@ export default function SummationPage() {
   const [loadingReports, setLoadingReports] = useState(false);
   const [loadingSup, setLoadingSup] = useState(false);
   const [loadingApprovals, setLoadingApprovals] = useState(false);
+
+  const [detail, setDetail] = useState<ReportDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   const [err, setErr] = useState<string>("");
   const [saving, setSaving] = useState(false);
@@ -97,20 +128,20 @@ export default function SummationPage() {
     async function run() {
       setReports([]);
       setApprovals([]); // clear
+      setDetail(null);
       if (!projectId) return;
 
       setLoadingReports(true);
       try {
-        const res = await fetch(`/api/daily-reports?projectId=${encodeURIComponent(projectId)}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(
+          `/api/daily-reports?projectId=${encodeURIComponent(projectId)}`,
+          { cache: "no-store" }
+        );
         const json = await res.json().catch(() => null);
         const list: ReportRow[] = Array.isArray(json?.reports)
           ? json.reports.map((r: any) => ({ id: String(r.id), date: String(r.date) }))
           : [];
         if (!cancel) setReports(list);
-
-        // ถ้ามี reportId อยู่แล้ว (prefill) แต่ไม่อยู่ใน list ก็ไม่บังคับรีเซ็ต
       } catch {
         if (!cancel) setReports([]);
       } finally {
@@ -135,7 +166,9 @@ export default function SummationPage() {
 
       setLoadingSup(true);
       try {
-        const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, { cache: "no-store" });
+        const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, {
+          cache: "no-store",
+        });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.ok) throw new Error(json?.message || "โหลด supervisors ไม่สำเร็จ");
 
@@ -201,11 +234,61 @@ export default function SummationPage() {
     };
   }, [reportId]);
 
+  // load report detail (issues + comments) เพื่อเช็คเงื่อนไขอนุมัติ + แสดงคอมเมนต์ในฟอร์ม
+  useEffect(() => {
+    let cancel = false;
+
+    async function run() {
+      setDetail(null);
+      if (!reportId) return;
+
+      setLoadingDetail(true);
+      try {
+        // ⚠️ ใช้ endpoint เดียวที่รวม issues/comments (ถ้าโปรเจกต์คุณใช้ชื่ออื่น ให้ปรับตรงนี้)
+        // ควร return { ok: true, report, issues: [{..., comments:[...]}] }
+        const res = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}`, {
+          cache: "no-store",
+        });
+        const json = (await res.json().catch(() => null)) as ReportDetail | null;
+
+        if (!res.ok || !json) throw new Error("โหลดรายละเอียดรายงานไม่สำเร็จ");
+        // รองรับทั้งแบบ {ok:true,...} และแบบส่งตรง object
+        const normalized: ReportDetail = {
+          ok: (json as any)?.ok ?? true,
+          report: (json as any)?.report ?? null,
+          issues: Array.isArray((json as any)?.issues) ? (json as any).issues : [],
+        };
+
+        if (!cancel) setDetail(normalized);
+      } catch {
+        if (!cancel) setDetail({ ok: false, report: null, issues: [] });
+      } finally {
+        if (!cancel) setLoadingDetail(false);
+      }
+    }
+
+    run();
+    return () => {
+      cancel = true;
+    };
+  }, [reportId]);
+
   const approvalsMap = useMemo(() => {
     const m = new Map<string, ApprovalRow>();
     for (const a of approvals) m.set(norm(a.approverName), a);
     return m;
   }, [approvals]);
+
+  const issues = useMemo(() => (Array.isArray(detail?.issues) ? detail!.issues! : []), [detail]);
+  const issueCount = issues.length;
+
+  const allIssuesHaveAtLeastOneComment = useMemo(() => {
+    if (issueCount === 0) return true;
+    return issues.every((it) => Array.isArray(it.comments) && it.comments.length > 0);
+  }, [issues, issueCount]);
+
+  // ถ้ามี issue แต่ comment ยังไม่ครบ => ห้ามอนุมัติ
+  const disableApproveBecauseComments = issueCount > 0 && !allIssuesHaveAtLeastOneComment;
 
   const allApproved = useMemo(() => {
     if (!supervisors.length) return false;
@@ -215,8 +298,14 @@ export default function SummationPage() {
 
   async function onApproveMe() {
     setErr("");
+
     if (!reportId) {
       setErr("กรุณาเลือกรายงานก่อน");
+      return;
+    }
+
+    if (disableApproveBecauseComments) {
+      setErr("ยังแสดงความคิดเห็นไม่ครบทุกปัญหา กรุณาไปแท็บ “แสดงความคิดเห็น” ก่อน");
       return;
     }
 
@@ -238,13 +327,86 @@ export default function SummationPage() {
       if (res2.ok && json2?.ok && Array.isArray(json2.approvals)) setApprovals(json2.approvals);
 
       // แจ้งชื่อรายงานตาม requirement
-      const title = `รายงานการก่อสร้างโครงการ ${json.projectName || ""} ประจำวันที่ ${formatDateBE(json.date)}`;
+      const title = `รายงานการก่อสร้างโครงการ ${json.projectName || ""} ประจำวันที่ ${formatDateBE(
+        json.date
+      )}`;
       alert(`ยืนยันสำเร็จ ✅\n${title}`);
     } catch (e: any) {
       setErr(e?.message ?? "ยืนยันไม่สำเร็จ");
     } finally {
       setSaving(false);
     }
+  }
+
+  function renderFormBlock() {
+    if (!reportId) return null;
+
+    if (loadingDetail) {
+      return (
+        <div className="mt-4 rounded-2xl border bg-card p-4">
+          <div className="opacity-70">กำลังโหลดฟอร์มรายงาน...</div>
+        </div>
+      );
+    }
+
+    // แสดง Preview เสมอ
+    return (
+      <div className="mt-4 rounded-2xl border bg-card p-4">
+        <div className="mb-3">
+          {issueCount === 0 ? (
+            <div className="text-sm text-green-700">
+              ✅ รายงานนี้ไม่มี “ปัญหาและอุปสรรค” → สามารถกด “ยืนยันของฉัน” ได้เลย (ไม่ต้องผ่านแสดงความคิดเห็น)
+            </div>
+          ) : allIssuesHaveAtLeastOneComment ? (
+            <div className="text-sm text-green-700">
+              ✅ แสดงความคิดเห็นครบแล้ว → สามารถเข้าสู่ขั้นตอนการอนุมัติได้
+            </div>
+          ) : (
+            <div className="text-sm text-amber-700">
+              ⚠️ รายงานนี้มี “ปัญหาและอุปสรรค” แต่ยังแสดงความคิดเห็นไม่ครบทุกข้อ → จะยังไม่สามารถกดอนุมัติได้
+            </div>
+          )}
+        </div>
+
+        <ReportPreviewReadonly reportId={reportId} />
+
+        {/* ถ้ามี Issue และคอมเมนต์ครบแล้ว: แสดงคอมเมนต์ “ในฟอร์ม” ใต้แต่ละ Issue */}
+        {issueCount > 0 && allIssuesHaveAtLeastOneComment ? (
+          <div className="mt-6 space-y-4">
+            <div className="font-semibold">ความเห็น (แสดงในฟอร์ม)</div>
+
+            {issues.map((it, idx) => (
+              <div key={it.id} className="rounded-2xl border p-4">
+                <div className="font-medium">
+                  ปัญหาที่ {idx + 1}
+                  {it.title ? `: ${it.title}` : ""}
+                </div>
+                {it.detail ? <div className="mt-1 text-sm opacity-80 whitespace-pre-wrap">{it.detail}</div> : null}
+
+                <div className="mt-3 rounded-xl border bg-muted/30 p-3">
+                  <div className="text-sm font-medium mb-2">รายการความเห็น</div>
+                  {(it.comments || []).map((c) => (
+                    <div key={c.id} className="mb-2 last:mb-0 rounded-lg border bg-background p-2">
+                      <div className="text-xs opacity-70">
+                        {c.author?.name || c.author?.email || "ผู้แสดงความคิดเห็น"} • {formatDateTimeTH(c.createdAt)}
+                      </div>
+                      <div className="text-sm whitespace-pre-wrap">{c.comment}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {/* ถ้ามี Issue แต่คอมเมนต์ยังไม่ครบ: แสดงคำแนะนำ */}
+        {issueCount > 0 && !allIssuesHaveAtLeastOneComment ? (
+          <div className="mt-4 rounded-xl border bg-amber-50 p-3 text-sm">
+            กรุณาไปที่แท็บ <b>“แสดงความคิดเห็น”</b> เพื่อให้ครบทุก “ปัญหาและอุปสรรค” ก่อน แล้วจึงกลับมาหน้านี้เพื่อกดอนุมัติ
+          </div>
+        ) : null}
+      </div>
+    );
   }
 
   return (
@@ -307,9 +469,13 @@ export default function SummationPage() {
             <div className="flex items-end">
               <button
                 className="w-full rounded-lg border px-3 py-2 disabled:opacity-60"
-                disabled={!reportId || saving}
+                disabled={!reportId || saving || disableApproveBecauseComments}
                 onClick={onApproveMe}
-                title="ผู้ควบคุมงานแต่ละคนต้อง login มากดของตัวเอง"
+                title={
+                  disableApproveBecauseComments
+                    ? "ต้องแสดงความคิดเห็นให้ครบก่อน"
+                    : "ผู้ควบคุมงานแต่ละคนต้อง login มากดของตัวเอง"
+                }
               >
                 {saving ? "กำลังยืนยัน..." : "ยืนยันของฉัน"}
               </button>
@@ -332,6 +498,9 @@ export default function SummationPage() {
             )}
           </div>
         </div>
+
+        {/* ✅ แสดงฟอร์มรายงาน (Preview) + ความเห็นในฟอร์ม ตามเงื่อนไข */}
+        {renderFormBlock()}
 
         <div className="mt-4 rounded-2xl border bg-card p-4">
           <div className="mb-2 font-semibold">รายชื่อผู้ควบคุมงาน (จาก DB เท่านั้น)</div>
