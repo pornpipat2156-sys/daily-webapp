@@ -456,9 +456,13 @@ export default function SummationPage() {
     let cancelled = false;
     async function run() {
       if (!detail?.date) return;
+
+      // ✅ ทำให้แน่ใจว่าเป็นรูปแบบ YYYY-MM-DD (open-meteo ต้องการแบบนี้)
+      const dateISO = String(detail.date).slice(0, 10);
+
       setWxLoading(true);
       try {
-        const hourly = await fetchHourlyWeather(detail.date);
+        const hourly = await fetchHourlyWeather(dateISO);
 
         const start = hmToMin("06:00");
         const end = hasOvertime ? hmToMin("24:00") : hmToMin("18:00");
@@ -477,12 +481,14 @@ export default function SummationPage() {
         }
       } catch {
         if (!cancelled) {
-          // ✅ ต้องให้คืนค่าเป็น "-" เท่านั้น (ไม่ fallback ไปใช้ค่าจาก DB)
-          setTempMax(null);
-          setTempMin(null);
-          setWMorning("-");
-          setWAfternoon("-");
-          setWOvertime("-");
+          // ✅ fallback ใช้ค่าใน DB (ถ้ามี) และไม่ให้กลายเป็น "-" ตลอด
+          setTempMax(detail?.tempMaxC ?? null);
+          setTempMin(detail?.tempMinC ?? null);
+
+          const msg = "ไม่สามารถดึงข้อมูลอากาศ";
+          setWMorning(msg);
+          setWAfternoon(msg);
+          setWOvertime(hasOvertime ? msg : "-");
         }
       } finally {
         if (!cancelled) setWxLoading(false);
@@ -492,7 +498,7 @@ export default function SummationPage() {
     return () => {
       cancelled = true;
     };
-  }, [detail?.date, hasOvertime]);
+  }, [detail?.date, detail?.tempMaxC, detail?.tempMinC, hasOvertime]);
 
   const canShowReport = Boolean(projectId && reportId && detail);
 
