@@ -1,610 +1,857 @@
-// components/ReportPreviewReadonly.tsx
+// components/ReportPreviewForm.tsx
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-type AnyJson = Record<string, any>;
+export type Supervisor = { name: string; role: string };
 
-type IssueCommentRow = {
+export type ContractorRow = { id: string; name: string; position: string; qty: number };
+export type SubContractorRow = { id: string; position: string; morning: number; afternoon: number; overtime: number };
+export type MajorEquipmentRow = { id: string; type: string; morning: number; afternoon: number; overtime: number };
+export type WorkRow = { id: string; desc: string; location: string; qty: string; unit: string; materialDelivered: string };
+
+export type IssueComment = {
   id: string;
   comment: string;
   createdAt: string;
-  author?: { name?: string | null; email?: string | null } | null;
+  author?: { name?: string | null; email?: string | null; role?: string | null } | null;
 };
 
-type IssueRow = {
+export type IssueRowUnified = {
   id: string;
-  title?: string | null;
-  detail?: string | null;
-  images?: string[] | { url: string }[];
-  comments?: IssueCommentRow[];
+  detail: string;
+  imageUrl: string; // ✅ unify: always url/dataurl
+  comments?: IssueComment[];
 };
 
-type ContractorRow = { id?: string; name: string; position: string; qty: number };
-type SubContractorRow = { id?: string; position: string; morning: number; afternoon: number; overtime: number };
-type EquipmentRow = { id?: string; type: string; morning: number; afternoon: number; overtime: number };
-type WorkRow = { id?: string; description: string; location: string; qty: string | number; unit: string; material: string };
+export type ProjectMetaUnified = {
+  projectName: string;
+  contractNo: string;
+  annexNo: string;
+  contractStart: string;
+  contractEnd: string;
+  contractorName: string;
+  siteLocation: string;
+  contractValue: string;
+  procurementMethod: string;
+  installmentCount: number;
+  totalDurationDays: number;
+  dailyReportNo: string;
+  periodNo: string;
+  weekNo: string;
+};
 
-type Props = {
-  reportId: string;
-  includeIssueComments?: boolean;
-  logoUrl?: string; // default /logo.png
+export type ReportRenderModel = {
+  date: string; // YYYY-MM-DD or ISO
+  projectName: string;
+
+  projectMeta: ProjectMetaUnified;
+
+  contractors: ContractorRow[];
+  subContractors: SubContractorRow[];
+  majorEquipment: MajorEquipmentRow[];
+  workPerformed: WorkRow[];
+
+  issues: IssueRowUnified[];
+  safetyNote: string;
+
+  // temp from DB (fallback)
+  tempMaxC?: number | null;
+  tempMinC?: number | null;
+
+  // for weather fetch decision
+  hasOvertime?: boolean;
+
+  // supervisors (DB meta only)
+  supervisors: Supervisor[];
 };
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 
-function formatDateBE(iso?: string) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  const dd = pad2(d.getDate());
-  const mm = pad2(d.getMonth() + 1);
-  const yyyy = d.getFullYear() + 543;
-  return `${dd}/${mm}/${yyyy}`;
-}
-
-function get(obj: any, path: string[]) {
-  let cur = obj;
-  for (const k of path) {
-    if (cur && typeof cur === "object" && k in cur) cur = cur[k];
-    else return undefined;
+export function formatDateBE(isoOrYmd?: string) {
+  if (!isoOrYmd) return "-";
+  // รองรับ YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(isoOrYmd)) {
+    const [y, m, d] = isoOrYmd.split("-").map(Number);
+    if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return isoOrYmd;
+    return `${pad2(d)}/${pad2(m)}/${y + 543}`;
   }
-  return cur;
+  const d = new Date(isoOrYmd);
+  if (Number.isNaN(d.getTime())) return isoOrYmd;
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear() + 543}`;
 }
 
-function pick(obj: any, paths: string[][]) {
-  for (const p of paths) {
-    const v = get(obj, p);
-    if (v !== undefined && v !== null) return v;
+function hmToMin(hm: string) {
+  const [h, m] = hm.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+  return h * 60 + m;
+}
+
+function weatherTextFromCode(code: number | null | undefined) {
+  if (code == null) return "-";
+  if (code === 0) return "ท้องฟ้าแจ่มใส";
+  if (code === 1 || code === 2) return "มีเมฆบางส่วน";
+  if (code === 3) return "มีเมฆมาก";
+  if (code === 45 || code === 48) return "หมอก";
+  if (code >= 51 && code <= 57) return "ฝนปรอย";
+  if (code >= 61 && code <= 67) return "ฝนตก";
+  if (code >= 71 && code <= 77) return "หิมะ/ลูกเห็บ";
+  if (code >= 80 && code <= 82) return "ฝนตกหนัก";
+  if (code >= 95) return "พายุฝนฟ้าคะนอง";
+  return "สภาพอากาศแปรปรวน";
+}
+
+async function fetchHourlyWeather(dateISO: string) {
+  const lat = 18.7883;
+  const lon = 98.9853;
+  const url =
+    `https://api.open-meteo.com/v1/forecast` +
+    `?latitude=${lat}&longitude=${lon}` +
+    `&hourly=temperature_2m,weathercode` +
+    `&timezone=Asia%2FBangkok` +
+    `&start_date=${dateISO}&end_date=${dateISO}`;
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("hourly weather fetch failed");
+  const data = await res.json();
+
+  const times: string[] = data?.hourly?.time || [];
+  const temps: number[] = data?.hourly?.temperature_2m || [];
+  const codes: number[] = data?.hourly?.weathercode || [];
+
+  return times.map((t, i) => ({
+    time: t,
+    temp: typeof temps[i] === "number" ? temps[i] : null,
+    code: typeof codes[i] === "number" ? codes[i] : null,
+  }));
+}
+
+function calcMaxMinInRange(
+  hourly: { time: string; temp: number | null; code: number | null }[],
+  startMin: number,
+  endMin: number
+) {
+  let max: number | null = null;
+  let min: number | null = null;
+
+  for (const r of hourly) {
+    const timePart = r.time.split("T")[1] || "00:00";
+    const hm = timePart.slice(0, 5);
+    const m = hmToMin(hm);
+    if (m < startMin) continue;
+    if (m > endMin) continue;
+    if (r.temp == null) continue;
+
+    max = max == null ? r.temp : Math.max(max, r.temp);
+    min = min == null ? r.temp : Math.min(min, r.temp);
   }
-  return undefined;
+  return { max, min };
 }
 
-function asArr<T = any>(v: any): T[] {
-  return Array.isArray(v) ? (v as T[]) : [];
-}
+function representativeWeather(
+  hourly: { time: string; temp: number | null; code: number | null }[],
+  startMin: number,
+  endMin: number
+) {
+  const freq = new Map<number, number>();
+  for (const r of hourly) {
+    const timePart = r.time.split("T")[1] || "00:00";
+    const hm = timePart.slice(0, 5);
+    const m = hmToMin(hm);
+    if (m < startMin) continue;
+    if (m > endMin) continue;
+    if (r.code == null) continue;
+    freq.set(r.code, (freq.get(r.code) || 0) + 1);
+  }
 
-function asStr(v: any) {
-  if (v === undefined || v === null) return "";
-  return String(v);
-}
-
-function asNum(v: any) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function issueImageUrl(x: any) {
-  if (!x) return "";
-  if (typeof x === "string") return x;
-  if (typeof x === "object" && typeof x.url === "string") return x.url;
-  return "";
-}
-
-export function ReportPreviewReadonly({ reportId, includeIssueComments = false, logoUrl = "/logo.png" }: Props) {
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string>("");
-  const [raw, setRaw] = useState<AnyJson | null>(null);
-
-  useEffect(() => {
-    let cancel = false;
-    async function run() {
-      setErr("");
-      setRaw(null);
-      if (!reportId) return;
-
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}`, { cache: "no-store" });
-        const json = (await res.json().catch(() => null)) as AnyJson | null;
-        if (!res.ok || !json) throw new Error(json?.message || "โหลดรายงานไม่สำเร็จ");
-        if (!cancel) setRaw(json);
-      } catch (e: any) {
-        if (!cancel) setErr(e?.message ?? "โหลดรายงานไม่สำเร็จ");
-      } finally {
-        if (!cancel) setLoading(false);
-      }
+  let bestCode: number | null = null;
+  let bestCount = -1;
+  for (const [code, count] of freq.entries()) {
+    if (count > bestCount) {
+      bestCount = count;
+      bestCode = code;
     }
-    run();
-    return () => {
-      cancel = true;
-    };
-  }, [reportId]);
-
-  // --- normalize report/meta/payload/issues ---
-  const report = useMemo(() => {
-    if (!raw) return null;
-    return (raw.report && typeof raw.report === "object" ? raw.report : raw) as AnyJson;
-  }, [raw]);
-
-  const meta = useMemo(() => {
-    if (!raw) return null;
-    const v =
-      pick(raw, [["projectMeta"], ["meta"], ["project", "meta"], ["report", "projectMeta"], ["report", "meta"]]) ?? null;
-    return v && typeof v === "object" ? (v as AnyJson) : null;
-  }, [raw]);
-
-  const payload = useMemo(() => {
-    if (!raw) return null;
-    const v =
-      pick(raw, [["payload"], ["data"], ["dailyReportPayload"], ["report", "payload"], ["report", "data"]]) ?? null;
-    return v && typeof v === "object" ? (v as AnyJson) : null;
-  }, [raw]);
-
-  const projectName = useMemo(() => {
-    return (
-      pick(raw, [["projectName"], ["project", "projectName"], ["project", "name"], ["report", "projectName"]]) ??
-      pick(meta, [["projectName"], ["name"]]) ??
-      "-"
-    );
-  }, [raw, meta]);
-
-  const dateISO = useMemo(() => {
-    return (
-      pick(report, [["date"], ["reportDate"]]) ?? pick(raw, [["date"], ["reportDate"]]) ?? pick(payload, [["date"]]) ?? ""
-    );
-  }, [report, raw, payload]);
-
-  const issues: IssueRow[] = useMemo(() => {
-    const v = pick(raw, [["issues"], ["report", "issues"]]);
-    if (Array.isArray(v)) return v as IssueRow[];
-    const v2 = pick(payload, [["issues"], ["issueList"], ["problemIssues"]]);
-    return Array.isArray(v2) ? (v2 as IssueRow[]) : [];
-  }, [raw, payload]);
-
-  // --- meta fields (ตามฟอร์มในรูป) ---
-  const contractNo = asStr(pick(meta, [["contractNo"]]) ?? "");
-  const annexNo = asStr(pick(meta, [["annexNo"]]) ?? "");
-  const contractStart = asStr(pick(meta, [["contractStart"]]) ?? "");
-  const contractEnd = asStr(pick(meta, [["contractEnd"]]) ?? "");
-  const contractorName = asStr(pick(meta, [["contractorName"], ["contractor"]]) ?? "");
-  const siteLocation = asStr(pick(meta, [["siteLocation"]]) ?? "");
-  const contractValue = asStr(pick(meta, [["contractValue"]]) ?? "");
-  const procurementMethod = asStr(pick(meta, [["procurementMethod"]]) ?? "");
-  const installmentCount = asStr(pick(meta, [["installmentCount"]]) ?? "");
-  const totalDurationDays = asStr(pick(meta, [["totalDurationDays"]]) ?? "");
-
-  const periodNo = asStr(pick(meta, [["periodNo"]]) ?? "");
-  const weekNo = asStr(pick(meta, [["weekNo"]]) ?? "");
-
-  // --- time/weather (ตามกล่องสีเหลือง) ---
-  const morningTime = asStr(pick(payload, [["timeMorning"], ["morningTime"]]) ?? "08:30น.-12:00น.");
-  const afternoonTime = asStr(pick(payload, [["timeAfternoon"], ["afternoonTime"]]) ?? "13:00น.-17:00น.");
-  const overtimeTime = asStr(pick(payload, [["timeOvertime"], ["overtimeTime"]]) ?? "17:00น. ขึ้นไป");
-
-  const weatherHigh = asStr(pick(payload, [["weatherHigh"], ["tempMax"], ["maxTemp"]]) ?? "");
-  const weatherLow = asStr(pick(payload, [["weatherLow"], ["tempMin"], ["minTemp"]]) ?? "");
-
-  // --- tables (ทีม/เครื่องจักร/งาน) ---
-  const contractors: ContractorRow[] = useMemo(() => {
-    const v = pick(payload, [["contractors"], ["contractorRows"]]);
-    return asArr(v).map((x: any) => ({
-      id: x?.id,
-      name: asStr(x?.name),
-      position: asStr(x?.position),
-      qty: asNum(x?.qty),
-    }));
-  }, [payload]);
-
-  const subContractors: SubContractorRow[] = useMemo(() => {
-    const v = pick(payload, [["subContractors"], ["subContractorRows"]]);
-    return asArr(v).map((x: any) => ({
-      id: x?.id,
-      position: asStr(x?.position),
-      morning: asNum(x?.morning),
-      afternoon: asNum(x?.afternoon),
-      overtime: asNum(x?.overtime),
-    }));
-  }, [payload]);
-
-  const equipments: EquipmentRow[] = useMemo(() => {
-    const v = pick(payload, [["equipments"], ["equipmentRows"], ["majorEquipment"]]);
-    return asArr(v).map((x: any) => ({
-      id: x?.id,
-      type: asStr(x?.type || x?.kind),
-      morning: asNum(x?.morning),
-      afternoon: asNum(x?.afternoon),
-      overtime: asNum(x?.overtime),
-    }));
-  }, [payload]);
-
-  const works: WorkRow[] = useMemo(() => {
-    const v = pick(payload, [["works"], ["workPerformed"], ["workRows"]]);
-    return asArr(v).map((x: any) => ({
-      id: x?.id,
-      description: asStr(x?.description),
-      location: asStr(x?.location),
-      qty: x?.qty ?? "",
-      unit: asStr(x?.unit),
-      material: asStr(x?.material),
-    }));
-  }, [payload]);
-
-  const totalContractors = contractors.reduce((s, r) => s + (Number.isFinite(r.qty) ? r.qty : 0), 0);
-  const totalSubMorning = subContractors.reduce((s, r) => s + r.morning, 0);
-  const totalSubAfternoon = subContractors.reduce((s, r) => s + r.afternoon, 0);
-  const totalSubOvertime = subContractors.reduce((s, r) => s + r.overtime, 0);
-  const totalEqMorning = equipments.reduce((s, r) => s + r.morning, 0);
-  const totalEqAfternoon = equipments.reduce((s, r) => s + r.afternoon, 0);
-  const totalEqOvertime = equipments.reduce((s, r) => s + r.overtime, 0);
-
-  // --- issue comment summary for "ช่องความเห็น" ---
-  const issueCommentText = useMemo(() => {
-    if (!includeIssueComments) return "";
-    if (!issues.length) return "";
-    // รวม comment ของแต่ละ issue เป็นข้อความเดียว (แสดงในช่องขวาแบบในรูป)
-    const parts: string[] = [];
-    issues.forEach((it, idx) => {
-      const cs = asArr<IssueCommentRow>(it.comments);
-      if (!cs.length) return;
-      const joined = cs
-        .map((c) => {
-          const who = c.author?.name || c.author?.email || "ผู้แสดงความคิดเห็น";
-          return `- (${who}) ${asStr(c.comment)}`;
-        })
-        .join("\n");
-      parts.push(`ปัญหาที่ ${idx + 1}\n${joined}`);
-    });
-    return parts.join("\n\n");
-  }, [includeIssueComments, issues]);
-
-  if (!reportId) return null;
-
-  if (loading) {
-    return <div className="rounded-2xl border bg-card p-4 opacity-80">กำลังโหลดฟอร์มรายงาน...</div>;
   }
-  if (err) {
-    return (
-      <div className="rounded-2xl border bg-card p-4">
-        <div className="text-sm text-red-600">{err}</div>
-      </div>
-    );
-  }
-  if (!raw) return null;
+  return weatherTextFromCode(bestCode);
+}
 
-  // ---- Styles (โทนเหมือนรูป) ----
-  const box = "border-2 border-black rounded-xl";
-  const th = "border border-black px-2 py-1 text-sm font-semibold bg-white";
-  const td = "border border-black px-2 py-1 text-sm";
+function padArray<T>(arr: T[], targetLen: number, makeEmpty: (idx: number) => T): T[] {
+  const out = [...arr];
+  while (out.length < targetLen) out.push(makeEmpty(out.length));
+  return out.slice(0, targetLen);
+}
+
+const A4_WIDTH_PX = 794;
+function computeScaleFromWidth(containerWidth: number) {
+  const safeW = Math.max(0, containerWidth - 16);
+  const s = Math.min(1, safeW / A4_WIDTH_PX);
+  const ss = Number.isFinite(s) ? s : 1;
+  const scaledW = Math.max(1, Math.floor(A4_WIDTH_PX * ss));
+  return { ss, scaledW };
+}
+
+function chunk<T>(arr: T[], size: number) {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+function SignatureGrid({ items }: { items: Supervisor[] }) {
+  const clean = (items || [])
+    .map((x) => ({ name: String(x?.name || "").trim(), role: String(x?.role || "").trim() }))
+    .filter((x) => x.name || x.role);
+
+  if (!clean.length) return <div className="opacity-70">-</div>;
+
+  const rows = chunk(clean, 5);
 
   return (
-    <div className="w-full flex justify-center">
-      {/* “กระดาษ” */}
-      <div className="w-full max-w-[980px]">
-        <div className="border-2 border-black rounded-2xl overflow-hidden bg-white">
-          {/* Header */}
-          <div className="grid grid-cols-[160px_1fr] border-b-2 border-black">
-            <div className="flex items-center justify-center p-3 border-r-2 border-black">
-              <div className="relative h-[120px] w-[120px]">
-                <Image src={logoUrl} alt="logo" fill className="object-contain" />
-              </div>
+    <div className="space-y-4">
+      {rows.map((row, ri) => (
+        <div key={ri} className="grid gap-4" style={{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }}>
+          {row.map((it, i) => (
+            <div key={`${ri}-${i}`} className="text-center">
+              <div className="text-sm">ลงชื่อ ................................</div>
+              <div className="mt-1 text-sm">({it.name || "-"})</div>
+              <div className="mt-1 text-sm">{it.role || " "}</div>
             </div>
-
-            <div className="p-4 bg-[#e9ddff]">
-              <div className="text-center">
-                <div className="text-xl font-extrabold">
-                  รายงานการควบคุมงานก่อสร้างประจำวัน (DAILY REPORT)
-                </div>
-                <div className="mt-1 text-base font-semibold">ประจำวันที่ {formatDateBE(dateISO)}</div>
-                <div className="mt-1 text-base font-semibold">โครงการ : {projectName}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Contract table */}
-          <div className="p-3">
-            <div className={box}>
-              <table className="w-full border-collapse">
-                <tbody>
-                  <tr>
-                    <td className={`${th} w-[20%]`}>สัญญาจ้าง</td>
-                    <td className={`${td} w-[35%]`}>{contractNo || "-"}</td>
-                    <td className={`${th} w-[20%]`}>สถานที่ก่อสร้าง</td>
-                    <td className={`${td} w-[25%]`}>{siteLocation || "-"}</td>
-                  </tr>
-                  <tr>
-                    <td className={th}>บันทึกแนบท้ายที่</td>
-                    <td className={td}>{annexNo || "-"}</td>
-                    <td className={th}>วงเงินค่าก่อสร้าง</td>
-                    <td className={td}>{contractValue || "-"}</td>
-                  </tr>
-                  <tr>
-                    <td className={th}>เริ่มสัญญา</td>
-                    <td className={td}>{contractStart ? formatDateBE(contractStart) : "-"}</td>
-                    <td className={th}>ผู้รับจ้าง</td>
-                    <td className={td}>{contractorName || "-"}</td>
-                  </tr>
-                  <tr>
-                    <td className={th}>สิ้นสุดสัญญา</td>
-                    <td className={td}>{contractEnd ? formatDateBE(contractEnd) : "-"}</td>
-                    <td className={th}>จัดจ้างโดยวิธี</td>
-                    <td className={td}>{procurementMethod || "-"}</td>
-                  </tr>
-                  <tr>
-                    <td className={th}>จำนวนงวด</td>
-                    <td className={td}>{installmentCount || "-"}</td>
-                    <td className={th}>รวมเวลาก่อสร้าง</td>
-                    <td className={td}>{totalDurationDays ? `${totalDurationDays} วัน` : "-"}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Time + side small boxes */}
-          <div className="px-3 pb-3">
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-3">
-              <div className={`${box} p-3 bg-[#fffbe6]`}>
-                <div className="font-bold">ช่วงเวลาทำงาน</div>
-                <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
-                  <div>ช่วงเช้า {morningTime}</div>
-                  <div>ช่วงบ่าย {afternoonTime}</div>
-                  <div>ล่วงเวลา {overtimeTime}</div>
-                </div>
-
-                <div className="mt-3 font-bold">สภาพอากาศ (WEATHER)</div>
-                <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                  <div>อุณหภูมิ สูงสุด: {weatherHigh ? `${weatherHigh}°C` : "-"} </div>
-                  <div>อุณหภูมิ ต่ำสุด: {weatherLow ? `${weatherLow}°C` : "-"} </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className={`${box} p-3 bg-[#fffbe6]`}>
-                  <div className="text-sm font-semibold">{totalDurationDays || "-"} / {totalDurationDays || "-"}</div>
-                </div>
-                <div className={`${box} p-3 bg-[#fffbe6]`}>
-                  <div className="text-sm font-semibold">งวด {periodNo || "-"}/{installmentCount || "-"}</div>
-                </div>
-                <div className={`${box} p-3 bg-[#fffbe6]`}>
-                  <div className="text-sm font-semibold">สัปดาห์ {weekNo || "-"}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Project team tables */}
-          <div className="px-3 pb-3">
-            <div className={`${box} overflow-hidden`}>
-              <div className="bg-[#dff6df] border-b-2 border-black py-2 text-center font-bold">
-                ส่วนโครงการ (PROJECT TEAM)
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
-                {/* Contractors */}
-                <div className="p-3 border-b-2 lg:border-b-0 lg:border-r-2 border-black">
-                  <div className="text-center font-bold mb-2">ผู้รับเหมา (CONTRACTORS)</div>
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
-                        <th className={th}>#</th>
-                        <th className={th}>รายชื่อ</th>
-                        <th className={th}>ตำแหน่ง</th>
-                        <th className={th}>จำนวนคน</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(contractors.length ? contractors : [{ name: "-", position: "-", qty: 0 }]).map((r, i) => (
-                        <tr key={i}>
-                          <td className={td}>{i + 1}</td>
-                          <td className={td}>{r.name || "-"}</td>
-                          <td className={td}>{r.position || "-"}</td>
-                          <td className={td}>{r.qty ?? 0}</td>
-                        </tr>
-                      ))}
-                      <tr>
-                        <td className={`${td} text-right font-semibold`} colSpan={3}>
-                          รวม
-                        </td>
-                        <td className={`${td} font-semibold`}>{totalContractors}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Sub contractors */}
-                <div className="p-3 border-b-2 lg:border-b-0 lg:border-r-2 border-black">
-                  <div className="text-center font-bold mb-2">ผู้รับเหมารายย่อย (SUB CONTRACTORS)</div>
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
-                        <th className={th}>#</th>
-                        <th className={th}>ตำแหน่ง</th>
-                        <th className={th}>เช้า</th>
-                        <th className={th}>บ่าย</th>
-                        <th className={th}>ล่วงเวลา</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(subContractors.length ? subContractors : [{ position: "-", morning: 0, afternoon: 0, overtime: 0 }]).map(
-                        (r, i) => (
-                          <tr key={i}>
-                            <td className={td}>{i + 1}</td>
-                            <td className={td}>{r.position || "-"}</td>
-                            <td className={td}>{r.morning ?? 0}</td>
-                            <td className={td}>{r.afternoon ?? 0}</td>
-                            <td className={td}>{r.overtime ?? 0}</td>
-                          </tr>
-                        )
-                      )}
-                      <tr>
-                        <td className={`${td} text-right font-semibold`} colSpan={2}>
-                          รวม
-                        </td>
-                        <td className={`${td} font-semibold`}>{totalSubMorning}</td>
-                        <td className={`${td} font-semibold`}>{totalSubAfternoon}</td>
-                        <td className={`${td} font-semibold`}>{totalSubOvertime}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Equipment */}
-                <div className="p-3">
-                  <div className="text-center font-bold mb-2">เครื่องจักรหลัก (MAJOR EQUIPMENT)</div>
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
-                        <th className={th}>#</th>
-                        <th className={th}>ชนิด</th>
-                        <th className={th}>เช้า</th>
-                        <th className={th}>บ่าย</th>
-                        <th className={th}>ล่วงเวลา</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(equipments.length ? equipments : [{ type: "-", morning: 0, afternoon: 0, overtime: 0 }]).map((r, i) => (
-                        <tr key={i}>
-                          <td className={td}>{i + 1}</td>
-                          <td className={td}>{r.type || "-"}</td>
-                          <td className={td}>{r.morning ?? 0}</td>
-                          <td className={td}>{r.afternoon ?? 0}</td>
-                          <td className={td}>{r.overtime ?? 0}</td>
-                        </tr>
-                      ))}
-                      <tr>
-                        <td className={`${td} text-right font-semibold`} colSpan={2}>
-                          รวม
-                        </td>
-                        <td className={`${td} font-semibold`}>{totalEqMorning}</td>
-                        <td className={`${td} font-semibold`}>{totalEqAfternoon}</td>
-                        <td className={`${td} font-semibold`}>{totalEqOvertime}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Work performed */}
-          <div className="px-3 pb-3">
-            <div className={`${box} overflow-hidden`}>
-              <div className="bg-[#f6ead2] border-b-2 border-black py-2 text-center font-bold">
-                รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)
-              </div>
-              <div className="p-3">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr>
-                      <th className={th}>#</th>
-                      <th className={th}>รายการ (DESCRIPTION)</th>
-                      <th className={th}>บริเวณ (LOCATIONS)</th>
-                      <th className={th}>จำนวน</th>
-                      <th className={th}>หน่วย</th>
-                      <th className={th}>วัสดุนำเข้า (MATERIAL)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(works.length ? works : [{ description: "-", location: "-", qty: "-", unit: "-", material: "-" }]).map(
-                      (r, i) => (
-                        <tr key={i}>
-                          <td className={td}>{i + 1}</td>
-                          <td className={td}>{r.description || "-"}</td>
-                          <td className={td}>{r.location || "-"}</td>
-                          <td className={td}>{asStr(r.qty) || "-"}</td>
-                          <td className={td}>{r.unit || "-"}</td>
-                          <td className={td}>{r.material || "-"}</td>
-                        </tr>
-                      )
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* Issues section (แบบ 3 คอลัมน์เหมือนรูป) */}
-          <div className="px-3 pb-4">
-            <div className={`${box} overflow-hidden`}>
-              <div className="grid grid-cols-3 border-b-2 border-black">
-                <div className="bg-[#e9ddff] py-2 text-center font-bold border-r-2 border-black">ภาพปัญหาและอุปสรรค</div>
-                <div className="bg-[#e9ddff] py-2 text-center font-bold border-r-2 border-black">รายละเอียด</div>
-                <div className="bg-[#e9ddff] py-2 text-center font-bold">ความเห็นของผู้ควบคุมงาน</div>
-              </div>
-
-              {issues.length === 0 ? (
-                <div className="p-4 text-sm text-green-700">ไม่มีปัญหาและอุปสรรค ✅</div>
-              ) : (
-                <div className="divide-y-2 divide-black">
-                  {issues.map((it, idx) => {
-                    const img = issueImageUrl(asArr(it.images)[0]);
-                    return (
-                      <div key={it.id} className="grid grid-cols-1 md:grid-cols-3">
-                        {/* Image */}
-                        <div className="p-3 border-b-2 md:border-b-0 md:border-r-2 border-black">
-                          <div className="font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
-                          <div className="border-2 border-black rounded-lg overflow-hidden bg-white min-h-[180px] flex items-center justify-center">
-                            {img ? (
-                              // ใช้ img กันปัญหา domain next/image
-                              <img src={img} alt={`issue-${idx + 1}`} className="w-full h-auto block" />
-                            ) : (
-                              <div className="text-sm opacity-60">ไม่มีรูป</div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Detail */}
-                        <div className="p-3 border-b-2 md:border-b-0 md:border-r-2 border-black">
-                          <div className="font-semibold mb-2">{it.title ? it.title : `ปัญหาที่ ${idx + 1}`}</div>
-                          <div className="text-sm whitespace-pre-wrap">{it.detail || "-"}</div>
-                        </div>
-
-                        {/* Comment box */}
-                        <div className="p-3">
-                          <div className="font-semibold mb-2">ความเห็นของผู้ควบคุมงาน</div>
-                          <div className="border-2 border-black rounded-lg p-3 min-h-[180px] bg-white">
-                            {includeIssueComments ? (
-                              <div className="text-sm whitespace-pre-wrap">{issueCommentText || "-"}</div>
-                            ) : (
-                              <div className="text-sm opacity-60">-</div>
-                            )}
-                          </div>
-
-                          {/* ถ้าต้องการโชว์คอมเมนต์แยกตาม issue (อ่านง่ายกว่า) เปิดบล็อกนี้ */}
-                          {includeIssueComments ? (
-                            <div className="mt-3">
-                              <div className="text-xs font-semibold mb-1">รายการความเห็นของปัญหานี้</div>
-                              {asArr<IssueCommentRow>(it.comments).length === 0 ? (
-                                <div className="text-xs opacity-60">ยังไม่มีความเห็น</div>
-                              ) : (
-                                <div className="space-y-2">
-                                  {asArr<IssueCommentRow>(it.comments).map((c) => (
-                                    <div key={c.id} className="rounded-lg border p-2 text-xs bg-muted/10">
-                                      <div className="opacity-70">
-                                        {c.author?.name || c.author?.email || "ผู้แสดงความคิดเห็น"} •{" "}
-                                        {fmtDateTimeTH(c.createdAt)}
-                                      </div>
-                                      <div className="mt-1 whitespace-pre-wrap">{c.comment}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+          ))}
         </div>
-
-        {/* หมายเหตุ: ถ้าคุณต้องการให้ “เหมือน A4 เป๊ะ” + scale ตอนพิมพ์/pdf
-            ให้ครอบด้วย container ของหน้า preview เดิม (scale A4) ได้เลย */}
-      </div>
+      ))}
     </div>
   );
 }
 
-function fmtDateTimeTH(iso?: string) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toLocaleString("th-TH");
+export function ReportPreviewForm({
+  model,
+  // optional: render comment cell (e.g. textarea in commentator)
+  renderIssueCommentCell,
+}: {
+  model: ReportRenderModel;
+  renderIssueCommentCell?: (issue: IssueRowUnified, idx: number) => React.ReactNode;
+}) {
+  // ===== scale same as preview =====
+  const init = useMemo(() => {
+    if (typeof window === "undefined") return { ss: 1, scaledW: A4_WIDTH_PX };
+    const w = window.innerWidth || A4_WIDTH_PX;
+    return computeScaleFromWidth(w);
+  }, []);
+
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(init.ss);
+  const [scaledWidth, setScaledWidth] = useState(init.scaledW);
+
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    const updateFromEl = () => {
+      const w = el?.getBoundingClientRect().width ?? window.innerWidth ?? A4_WIDTH_PX;
+      const { ss, scaledW } = computeScaleFromWidth(w);
+      setScale(ss);
+      setScaledWidth(scaledW);
+    };
+    updateFromEl();
+
+    let ro: ResizeObserver | null = null;
+    if (el && typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => updateFromEl());
+      ro.observe(el);
+    }
+
+    const onResize = () => updateFromEl();
+    window.addEventListener("resize", onResize, { passive: true });
+    window.addEventListener("orientationchange", onResize, { passive: true });
+
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+    };
+  }, []);
+
+  const hasOvertime = useMemo(() => {
+    if (model.hasOvertime != null) return Boolean(model.hasOvertime);
+    const subOt = model.subContractors?.some((r) => (Number(r.overtime) || 0) > 0);
+    const eqOt = model.majorEquipment?.some((r) => (Number(r.overtime) || 0) > 0);
+    return Boolean(subOt || eqOt);
+  }, [model]);
+
+  // ===== weather: fetch same as preview =====
+  const [tempMax, setTempMax] = useState<number | null>(model.tempMaxC ?? null);
+  const [tempMin, setTempMin] = useState<number | null>(model.tempMinC ?? null);
+  const [wMorning, setWMorning] = useState<string>("-");
+  const [wAfternoon, setWAfternoon] = useState<string>("-");
+  const [wOvertime, setWOvertime] = useState<string>("-");
+  const [wxLoading, setWxLoading] = useState(false);
+
+  // if model.date is ISO -> convert to YYYY-MM-DD for open-meteo
+  const dateISO = useMemo(() => {
+    const d = model.date || "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    const dd = new Date(d);
+    if (Number.isNaN(dd.getTime())) return "";
+    const y = dd.getFullYear();
+    const m = pad2(dd.getMonth() + 1);
+    const da = pad2(dd.getDate());
+    return `${y}-${m}-${da}`;
+  }, [model.date]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!dateISO) return;
+
+      setWxLoading(true);
+      try {
+        const hourly = await fetchHourlyWeather(dateISO);
+
+        const start = hmToMin("06:00");
+        const end = hasOvertime ? hmToMin("24:00") : hmToMin("18:00");
+        const { max, min } = calcMaxMinInRange(hourly, start, end);
+
+        const mMorning = representativeWeather(hourly, hmToMin("08:30"), hmToMin("12:00"));
+        const mAfternoon = representativeWeather(hourly, hmToMin("13:00"), hmToMin("16:30"));
+        const mOver = hasOvertime ? representativeWeather(hourly, hmToMin("16:30"), hmToMin("24:00")) : "-";
+
+        if (!cancelled) {
+          setTempMax(max);
+          setTempMin(min);
+          setWMorning(mMorning);
+          setWAfternoon(mAfternoon);
+          setWOvertime(mOver);
+        }
+      } catch {
+        if (!cancelled) {
+          setTempMax(model.tempMaxC ?? null);
+          setTempMin(model.tempMinC ?? null);
+          setWMorning("-");
+          setWAfternoon("-");
+          setWOvertime("-");
+        }
+      } finally {
+        if (!cancelled) setWxLoading(false);
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [dateISO, hasOvertime, model.tempMaxC, model.tempMinC]);
+
+  const contractorTotal = useMemo(
+    () => (model.contractors || []).reduce((s, r) => s + (Number(r.qty) || 0), 0),
+    [model]
+  );
+  const subTotals = useMemo(() => {
+    const list = model.subContractors || [];
+    return {
+      morning: list.reduce((s, r) => s + (Number(r.morning) || 0), 0),
+      afternoon: list.reduce((s, r) => s + (Number(r.afternoon) || 0), 0),
+      overtime: list.reduce((s, r) => s + (Number(r.overtime) || 0), 0),
+    };
+  }, [model]);
+  const equipTotals = useMemo(() => {
+    const list = model.majorEquipment || [];
+    return {
+      morning: list.reduce((s, r) => s + (Number(r.morning) || 0), 0),
+      afternoon: list.reduce((s, r) => s + (Number(r.afternoon) || 0), 0),
+      overtime: list.reduce((s, r) => s + (Number(r.overtime) || 0), 0),
+    };
+  }, [model]);
+
+  const maxRows = Math.max(
+    model.contractors?.length || 0,
+    model.subContractors?.length || 0,
+    model.majorEquipment?.length || 0,
+    1
+  );
+
+  const contractorsPadded = useMemo(
+    () =>
+      padArray<ContractorRow>(model.contractors || [], maxRows, (i) => ({
+        id: `EMPTY-C-${i}`,
+        name: "-",
+        position: "-",
+        qty: 0,
+      })),
+    [model, maxRows]
+  );
+
+  const subPadded = useMemo(
+    () =>
+      padArray<SubContractorRow>(model.subContractors || [], maxRows, (i) => ({
+        id: `EMPTY-S-${i}`,
+        position: "-",
+        morning: 0,
+        afternoon: 0,
+        overtime: 0,
+      })),
+    [model, maxRows]
+  );
+
+  const equipPadded = useMemo(
+    () =>
+      padArray<MajorEquipmentRow>(model.majorEquipment || [], maxRows, (i) => ({
+        id: `EMPTY-E-${i}`,
+        type: "-",
+        morning: 0,
+        afternoon: 0,
+        overtime: 0,
+      })),
+    [model, maxRows]
+  );
+
+  const issuesList = useMemo(() => {
+    const list = model.issues || [];
+    return list.filter((it) => (it.detail || "").trim() || (it.imageUrl || "").trim());
+  }, [model]);
+
+  const hasIssues = issuesList.length > 0;
+
+  const pm = model.projectMeta;
+
+  return (
+    <>
+      <style>{`
+        .previewWrap { width: 100%; display: flex; justify-content: center; }
+        .previewSized { margin: 0; }
+        .previewScaled { transform-origin: top left; will-change: transform; }
+
+        .a4 {
+          background: #fff;
+          color: #111;
+          border: 2px solid #111;
+          border-radius: 14px;
+          padding: 14px;
+          font-size: 13px;
+          line-height: 1.2;
+        }
+
+        .box { border: 2px solid #111; border-radius: 12px; overflow: hidden; }
+        .cell { border: 1.5px solid #111; padding: 6px 8px; vertical-align: top; }
+        .cellCenter { border: 1.5px solid #111; padding: 6px 8px; text-align: center; vertical-align: middle; }
+
+        .titleBar { background: #eadcf6; font-weight: 700; }
+        .sectionBar { background: #dff2df; font-weight: 700; text-align: center; }
+        .subBar { background: #f4e8d4; font-weight: 700; text-align: center; }
+
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th, td { overflow-wrap: break-word; word-break: normal; }
+
+        .hMain { font-weight: 800; font-size: 18px; letter-spacing: 0.2px; }
+        .hSub  { font-weight: 600; font-size: 13px; }
+
+        .mini th, .mini td { border: 1.5px solid #111; padding: 4px 6px; font-size: 12px; line-height: 1.1; }
+        .mini th { text-align: center; vertical-align: middle; font-weight: 700; }
+        .mini td { vertical-align: top; }
+        .mini .c { text-align: center; vertical-align: middle; }
+
+        .numTab { font-variant-numeric: tabular-nums; }
+        .nowrap { white-space: nowrap; }
+
+        .issueImg { width: 100%; max-height: 240px; object-fit: contain; display: block; }
+        .issueRowMin { min-height: 260px; }
+
+        @media (max-width: 640px) {
+          .a4 { font-size: 11px; padding: 10px; }
+          .hMain { font-size: 15px; }
+          .hSub { font-size: 11px; }
+          .cell, .cellCenter { padding: 5px 6px; }
+          .mini th, .mini td { font-size: 10px; padding: 3px 4px; }
+          .nowrap { white-space: normal; }
+        }
+      `}</style>
+
+      <div ref={wrapRef} className="previewWrap">
+        <div className="previewSized" style={{ width: scaledWidth }}>
+          <div className="previewScaled" style={{ width: A4_WIDTH_PX, transform: `scale(${scale}) translateZ(0)` }}>
+            <div className="a4">
+              {/* ===================== Header ===================== */}
+              <div className="box">
+                <table>
+                  <colgroup>
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "82%" }} />
+                  </colgroup>
+                  <tbody>
+                    <tr>
+                      <td className="cellCenter">
+                        <div className="mx-auto w-[110px] h-[110px] rounded-full border-2 border-black overflow-hidden flex items-center justify-center bg-white">
+                          <Image src="/logo.png" alt="Company Logo" width={110} height={110} className="w-full h-full object-contain" priority />
+                        </div>
+                      </td>
+
+                      <td className="cellCenter titleBar">
+                        <div className="hMain">รายงานการควบคุมงานก่อสร้างประจำวัน (DAILY REPORT)</div>
+                        <div className="mt-1 hSub">ประจำวันที่ {formatDateBE(model.date)}</div>
+                        <div className="mt-1 hSub">โครงการ : {model.projectName}</div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* รายละเอียดโครงการ */}
+                <table>
+                  <colgroup>
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "32%" }} />
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "32%" }} />
+                  </colgroup>
+                  <tbody>
+                    <tr>
+                      <td className="cell">สัญญาจ้าง</td>
+                      <td className="cell">{pm.contractNo}</td>
+                      <td className="cell">สถานที่ก่อสร้าง</td>
+                      <td className="cell">{pm.siteLocation}</td>
+                    </tr>
+                    <tr>
+                      <td className="cell">บันทึกแนบท้ายที่</td>
+                      <td className="cell">{pm.annexNo}</td>
+                      <td className="cell">วงเงินค่าก่อสร้าง</td>
+                      <td className="cell">{pm.contractValue}</td>
+                    </tr>
+                    <tr>
+                      <td className="cell">เริ่มสัญญา</td>
+                      <td className="cell">{formatDateBE(pm.contractStart)}</td>
+                      <td className="cell">ผู้รับจ้าง</td>
+                      <td className="cell">{pm.contractorName}</td>
+                    </tr>
+                    <tr>
+                      <td className="cell">สิ้นสุดสัญญา</td>
+                      <td className="cell">{formatDateBE(pm.contractEnd)}</td>
+                      <td className="cell">จัดจ้างโดยวิธี</td>
+                      <td className="cell">{pm.procurementMethod}</td>
+                    </tr>
+                    <tr>
+                      <td className="cell">จำนวนงวด</td>
+                      <td className="cell">{pm.installmentCount}</td>
+                      <td className="cell">รวมเวลาก่อสร้าง</td>
+                      <td className="cell">{pm.totalDurationDays} วัน</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* ช่วงเวลาทำงาน + กล่องเลขรายงาน */}
+                <div className="grid grid-cols-12">
+                  <div className="col-span-9 border-t-2 border-black p-2">
+                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm">
+                      <div className="font-semibold mb-1">ช่วงเวลาทำงาน</div>
+
+                      <div className="grid grid-cols-3 gap-x-10 numTab">
+                        <div className="nowrap">ช่วงเช้า 08:30น.-12:00น.</div>
+                        <div className="nowrap text-center">ช่วงบ่าย 13:00น.-17:00น.</div>
+                        <div className="nowrap text-right">ล่วงเวลา 17:00น. ขึ้นไป</div>
+                      </div>
+
+                      <div className="mt-2 font-semibold">สภาพอากาศ (WEATHER)</div>
+
+                      {wxLoading ? (
+                        <div className="opacity-70">กำลังดึงข้อมูลอุณหภูมิ/สภาพอากาศ...</div>
+                      ) : (
+                        <>
+                          <div className="numTab">
+                            <span className="nowrap">อุณหภูมิ สูงสุด: {tempMax ?? "-"}°C</span>
+                            <span className="mx-6"> </span>
+                            <span className="nowrap">อุณหภูมิ ต่ำสุด: {tempMin ?? "-"}°C</span>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-x-10 numTab mt-1">
+                            <div className="nowrap">เช้า: {wMorning}</div>
+                            <div className="nowrap text-center">บ่าย: {wAfternoon}</div>
+                            <div className="nowrap text-right">ล่วงเวลา: {wOvertime}</div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="col-span-3 border-t-2 border-l-2 border-black p-2">
+                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{pm.dailyReportNo}</div>
+                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{pm.periodNo}</div>
+                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm">{pm.weekNo}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ===================== PROJECT TEAM ===================== */}
+              <div className="box mt-4">
+                <div className="sectionBar cell">ส่วนโครงการ (PROJECT TEAM)</div>
+
+                <table>
+                  <colgroup>
+                    <col style={{ width: "33.33%" }} />
+                    <col style={{ width: "33.33%" }} />
+                    <col style={{ width: "33.33%" }} />
+                  </colgroup>
+                  <tbody>
+                    <tr>
+                      {/* CONTRACTORS */}
+                      <td className="cell">
+                        <div className="font-semibold text-center leading-tight">
+                          ผู้รับเหมา
+                          <div className="text-xs font-semibold">(CONTRACTORS)</div>
+                        </div>
+
+                        <table className="mini mt-2">
+                          <colgroup>
+                            <col style={{ width: "12%" }} />
+                            <col style={{ width: "44%" }} />
+                            <col style={{ width: "24%" }} />
+                            <col style={{ width: "20%" }} />
+                          </colgroup>
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>รายชื่อ</th>
+                              <th>ตำแหน่ง</th>
+                              <th>จำนวน</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {contractorsPadded.map((r, i) => (
+                              <tr key={r.id}>
+                                <td className="c">{i + 1}</td>
+                                <td>{r.name?.trim() ? r.name : "-"}</td>
+                                <td>{r.position?.trim() ? r.position : "-"}</td>
+                                <td className="c numTab">{Number(r.qty) || 0}</td>
+                              </tr>
+                            ))}
+                            <tr>
+                              <td className="c" />
+                              <td colSpan={2}>
+                                <span className="font-semibold">รวม</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{contractorTotal}</span>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+
+                      {/* SUB CONTRACTORS */}
+                      <td className="cell">
+                        <div className="font-semibold text-center leading-tight">
+                          ผู้รับเหมารายย่อย
+                          <div className="text-xs font-semibold">(SUB CONTRACTORS)</div>
+                        </div>
+
+                        <table className="mini mt-2">
+                          <colgroup>
+                            <col style={{ width: "10%" }} />
+                            <col style={{ width: "36%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "18%" }} />
+                          </colgroup>
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>ตำแหน่ง</th>
+                              <th>เช้า</th>
+                              <th>บ่าย</th>
+                              <th>ล่วงเวลา</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {subPadded.map((r, i) => (
+                              <tr key={r.id}>
+                                <td className="c">{i + 1}</td>
+                                <td>{r.position?.trim() ? r.position : "-"}</td>
+                                <td className="c numTab">{Number(r.morning) || 0}</td>
+                                <td className="c numTab">{Number(r.afternoon) || 0}</td>
+                                <td className="c numTab">{Number(r.overtime) || 0}</td>
+                              </tr>
+                            ))}
+                            <tr>
+                              <td className="c" />
+                              <td>
+                                <span className="font-semibold">รวม</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{subTotals.morning}</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{subTotals.afternoon}</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{subTotals.overtime}</span>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+
+                      {/* MAJOR EQUIPMENT */}
+                      <td className="cell">
+                        <div className="font-semibold text-center leading-tight">
+                          เครื่องจักรหลัก
+                          <div className="text-xs font-semibold">(MAJOR EQUIPMENT)</div>
+                        </div>
+
+                        <table className="mini mt-2">
+                          <colgroup>
+                            <col style={{ width: "10%" }} />
+                            <col style={{ width: "36%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "18%" }} />
+                          </colgroup>
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>ชนิด</th>
+                              <th>เช้า</th>
+                              <th>บ่าย</th>
+                              <th>ล่วงเวลา</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {equipPadded.map((r, i) => (
+                              <tr key={r.id}>
+                                <td className="c">{i + 1}</td>
+                                <td>{r.type?.trim() ? r.type : "-"}</td>
+                                <td className="c numTab">{Number(r.morning) || 0}</td>
+                                <td className="c numTab">{Number(r.afternoon) || 0}</td>
+                                <td className="c numTab">{Number(r.overtime) || 0}</td>
+                              </tr>
+                            ))}
+                            <tr>
+                              <td className="c" />
+                              <td>
+                                <span className="font-semibold">รวม</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{equipTotals.morning}</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{equipTotals.afternoon}</span>
+                              </td>
+                              <td className="c numTab">
+                                <span className="font-semibold">{equipTotals.overtime}</span>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ===================== WORK PERFORMED ===================== */}
+              <div className="box mt-4">
+                <div className="subBar cell">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)</div>
+
+                <table>
+                  <colgroup>
+                    <col style={{ width: "6%" }} />
+                    <col style={{ width: "30%" }} />
+                    <col style={{ width: "22%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "22%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th className="cellCenter">#</th>
+                      <th className="cellCenter">รายการ (DESCRIPTION)</th>
+                      <th className="cellCenter">บริเวณ (LOCATIONS)</th>
+                      <th className="cellCenter">จำนวน</th>
+                      <th className="cellCenter">หน่วย</th>
+                      <th className="cellCenter">วัสดุนำเข้า (MATERIAL)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(model.workPerformed?.length ? model.workPerformed : [{
+                      id: "EMPTY-W",
+                      desc: "-",
+                      location: "-",
+                      qty: "-",
+                      unit: "-",
+                      materialDelivered: "-",
+                    }]).map((r, i) => (
+                      <tr key={r.id}>
+                        <td className="cellCenter">{i + 1}</td>
+                        <td className="cell">{r.desc || "-"}</td>
+                        <td className="cell">{r.location || "-"}</td>
+                        <td className="cellCenter">{r.qty || "-"}</td>
+                        <td className="cellCenter">{r.unit || "-"}</td>
+                        <td className="cell">{r.materialDelivered || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ===================== ISSUES ===================== */}
+              {hasIssues && (
+                <div className="box mt-4">
+                  <table>
+                    <colgroup>
+                      <col style={{ width: "45%" }} />
+                      <col style={{ width: "33%" }} />
+                      <col style={{ width: "22%" }} />
+                    </colgroup>
+
+                    <thead>
+                      <tr>
+                        <th className="cellCenter titleBar">ภาพปัญหาและอุปสรรค</th>
+                        <th className="cellCenter titleBar">รายละเอียด</th>
+                        <th className="cellCenter titleBar">ความเห็นของผู้ควบคุมงาน</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {issuesList.map((it, idx) => (
+                        <tr key={it.id}>
+                          <td className="cell issueRowMin">
+                            <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
+                            {it.imageUrl ? (
+                              <img src={it.imageUrl} alt={`issue-img-${idx + 1}`} className="issueImg border border-black/30 rounded" />
+                            ) : (
+                              <div className="text-sm opacity-60">-</div>
+                            )}
+                          </td>
+
+                          <td className="cell issueRowMin">
+                            <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
+                            <div className="text-sm whitespace-pre-wrap">{it.detail || " "}</div>
+                          </td>
+
+                          <td className="cell issueRowMin">
+                            {renderIssueCommentCell ? renderIssueCommentCell(it, idx) : <div className="text-sm opacity-60"> </div>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* ===================== SAFETY ===================== */}
+              <div className="box mt-4">
+                <div className="subBar cell">บันทึกด้านความปลอดภัยในการทำงาน</div>
+                <div className="cell whitespace-pre-wrap min-h-[90px]">{model.safetyNote || " "}</div>
+              </div>
+
+              {/* ===================== SUPERVISORS ===================== */}
+              <div className="box mt-4">
+                <div className="cell">
+                  <div className="font-semibold">รายชื่อผู้ควบคุมงาน</div>
+                  <div className="mt-3">
+                    <SignatureGrid items={model.supervisors} />
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
 }

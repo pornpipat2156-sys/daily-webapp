@@ -42,11 +42,9 @@ type ReportDetail = {
   date: string;
   projectName: string;
 
-  // บางระบบ return มาเฉพาะ issues + meta
   projectMeta: ProjectMeta | null;
   issues: Issue[];
 
-  // ถ้า API ของคุณส่งฟิลด์อื่นมาด้วย (มี/ไม่มีไม่พัง)
   contractors?: ContractorRow[];
   subContractors?: SubContractorRow[];
   majorEquipment?: MajorEquipmentRow[];
@@ -57,11 +55,22 @@ type ReportDetail = {
   tempMinC?: number | null;
 };
 
-function formatDateBE(iso?: string) {
-  if (!iso) return "-";
+function formatDateBE(yyyyMmDdOrIso?: string) {
+  if (!yyyyMmDdOrIso) return "-";
+
   // รองรับทั้ง "YYYY-MM-DD" และ ISO
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(yyyyMmDdOrIso)) {
+    const [yStr, mStr, dStr] = yyyyMmDdOrIso.split("-");
+    const y = Number(yStr);
+    const m = Number(mStr);
+    const d = Number(dStr);
+    if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return `${dStr}/${mStr}/${yStr}`;
+    const be = y + 543;
+    return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${be}`;
+  }
+
+  const d = new Date(yyyyMmDdOrIso);
+  if (Number.isNaN(d.getTime())) return yyyyMmDdOrIso;
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yyyy = d.getFullYear() + 543;
@@ -90,12 +99,19 @@ function computeScaleFromWidth(containerWidth: number) {
   return { ss, scaledW };
 }
 
+/** แบ่งรายชื่อเป็นแถว ๆ (แถวละไม่เกิน 5) */
 function chunk<T>(arr: T[], size: number) {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
 }
 
+/**
+ * ✅ SignatureGrid เหมือนหน้า Preview:
+ * บรรทัดบน: ลงชื่อ .........................
+ * บรรทัดล่าง: (<ชื่อ>)
+ * บรรทัดล่างถัดไป: <ตำแหน่ง>
+ */
 function SignatureGrid({ items }: { items: Supervisor[] }) {
   const clean = (items || [])
     .map((x) => ({
@@ -111,7 +127,11 @@ function SignatureGrid({ items }: { items: Supervisor[] }) {
   return (
     <div className="space-y-4">
       {rows.map((row, ri) => (
-        <div key={ri} className="grid gap-4" style={{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }}>
+        <div
+          key={ri}
+          className="grid gap-4"
+          style={{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }}
+        >
           {row.map((it, i) => (
             <div key={`${ri}-${i}`} className="text-center">
               <div className="text-sm">ลงชื่อ ................................</div>
@@ -123,6 +143,104 @@ function SignatureGrid({ items }: { items: Supervisor[] }) {
       ))}
     </div>
   );
+}
+
+// ===== Weather helpers (ให้เหมือนหน้า Preview) =====
+function hmToMin(hm: string) {
+  const [h, m] = hm.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+  return h * 60 + m;
+}
+
+function weatherTextFromCode(code: number | null | undefined) {
+  if (code == null) return "-";
+  if (code === 0) return "ท้องฟ้าแจ่มใส";
+  if (code === 1 || code === 2) return "มีเมฆบางส่วน";
+  if (code === 3) return "มีเมฆมาก";
+  if (code === 45 || code === 48) return "หมอก";
+  if (code >= 51 && code <= 57) return "ฝนปรอย";
+  if (code >= 61 && code <= 67) return "ฝนตก";
+  if (code >= 71 && code <= 77) return "หิมะ/ลูกเห็บ";
+  if (code >= 80 && code <= 82) return "ฝนตกหนัก";
+  if (code >= 95) return "พายุฝนฟ้าคะนอง";
+  return "สภาพอากาศแปรปรวน";
+}
+
+async function fetchHourlyWeather(dateISO: string) {
+  const lat = 18.7883;
+  const lon = 98.9853;
+  const url =
+    `https://api.open-meteo.com/v1/forecast` +
+    `?latitude=${lat}&longitude=${lon}` +
+    `&hourly=temperature_2m,weathercode` +
+    `&timezone=Asia%2FBangkok` +
+    `&start_date=${dateISO}&end_date=${dateISO}`;
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("hourly weather fetch failed");
+  const data = await res.json();
+
+  const times: string[] = data?.hourly?.time || [];
+  const temps: number[] = data?.hourly?.temperature_2m || [];
+  const codes: number[] = data?.hourly?.weathercode || [];
+
+  return times.map((t, i) => ({
+    time: t,
+    temp: typeof temps[i] === "number" ? temps[i] : null,
+    code: typeof codes[i] === "number" ? codes[i] : null,
+  }));
+}
+
+function calcMaxMinInRange(
+  hourly: { time: string; temp: number | null; code: number | null }[],
+  startMin: number,
+  endMin: number
+) {
+  let max: number | null = null;
+  let min: number | null = null;
+
+  for (const r of hourly) {
+    const timePart = r.time.split("T")[1] || "00:00";
+    const hm = timePart.slice(0, 5);
+    const m = hmToMin(hm);
+
+    if (m < startMin) continue;
+    if (m > endMin) continue;
+    if (r.temp == null) continue;
+
+    max = max == null ? r.temp : Math.max(max, r.temp);
+    min = min == null ? r.temp : Math.min(min, r.temp);
+  }
+  return { max, min };
+}
+
+function representativeWeather(
+  hourly: { time: string; temp: number | null; code: number | null }[],
+  startMin: number,
+  endMin: number
+) {
+  const freq = new Map<number, number>();
+  for (const r of hourly) {
+    const timePart = r.time.split("T")[1] || "00:00";
+    const hm = timePart.slice(0, 5);
+    const m = hmToMin(hm);
+
+    if (m < startMin) continue;
+    if (m > endMin) continue;
+    if (r.code == null) continue;
+
+    freq.set(r.code, (freq.get(r.code) || 0) + 1);
+  }
+
+  let bestCode: number | null = null;
+  let bestCount = -1;
+  for (const [code, count] of freq.entries()) {
+    if (count > bestCount) {
+      bestCount = count;
+      bestCode = code;
+    }
+  }
+  return weatherTextFromCode(bestCode);
 }
 
 export default function CommentatorPage() {
@@ -150,6 +268,14 @@ export default function CommentatorPage() {
   // supervisors from DB meta only
   const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
   const [loadingSup, setLoadingSup] = useState(false);
+
+  // ✅ Weather state (ให้เหมือน Preview)
+  const [tempMax, setTempMax] = useState<number | null>(null);
+  const [tempMin, setTempMin] = useState<number | null>(null);
+  const [wMorning, setWMorning] = useState<string>("-");
+  const [wAfternoon, setWAfternoon] = useState<string>("-");
+  const [wOvertime, setWOvertime] = useState<string>("-");
+  const [wxLoading, setWxLoading] = useState(false);
 
   // ✅ scale ให้เหมือน preview
   const init = useMemo(() => {
@@ -199,7 +325,6 @@ export default function CommentatorPage() {
         const res = await fetch("/api/projects", { cache: "no-store" });
         const json = await res.json().catch(() => null);
 
-        // /api/projects ของคุณ return เป็น array
         const list: ProjectRow[] = Array.isArray(json)
           ? json.map((p: any) => ({ id: String(p.id), projectName: String(p.projectName || p.name || "") }))
           : [];
@@ -274,7 +399,6 @@ export default function CommentatorPage() {
           const rep = json.report as ReportDetail;
           setDetail(rep);
 
-          // init draft empty
           const initDraft: Record<string, string> = {};
           for (const it of (rep?.issues || []) as Issue[]) initDraft[it.id] = "";
           setDraft(initDraft);
@@ -320,7 +444,7 @@ export default function CommentatorPage() {
             if (!s) return { name: "", role: "" };
             return looksLikeRole(s) ? { name: "", role: s } : { name: s, role: "" };
           })
-          .filter((x) => x.name); // ต้องมีชื่อเพื่อ match
+          .filter((x) => x.name || x.role); // ✅ เหมือน preview (ไม่บังคับว่าต้องมีชื่อ)
 
         if (!cancel) setSupervisors(sup);
       } catch (e: any) {
@@ -335,6 +459,58 @@ export default function CommentatorPage() {
       cancel = true;
     };
   }, [projectId]);
+
+  // ✅ overtime detection เหมือน preview (อิงจากข้อมูลรายงานใน DB)
+  const hasOvertime = useMemo(() => {
+    const subOt = (detail?.subContractors || []).some((r) => (Number(r.overtime) || 0) > 0);
+    const eqOt = (detail?.majorEquipment || []).some((r) => (Number(r.overtime) || 0) > 0);
+    return Boolean(subOt || eqOt);
+  }, [detail?.subContractors, detail?.majorEquipment]);
+
+  // ✅ Weather fetch เหมือน preview (ดึงจาก Open-Meteo แล้วคำนวณช่วงเวลา)
+  useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      if (!detail?.date) return;
+
+      setWxLoading(true);
+      try {
+        const hourly = await fetchHourlyWeather(detail.date);
+
+        const start = hmToMin("06:00");
+        const end = hasOvertime ? hmToMin("24:00") : hmToMin("18:00");
+        const { max, min } = calcMaxMinInRange(hourly, start, end);
+
+        const mMorning = representativeWeather(hourly, hmToMin("08:30"), hmToMin("12:00"));
+        const mAfternoon = representativeWeather(hourly, hmToMin("13:00"), hmToMin("16:30"));
+        const mOvertime = hasOvertime ? representativeWeather(hourly, hmToMin("16:30"), hmToMin("24:00")) : "-";
+
+        if (!cancelled) {
+          setTempMax(max);
+          setTempMin(min);
+          setWMorning(mMorning);
+          setWAfternoon(mAfternoon);
+          setWOvertime(mOvertime);
+        }
+      } catch {
+        if (!cancelled) {
+          setTempMax(detail.tempMaxC ?? null);
+          setTempMin(detail.tempMinC ?? null);
+          setWMorning("-");
+          setWAfternoon("-");
+          setWOvertime("-");
+        }
+      } finally {
+        if (!cancelled) setWxLoading(false);
+      }
+    }
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [detail?.date, hasOvertime, detail?.tempMaxC, detail?.tempMinC]);
 
   const canShowReport = Boolean(projectId && reportId && detail);
 
@@ -361,7 +537,6 @@ export default function CommentatorPage() {
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) throw new Error(json?.message || "ส่งความเห็นไม่สำเร็จ");
 
-      // reload detail to get latest comments
       const again = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}`, { cache: "no-store" });
       const againJson = await again.json().catch(() => null);
       if (again.ok && againJson?.ok) setDetail(againJson.report as ReportDetail);
@@ -618,7 +793,14 @@ export default function CommentatorPage() {
                             <tr>
                               <td className="cellCenter">
                                 <div className="mx-auto w-[110px] h-[110px] rounded-full border-2 border-black overflow-hidden flex items-center justify-center bg-white">
-                                  <Image src="/logo.png" alt="Company Logo" width={110} height={110} className="w-full h-full object-contain" priority />
+                                  <Image
+                                    src="/logo.png"
+                                    alt="Company Logo"
+                                    width={110}
+                                    height={110}
+                                    className="w-full h-full object-contain"
+                                    priority
+                                  />
                                 </div>
                               </td>
 
@@ -686,12 +868,24 @@ export default function CommentatorPage() {
                               </div>
 
                               <div className="mt-2 font-semibold">สภาพอากาศ (WEATHER)</div>
-                              <div className="numTab">
-                                <span className="nowrap">อุณหภูมิ สูงสุด: {detail.tempMaxC ?? "-"}°C</span>
-                                <span className="mx-6"> </span>
-                                <span className="nowrap">อุณหภูมิ ต่ำสุด: {detail.tempMinC ?? "-"}°C</span>
-                              </div>
-                              <div className="opacity-70 text-xs mt-1">(ดึงสภาพอากาศแบบ Preview ได้ถ้า API ส่งค่า/หรือเพิ่ม fetch เหมือนหน้า Preview)</div>
+
+                              {wxLoading ? (
+                                <div className="opacity-70">กำลังดึงข้อมูลอุณหภูมิ/สภาพอากาศ...</div>
+                              ) : (
+                                <>
+                                  <div className="numTab">
+                                    <span className="nowrap">อุณหภูมิ สูงสุด: {tempMax ?? "-"}°C</span>
+                                    <span className="mx-6"> </span>
+                                    <span className="nowrap">อุณหภูมิ ต่ำสุด: {tempMin ?? "-"}°C</span>
+                                  </div>
+
+                                  <div className="grid grid-cols-3 gap-x-10 numTab mt-1">
+                                    <div className="nowrap">เช้า: {wMorning}</div>
+                                    <div className="nowrap text-center">บ่าย: {wAfternoon}</div>
+                                    <div className="nowrap text-right">ล่วงเวลา: {wOvertime}</div>
+                                  </div>
+                                </>
+                              )}
                             </div>
                           </div>
 
@@ -893,23 +1087,24 @@ export default function CommentatorPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {(workPerformed.length ? workPerformed : [{ id: "EMPTY-W", desc: "-", location: "-", qty: "-", unit: "-", materialDelivered: "-" }]).map(
-                              (r, i) => (
-                                <tr key={r.id}>
-                                  <td className="cellCenter">{i + 1}</td>
-                                  <td className="cell">{r.desc || "-"}</td>
-                                  <td className="cell">{r.location || "-"}</td>
-                                  <td className="cellCenter">{r.qty || "-"}</td>
-                                  <td className="cellCenter">{r.unit || "-"}</td>
-                                  <td className="cell">{r.materialDelivered || "-"}</td>
-                                </tr>
-                              )
-                            )}
+                            {(workPerformed.length
+                              ? workPerformed
+                              : [{ id: "EMPTY-W", desc: "-", location: "-", qty: "-", unit: "-", materialDelivered: "-" }]
+                            ).map((r, i) => (
+                              <tr key={r.id}>
+                                <td className="cellCenter">{i + 1}</td>
+                                <td className="cell">{r.desc || "-"}</td>
+                                <td className="cell">{r.location || "-"}</td>
+                                <td className="cellCenter">{r.qty || "-"}</td>
+                                <td className="cellCenter">{r.unit || "-"}</td>
+                                <td className="cell">{r.materialDelivered || "-"}</td>
+                              </tr>
+                            ))}
                           </tbody>
                         </table>
                       </div>
 
-                      {/* ===================== ISSUES (with comment inside form) ===================== */}
+                      {/* ===================== ISSUES (เหมือน Preview + comment ในช่องขวา) ===================== */}
                       <div className="box mt-4">
                         <table>
                           <colgroup>
@@ -940,7 +1135,11 @@ export default function CommentatorPage() {
                                   <td className="cell issueRowMin">
                                     <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
                                     {it.imageUrl ? (
-                                      <img src={it.imageUrl} alt={`issue-img-${idx + 1}`} className="issueImg border border-black/30 rounded" />
+                                      <img
+                                        src={it.imageUrl}
+                                        alt={`issue-img-${idx + 1}`}
+                                        className="issueImg border border-black/30 rounded"
+                                      />
                                     ) : (
                                       <div className="text-sm opacity-60">-</div>
                                     )}
@@ -982,7 +1181,8 @@ export default function CommentatorPage() {
                                           {it.comments.map((c) => (
                                             <div key={c.id} className="rounded-lg border p-2">
                                               <div className="text-xs opacity-70">
-                                                โดย {c.author?.name || c.author?.email || "-"} ({c.author?.role || "-"}) — {formatDateBE(c.createdAt)}
+                                                โดย {c.author?.name || c.author?.email || "-"} ({c.author?.role || "-"}) —{" "}
+                                                {formatDateBE(c.createdAt)}
                                               </div>
                                               <div className="whitespace-pre-wrap text-sm mt-1">{c.comment}</div>
                                             </div>
