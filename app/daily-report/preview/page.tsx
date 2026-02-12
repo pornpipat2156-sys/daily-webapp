@@ -507,6 +507,10 @@ export default function ReviewPage() {
 
   const canShowReport = Boolean(projectId && reportId && detail);
 
+  // ✅ เงื่อนไขการ “ส่ง” (ใช้เฉพาะสำหรับการไปแท็บถัดไป)
+  const hasIssues = (detail?.issues || []).length > 0;
+  const nextTabPath = hasIssues ? "/commentator" : "/summation";
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-[1200px] px-3 md:px-6 py-4">
@@ -516,8 +520,8 @@ export default function ReviewPage() {
             <div className="text-sm opacity-70">หน้า review ใช้โครงเดียวกับ Preview แต่ไม่มีการแก้ไข/ส่งความเห็น</div>
           </div>
           <div className="flex gap-2">
-            <button className="rounded-lg border px-3 py-2" onClick={() => router.push("/commentator")}>
-              ไปหน้าแสดงความคิดเห็น
+            <button className="rounded-lg border px-3 py-2" onClick={() => router.push(nextTabPath)}>
+              ไปแท็บถัดไป
             </button>
             <button className="rounded-lg border px-3 py-2" onClick={() => router.push("/daily-report")}>
               กลับไปกรอก Daily report
@@ -567,8 +571,12 @@ export default function ReviewPage() {
             </div>
 
             <div className="flex items-end">
-              <button className="w-full rounded-lg border px-3 py-2" disabled={!canShowReport} onClick={() => router.push("/summation")}>
-                ไปหน้า “การตรวจสอบและการอนุมัติ”
+              <button
+                className="w-full rounded-lg border px-3 py-2"
+                disabled={!canShowReport}
+                onClick={() => router.push(nextTabPath)}
+              >
+                ไปแท็บถัดไป
               </button>
             </div>
           </div>
@@ -946,7 +954,11 @@ export default function ReviewPage() {
                                   <td className="cell issueRowMin">
                                     <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
                                     {it.imageUrl ? (
-                                      <img src={it.imageUrl} alt={`issue-img-${idx + 1}`} className="issueImg border border-black/30 rounded" />
+                                      <img
+                                        src={it.imageUrl}
+                                        alt={`issue-img-${idx + 1}`}
+                                        className="issueImg border border-black/30 rounded"
+                                      />
                                     ) : (
                                       <div className="text-sm opacity-60">-</div>
                                     )}
@@ -965,7 +977,8 @@ export default function ReviewPage() {
                                         {it.comments.map((c) => (
                                           <div key={c.id} className="rounded-lg border p-2">
                                             <div className="text-xs opacity-70">
-                                              โดย {c.author?.name || c.author?.email || "-"} ({c.author?.role || "-"}) — {formatDateBE(c.createdAt)}
+                                              โดย {c.author?.name || c.author?.email || "-"} ({c.author?.role || "-"}) —{" "}
+                                              {formatDateBE(c.createdAt)}
                                             </div>
                                             <div className="whitespace-pre-wrap text-sm mt-1">{c.comment}</div>
                                           </div>
