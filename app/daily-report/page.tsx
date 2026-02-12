@@ -288,6 +288,7 @@ export default function DailyReportPage() {
   // ✅ projects จาก DB
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
+  const [editingReportId, setEditingReportId] = useState<string | null>(null);
 
   // เลือกโครงการเท่านั้น (จาก DB)
   const [projectId, setProjectId] = useState<string>("");
@@ -359,6 +360,79 @@ export default function DailyReportPage() {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+  let alive = true;
+
+  async function run() {
+    if (!projectId || !date) return;
+
+    const res = await fetch(
+      `/api/daily-reports/by-date?projectId=${encodeURIComponent(projectId)}&date=${encodeURIComponent(date)}`,
+      { cache: "no-store" }
+    );
+    const json = await res.json().catch(() => null);
+    if (!alive) return;
+    if (!json?.ok) return;
+
+    if (!json.reportId) {
+      setEditingReportId(null);
+      return;
+    }
+
+    setEditingReportId(String(json.reportId));
+
+    // 1) โหลด payload กลับเข้าฟอร์ม
+    const p = json.payload || {};
+
+    setTempMaxC(p.tempMaxC ?? null);
+    setTempMinC(p.tempMinC ?? null);
+
+    setContractors(
+      Array.isArray(p.contractors) && p.contractors.length
+        ? p.contractors
+        : [{ id: uid(), name: "", position: "", qty: 0 }]
+    );
+
+    setSubContractors(
+      Array.isArray(p.subContractors) && p.subContractors.length
+        ? p.subContractors
+        : [{ id: uid(), position: "", morning: 0, afternoon: 0, overtime: 0 }]
+    );
+
+    setMajorEquipment(
+      Array.isArray(p.majorEquipment) && p.majorEquipment.length
+        ? p.majorEquipment
+        : [{ id: uid(), type: "", morning: 0, afternoon: 0, overtime: 0 }]
+    );
+
+    setWorkPerformed(
+      Array.isArray(p.workPerformed) && p.workPerformed.length
+        ? p.workPerformed
+        : [{ id: uid(), desc: "", location: "", qty: "", unit: "", materialDelivered: "" }]
+    );
+
+    setSafetyNote(String(p.safetyNote || ""));
+
+    // 2) โหลด issues จากตาราง Issue (ใช้ id จริงของ DB)
+    const dbIssues = Array.isArray(json.issues) ? json.issues : [];
+    setIssues(
+      dbIssues.length
+        ? dbIssues.map((it: any) => ({
+            id: String(it.id), // ✅ ใช้ id จาก DB เพื่อให้ update ได้
+            detail: String(it.detail || ""),
+            imageDataUrl: String(it.imageUrl || ""),
+          }))
+        : [{ id: uid(), detail: "", imageDataUrl: "" }]
+    );
+  }
+
+  run();
+  return () => {
+    alive = false;
+  };
+}, [projectId, date]);
+
 
   // auto fetch daily weather when date changes (สำรอง)
   useEffect(() => {
@@ -467,44 +541,58 @@ export default function DailyReportPage() {
     return true;
   }, [projectId, date, issues]);
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function onSubmit(e: React.FormEvent) {
+  e.preventDefault();
 
-    if (!project) {
-      alert("❌ กรุณาเลือกโครงการก่อน");
-      return;
-    }
+  if (!project) {
+    alert("❌ กรุณาเลือกโครงการก่อน");
+    return;
+  }
 
-    // ✅ ตรวจซ้ำ: ถ้ามีรูป ต้องมีรายละเอียด
-    const bad = issues.find((x) => x.imageDataUrl && !x.detail.trim());
-    if (bad) {
-      alert("❌ หากแนบรูปใน 'ปัญหาและอุปสรรค' ต้องกรอกรายละเอียดด้วย");
-      return;
-    }
+  const bad = issues.find((x) => x.imageDataUrl && !x.detail.trim());
+  if (bad) {
+    alert("❌ หากแนบรูปใน 'ปัญหาและอุปสรรค' ต้องกรอกรายละเอียดด้วย");
+    return;
+  }
 
-    const payload: DailyReportPayload = {
-      projectId,
-      projectMeta: project,
+  const payload: DailyReportPayload = {
+    projectId,
+    projectMeta: project,
+    date,
+    dateBE,
+    tempMaxC,
+    tempMinC,
+    contractors,
+    subContractors,
+    majorEquipment,
+    workPerformed,
+    issues,
+    safetyNote,
+  };
 
-      date, // yyyy-mm-dd
-      dateBE, // DD/MM/BBBB (พ.ศ.)
+  const res = await fetch("/api/daily-reports/upsert", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 
-      tempMaxC,
-      tempMinC,
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.ok) {
+    alert("❌ บันทึกลง DB ไม่สำเร็จ");
+    return;
+  }
 
-      contractors,
-      subContractors,
-      majorEquipment,
+  const reportId = String(json.reportId);
+  setEditingReportId(reportId);
 
-      workPerformed,
-      issues,
+  sessionStorage.setItem("lastSubmittedReportId", reportId);
+  sessionStorage.setItem("lastSubmittedProjectId", projectId);
 
-      safetyNote,
-    };
+  router.push(`/daily-report/preview?reportId=${encodeURIComponent(reportId)}`);
 
-    // ✅ (แก้ปัญหามือถือ) กัน sessionStorage เต็ม/throw แล้วกดเหมือนไม่ได้
-    try {
-      sessionStorage.setItem("dailyReportPayload", JSON.stringify(payload));
+  // ✅ (แก้ปัญหามือถือ) กัน sessionStorage เต็ม/throw แล้วกดเหมือนไม่ได้
+  try {
+    sessionStorage.setItem("dailyReportPayload", JSON.stringify(payload));
     } catch (err) {
       // มักเกิดบนมือถือ/iOS เมื่อรูปเยอะหรือไฟล์ใหญ่
       alert(

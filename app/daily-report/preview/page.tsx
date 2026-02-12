@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 
 type ProjectRow = { id: string; projectName: string };
@@ -210,6 +210,7 @@ function representativeWeather(
 
 export default function ReviewPage() {
   const router = useRouter();
+  const sp = useSearchParams();
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [projectId, setProjectId] = useState<string>("");
@@ -302,6 +303,11 @@ export default function ReviewPage() {
     if (pid) setProjectId(pid);
     if (rid) setReportId(rid);
   }, []);
+
+  useEffect(() => {
+  const rid = sp.get("reportId");
+  if (rid) setReportId(rid);
+}, [sp]);
 
   // load reports
   useEffect(() => {

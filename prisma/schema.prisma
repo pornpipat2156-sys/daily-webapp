@@ -17,17 +17,26 @@ model Project {
 }
 
 model DailyReport {
-  id        String           @id @default(uuid())
+  id        String   @id @default(uuid())
   projectId String
   date      DateTime
-  createdAt DateTime         @default(now())
-  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // ✅ เก็บข้อมูลฟอร์ม Daily-report ทั้งก้อน
+  payload   Json?
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   issues    Issue[]
   approvals ReportApproval[] @relation("ReportApprovals")
+
+  // ✅ สำคัญมาก: ทำให้ upsert by project+date ได้
+  @@unique([projectId, date])
 
   @@index([projectId])
   @@index([date])
 }
+
 
 model Issue {
   id        String      @id @default(uuid())
@@ -74,9 +83,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  projectAdminOf  ProjectAdmin[]
-  issueComments   IssueComment[]
+  projectAdminOf ProjectAdmin[]
+  issueComments  IssueComment[]
   reportApprovals ReportApproval[] @relation("UserApprovals")
+
 }
 
 model PasswordToken {
@@ -122,13 +132,13 @@ model ProjectAdmin {
 }
 
 model ReportApproval {
-  id             String   @id @default(cuid())
+  id            String    @id @default(cuid())
   reportId       String
   approverName   String
   approverRole   String?
   approverUserId String?
-  approvedAt     DateTime @default(now())
-  createdAt      DateTime @default(now())
+  approvedAt     DateTime  @default(now())
+  createdAt      DateTime  @default(now())
 
   report   DailyReport @relation("ReportApprovals", fields: [reportId], references: [id], onDelete: Cascade)
   approver User?       @relation("UserApprovals", fields: [approverUserId], references: [id], onDelete: SetNull)
