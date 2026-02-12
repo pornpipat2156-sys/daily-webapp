@@ -13,16 +13,17 @@ export async function POST(req: NextRequest) {
     const dateYmd = String(body?.date || ""); // expect YYYY-MM-DD
 
     if (!projectId || !/^\d{4}-\d{2}-\d{2}$/.test(dateYmd)) {
-      return NextResponse.json({ ok: false, message: "projectId/date(YYYY-MM-DD) required" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, message: "projectId/date(YYYY-MM-DD) required" },
+        { status: 400 }
+      );
     }
 
     const date = bangkokStart(dateYmd);
 
-    // แยก issues ออกมาจาก payload ที่จะเก็บลง report
+    // ✅ แยก issues ออกก่อน (ห้ามใส่ undefined ลง Json)
     const incomingIssues = Array.isArray(body?.issues) ? body.issues : [];
-
-    // เก็บ payload ฟอร์มทั้งหมดลง DailyReport.payload (ไม่รวม issues เพื่อกันซ้ำ)
-    const payload = { ...body, issues: undefined };
+    const { issues: _omitIssues, ...payload } = body;
 
     const saved = await prisma.dailyReport.upsert({
       where: { projectId_date: { projectId, date } },
@@ -47,7 +48,9 @@ export async function POST(req: NextRequest) {
       }))
       .filter((x: any) => x.detail || x.imageUrl); // เอาเฉพาะที่มีข้อมูลจริง
 
-    const incomingIds = new Set(incomingClean.filter((x: any) => x.id).map((x: any) => x.id));
+    const incomingIds = new Set(
+      incomingClean.filter((x: any) => x.id).map((x: any) => x.id)
+    );
 
     // update/create
     for (const it of incomingClean) {
@@ -76,7 +79,7 @@ export async function POST(req: NextRequest) {
         if (!hasComments) {
           await prisma.issue.delete({ where: { id: ex.id } });
         } else {
-          // ถ้ามีคอมเมนต์แล้ว ไม่ลบทิ้ง (กันประวัติหาย) — เคลียร์รูป/ข้อความแทน
+          // ถ้ามีคอมเมนต์แล้ว ไม่ลบทิ้ง — เคลียร์ข้อความ/รูปแทน เพื่อเก็บประวัติ
           await prisma.issue.update({
             where: { id: ex.id },
             data: { detail: "(รายการนี้ถูกลบ/แก้ไขโดยผู้กรอก)", imageUrl: null },
@@ -87,6 +90,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, reportId });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, message: e?.message || "upsert failed" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, message: e?.message || "upsert failed" },
+      { status: 500 }
+    );
   }
 }

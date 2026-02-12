@@ -18,7 +18,10 @@ export async function GET(req: NextRequest) {
   const dateYmd = String(searchParams.get("date") || ""); // YYYY-MM-DD
 
   if (!projectId || !/^\d{4}-\d{2}-\d{2}$/.test(dateYmd)) {
-    return NextResponse.json({ ok: false, message: "projectId/date required" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, message: "projectId/date required" },
+      { status: 400 }
+    );
   }
 
   const start = bangkokStart(dateYmd);
