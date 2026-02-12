@@ -408,7 +408,8 @@ export default function ReviewPage() {
       if (!detail?.date) return;
       setWxLoading(true);
       try {
-        const hourly = await fetchHourlyWeather(detail.date);
+        const dateISO = String(detail.date).slice(0, 10); // ✅ บังคับเป็น YYYY-MM-DD
+        const hourly = await fetchHourlyWeather(dateISO);
 
         const start = hmToMin("06:00");
         const end = hasOvertime ? hmToMin("24:00") : hmToMin("18:00");
