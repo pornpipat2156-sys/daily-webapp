@@ -14,17 +14,19 @@ type AllowUserRow = {
   role: "USER" | "ADMIN" | "SUPERADMIN" | string;
 };
 
+type ChatMemberRow = AllowUserRow;
+
 type ChatMessage = {
   id: string;
   projectId: string;
-  author: { id: string; email: string; name: string | null; role: string };
+  author: { id: string; email: string; name: string | null; role: string | null };
   text: string | null;
   createdAt: string;
   reportId: string | null;
   mentionUserIds: string[];
 };
 
-type DailyReportRow = { id: string; date: string }; // date: YYYY-MM-DD
+type DailyReportRow = { id: string; date: string }; // YYYY-MM-DD
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -41,29 +43,69 @@ function fmtDateTime(iso: string) {
   });
 }
 
+async function jget<T>(url: string): Promise<T> {
+  const res = await fetch(url, { cache: "no-store" });
+  const txt = await res.text();
+  if (!res.ok) throw new Error(txt || `GET ${url} failed`);
+  try {
+    return JSON.parse(txt) as T;
+  } catch {
+    throw new Error(txt || `GET ${url} invalid json`);
+  }
+}
+
+async function jpost<T>(url: string, body: any): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const txt = await res.text();
+  if (!res.ok) throw new Error(txt || `POST ${url} failed`);
+  try {
+    return JSON.parse(txt) as T;
+  } catch {
+    throw new Error(txt || `POST ${url} invalid json`);
+  }
+}
+
+function escapeRegExp(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export default function ContactPage() {
   const { data: session, status } = useSession();
 
   const role = (session as any)?.user?.role as string | undefined;
   const meId = (session as any)?.user?.id as string | undefined;
 
+  const isSuperAdmin = role === "SUPERADMIN";
+
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [projectId, setProjectId] = useState<string>("");
 
-  const [members, setMembers] = useState<AllowUserRow[]>([]);
+  // allowlist (เลือกเพื่อ add)
+  const [allowUsers, setAllowUsers] = useState<AllowUserRow[]>([]);
   const [selectedToAdd, setSelectedToAdd] = useState<Record<string, boolean>>({});
   const [adding, setAdding] = useState(false);
 
+  // group members (ใช้สำหรับ @mention)
+  const [groupMembers, setGroupMembers] = useState<ChatMemberRow[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+
+  // chat messages
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
 
+  // + ส่ง Daily Report
   const [pickerOpen, setPickerOpen] = useState(false);
   const [reports, setReports] = useState<DailyReportRow[]>([]);
   const [reportIdToSend, setReportIdToSend] = useState<string>("");
 
+  // @mention
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionAnchor, setMentionAnchor] = useState<{ start: number; end: number } | null>(null);
@@ -71,42 +113,51 @@ export default function ContactPage() {
   const listRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const isSuperAdmin = role === "SUPERADMIN";
+  const canPickProject = isSuperAdmin;
 
-  async function jget<T>(url: string): Promise<T> {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error(await res.text());
-    return (await res.json()) as T;
-  }
-  async function jpost<T>(url: string, body: any): Promise<T> {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(await res.text());
-    return (await res.json()) as T;
-  }
-
+  // โหลด projects
   useEffect(() => {
     if (status !== "authenticated") return;
     (async () => {
       const rows = await jget<ProjectRow[]>("/api/projects?scope=chat");
       setProjects(rows);
       if (!projectId && rows.length) setProjectId(rows[0].id);
-    })().catch(console.error);
+    })().catch((e) => {
+      console.error(e);
+      alert(`โหลดโครงการไม่สำเร็จ: ${String(e?.message || e)}`);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
+  // โหลด allowlist ของ project
   useEffect(() => {
     if (!projectId) return;
     (async () => {
       const rows = await jget<AllowUserRow[]>(`/api/allow-email?projectId=${encodeURIComponent(projectId)}`);
-      setMembers(rows);
+      setAllowUsers(rows);
       setSelectedToAdd({});
-    })().catch(console.error);
+    })().catch((e) => {
+      console.error(e);
+      alert(`โหลด AllowEmail ไม่สำเร็จ: ${String(e?.message || e)}`);
+    });
   }, [projectId]);
 
+  // โหลดสมาชิกในกลุ่มจริง (สำหรับ mention)
+  useEffect(() => {
+    if (!projectId) return;
+    setLoadingMembers(true);
+    (async () => {
+      const rows = await jget<ChatMemberRow[]>(`/api/chat/members?projectId=${encodeURIComponent(projectId)}`);
+      setGroupMembers(rows);
+    })()
+      .catch((e) => {
+        console.error(e);
+        // ไม่ alert ทุกครั้ง กันรำคาญ (แต่จะเห็นใน console)
+      })
+      .finally(() => setLoadingMembers(false));
+  }, [projectId]);
+
+  // โหลดข้อความ
   useEffect(() => {
     if (!projectId) return;
     setLoadingMessages(true);
@@ -117,10 +168,14 @@ export default function ContactPage() {
         listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "auto" });
       }, 50);
     })()
-      .catch(console.error)
+      .catch((e) => {
+        console.error(e);
+        alert(`โหลดข้อความไม่สำเร็จ: ${String(e?.message || e)}`);
+      })
       .finally(() => setLoadingMessages(false));
   }, [projectId]);
 
+  // โหลดรายงานไว้ให้เลือกตอนกด +
   useEffect(() => {
     if (!pickerOpen || !projectId) return;
     (async () => {
@@ -129,7 +184,10 @@ export default function ContactPage() {
       );
       setReports(rows);
       if (!reportIdToSend && rows.length) setReportIdToSend(rows[0].id);
-    })().catch(console.error);
+    })().catch((e) => {
+      console.error(e);
+      alert(`โหลดรายการ Daily Report ไม่สำเร็จ: ${String(e?.message || e)}`);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickerOpen, projectId]);
 
@@ -138,29 +196,47 @@ export default function ContactPage() {
     [selectedToAdd]
   );
 
+  async function refreshMembersAndMessages() {
+    if (!projectId) return;
+    try {
+      const [memRows, msgRows] = await Promise.all([
+        jget<ChatMemberRow[]>(`/api/chat/members?projectId=${encodeURIComponent(projectId)}`),
+        jget<ChatMessage[]>(`/api/chat/messages?projectId=${encodeURIComponent(projectId)}`),
+      ]);
+      setGroupMembers(memRows);
+      setMessages(msgRows);
+      setTimeout(() => {
+        listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "auto" });
+      }, 30);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   async function addMembersToGroup() {
     if (!projectId || selectedAddIds.length === 0) return;
     setAdding(true);
     try {
       await jpost(`/api/chat/members/add`, { projectId, userIds: selectedAddIds });
-      const rows = await jget<AllowUserRow[]>(`/api/allow-email?projectId=${encodeURIComponent(projectId)}`);
-      setMembers(rows);
       setSelectedToAdd({});
-    } catch (e) {
+      await refreshMembersAndMessages();
+    } catch (e: any) {
       console.error(e);
-      alert("เพิ่มสมาชิกไม่สำเร็จ");
+      alert(`เพิ่มสมาชิกไม่สำเร็จ: ${String(e?.message || e)}`);
     } finally {
       setAdding(false);
     }
   }
 
+  // ===== Mention: ใช้ groupMembers เท่านั้น (ถูกต้องตาม requirement) =====
   const mentionCandidates = useMemo(() => {
+    const src = groupMembers;
     const q = mentionQuery.trim().toLowerCase();
-    if (!q) return members.slice(0, 8);
-    return members
+    if (!q) return src.slice(0, 8);
+    return src
       .filter((m) => (m.name ?? m.email).toLowerCase().includes(q) || m.email.toLowerCase().includes(q))
       .slice(0, 8);
-  }, [members, mentionQuery]);
+  }, [groupMembers, mentionQuery]);
 
   function handleTextChange(v: string) {
     setText(v);
@@ -223,13 +299,10 @@ export default function ContactPage() {
     setMentionAnchor(null);
   }
 
-  function escapeRegExp(s: string) {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  }
-
   function extractMentionUserIdsFromText(v: string) {
+    // map จาก "@ชื่อ/อีเมล" -> userId เฉพาะคนที่อยู่ใน groupMembers
     const ids: string[] = [];
-    for (const m of members) {
+    for (const m of groupMembers) {
       const display = m.name?.trim() ? m.name.trim() : m.email;
       const re = new RegExp(`(^|\\s)@${escapeRegExp(display)}(\\s|$)`, "g");
       if (re.test(v)) ids.push(m.id);
@@ -239,6 +312,7 @@ export default function ContactPage() {
 
   async function sendMessage(opts?: { reportId?: string | null }) {
     if (!projectId) return;
+
     const hasText = text.trim().length > 0;
     const repId = opts?.reportId ?? null;
 
@@ -248,34 +322,29 @@ export default function ContactPage() {
     try {
       const mentionUserIds = extractMentionUserIdsFromText(text);
 
-      const created = await jpost<ChatMessage>("/api/chat/messages", {
+      await jpost<ChatMessage>("/api/chat/messages", {
         projectId,
         text: hasText ? text.trim() : null,
         reportId: repId,
         mentionUserIds,
       });
 
-      setMessages((prev) => [...prev, created]);
       setText("");
-      setReportIdToSend("");
       setPickerOpen(false);
-
-      setTimeout(() => {
-        listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
-      }, 30);
-    } catch (e) {
+      // ไม่ reset reportIdToSend ให้เลือกได้ต่อ (กัน UX พัง)
+      await refreshMembersAndMessages();
+    } catch (e: any) {
       console.error(e);
-      alert("ส่งข้อความไม่สำเร็จ");
+      alert(`ส่งข้อความไม่สำเร็จ: ${String(e?.message || e)}`);
     } finally {
       setSending(false);
     }
   }
 
-  const canPickProject = isSuperAdmin;
-
   return (
     <div className="min-h-[calc(100vh-0px)] p-4 md:p-6">
       <div className="mx-auto max-w-6xl space-y-4">
+        {/* Header */}
         <div className="flex flex-col gap-3 rounded-2xl border bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
             <div className="text-lg font-semibold">Contact (Project Group Chat)</div>
@@ -300,12 +369,11 @@ export default function ContactPage() {
               ))}
             </select>
 
-            <div className="text-xs text-gray-500 md:ml-2">
-              Role: <span className="font-medium">{role ?? "-"}</span>
-            </div>
+            {/* ✅ ลบการแสดง Role ตามที่สั่ง */}
           </div>
         </div>
 
+        {/* Member management (SuperAdmin only) */}
         {isSuperAdmin ? (
           <div className="rounded-2xl border bg-white p-4 shadow-sm">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -329,7 +397,7 @@ export default function ContactPage() {
             </div>
 
             <div className="mt-3 grid gap-2 md:grid-cols-2">
-              {members.map((m) => {
+              {allowUsers.map((m) => {
                 const label = m.name?.trim() ? m.name : m.email;
                 return (
                   <label key={m.id} className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm hover:bg-gray-50">
@@ -340,9 +408,7 @@ export default function ContactPage() {
                     />
                     <div className="min-w-0">
                       <div className="truncate font-medium">{label}</div>
-                      <div className="truncate text-xs text-gray-500">
-                        {m.email} • {m.role}
-                      </div>
+                      <div className="truncate text-xs text-gray-500">{m.email}</div>
                     </div>
                   </label>
                 );
@@ -351,7 +417,9 @@ export default function ContactPage() {
           </div>
         ) : null}
 
+        {/* Chat */}
         <div className="grid gap-4 md:grid-cols-[1fr_360px]">
+          {/* Message list + composer */}
           <div className="rounded-2xl border bg-white shadow-sm">
             <div className="border-b p-4">
               <div className="font-semibold">ห้องแชท</div>
@@ -374,16 +442,20 @@ export default function ContactPage() {
 
                     return (
                       <div key={msg.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
-                        <div className={cn("max-w-[92%] rounded-2xl border p-3 md:max-w-[80%]", mine ? "bg-gray-50" : "bg-white")}>
+                        <div
+                          className={cn(
+                            "max-w-[92%] rounded-2xl border p-3 md:max-w-[80%]",
+                            mine ? "bg-gray-50" : "bg-white"
+                          )}
+                        >
                           <div className="mb-1 flex items-center justify-between gap-3">
                             <div className="min-w-0 text-xs text-gray-600">
-                              <span className="truncate font-medium text-gray-800">{authorLabel}</span>{" "}
-                              <span className="text-gray-400">•</span>{" "}
-                              <span className="text-gray-500">{msg.author.role}</span>
+                              <span className="truncate font-medium text-gray-800">{authorLabel}</span>
                             </div>
                             <div className="shrink-0 text-[11px] text-gray-500">{fmtDateTime(msg.createdAt)}</div>
                           </div>
 
+                          {/* ✅ แนบรายงาน: Preview ก่อนเสมอ */}
                           {msg.reportId ? (
                             <div className="mb-2 rounded-xl border bg-white p-2">
                               <div className="mb-2 text-xs font-medium text-gray-700">Daily Report Preview (Read-only)</div>
@@ -396,10 +468,6 @@ export default function ContactPage() {
                           {msg.text ? (
                             <div className="whitespace-pre-wrap text-sm leading-relaxed text-gray-900">{msg.text}</div>
                           ) : null}
-
-                          {msg.mentionUserIds?.length ? (
-                            <div className="mt-2 text-[11px] text-gray-500">mentioned: {msg.mentionUserIds.length} user(s)</div>
-                          ) : null}
                         </div>
                       </div>
                     );
@@ -408,11 +476,15 @@ export default function ContactPage() {
               )}
             </div>
 
+            {/* Composer */}
             <div className="border-t p-3">
               <div className="relative">
+                {/* Mention dropdown */}
                 {mentionOpen && mentionCandidates.length > 0 ? (
                   <div className="absolute bottom-[92px] left-0 z-20 w-full rounded-2xl border bg-white p-2 shadow-lg">
-                    <div className="px-2 pb-1 text-xs font-medium text-gray-600">Mention</div>
+                    <div className="px-2 pb-1 text-xs font-medium text-gray-600">
+                      Mention {loadingMembers ? "(กำลังโหลดสมาชิก...)" : ""}
+                    </div>
                     <div className="max-h-48 overflow-auto">
                       {mentionCandidates.map((u) => {
                         const label = u.name?.trim() ? u.name : u.email;
@@ -427,7 +499,6 @@ export default function ContactPage() {
                               <div className="truncate font-medium">{label}</div>
                               <div className="truncate text-xs text-gray-500">{u.email}</div>
                             </div>
-                            <div className="text-xs text-gray-500">{u.role}</div>
                           </button>
                         );
                       })}
@@ -438,7 +509,7 @@ export default function ContactPage() {
                 <textarea
                   ref={inputRef}
                   className="h-20 w-full resize-none rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
-                  placeholder="พิมพ์ข้อความ... ใช้ @ เพื่อ mention คนในโครงการ"
+                  placeholder="พิมพ์ข้อความ... ใช้ @ เพื่อ mention คนในกลุ่ม"
                   value={text}
                   onChange={(e) => handleTextChange(e.target.value)}
                   onKeyDown={(e) => {
@@ -451,6 +522,7 @@ export default function ContactPage() {
 
                 <div className="mt-2 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
+                    {/* + picker */}
                     <button
                       type="button"
                       className="h-10 w-10 rounded-xl border text-lg hover:bg-gray-50"
@@ -478,7 +550,9 @@ export default function ContactPage() {
                           type="button"
                           className={cn(
                             "h-10 rounded-xl px-3 text-sm font-medium",
-                            !reportIdToSend || sending ? "cursor-not-allowed bg-gray-200 text-gray-500" : "bg-black text-white"
+                            !reportIdToSend || sending
+                              ? "cursor-not-allowed bg-gray-200 text-gray-500"
+                              : "bg-black text-white"
                           )}
                           disabled={!reportIdToSend || sending}
                           onClick={() => sendMessage({ reportId: reportIdToSend })}
@@ -515,32 +589,30 @@ export default function ContactPage() {
             </div>
           </div>
 
+          {/* Side panel */}
           <div className="space-y-4">
             <div className="rounded-2xl border bg-white p-4 shadow-sm">
-              <div className="font-semibold">แนวทางต่อยอด “แจ้งเตือน”</div>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
-                <li>เมื่อส่งข้อความให้บันทึก mentionUserIds[]</li>
-                <li>สร้างตาราง Notification แล้ว insert เมื่อมี @</li>
-                <li>push จริงต้องมี PWA + service worker + subscriptions</li>
-              </ul>
-              <div className="mt-2 text-xs text-gray-500">
-                ตอนนี้หน้าแชทมี @mention UI แล้ว แต่ “แจ้งเตือนจริง” ต้องทำต่อในชุด PWA/Push
-              </div>
-            </div>
-
-            <div className="rounded-2xl border bg-white p-4 shadow-sm">
-              <div className="font-semibold">สมาชิกที่ mention ได้</div>
+              <div className="font-semibold">สมาชิกในกลุ่ม</div>
               <div className="mt-2 space-y-2">
-                {members.slice(0, 10).map((m) => (
+                {groupMembers.slice(0, 12).map((m) => (
                   <div key={m.id} className="flex items-center justify-between rounded-xl border px-3 py-2 text-sm">
                     <div className="min-w-0">
                       <div className="truncate font-medium">{m.name?.trim() ? m.name : m.email}</div>
                       <div className="truncate text-xs text-gray-500">{m.email}</div>
                     </div>
-                    <div className="text-xs text-gray-500">{m.role}</div>
                   </div>
                 ))}
-                {members.length > 10 ? <div className="text-xs text-gray-500">และอีก {members.length - 10} คน…</div> : null}
+                {groupMembers.length > 12 ? <div className="text-xs text-gray-500">และอีก {groupMembers.length - 12} คน…</div> : null}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border bg-white p-4 shadow-sm">
+              <div className="font-semibold">หมายเหตุ</div>
+              <div className="mt-2 text-sm text-gray-700">
+                ตอนนี้แก้ให้ “ส่งข้อความ / add สมาชิก / แนบรายงานแล้วไม่พัง” ก่อน
+              </div>
+              <div className="mt-2 text-xs text-gray-500">
+                ระบบแจ้งเตือนเด้งจริง (PWA/Push) = งาน “ต้องทำต่อ” หลังจากชุดนี้ผ่าน
               </div>
             </div>
           </div>

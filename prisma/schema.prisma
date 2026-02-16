@@ -14,6 +14,10 @@ model Project {
   reports   DailyReport[]
 
   projectAdmins ProjectAdmin[]
+
+  // ✅ Chat (Project Group Chat) - opposite relation fields
+  chatMembers  ChatGroupMember[]
+  chatMessages ChatMessage[]
 }
 
 model DailyReport {
@@ -24,25 +28,22 @@ model DailyReport {
   updatedAt DateTime @default(now()) @updatedAt
 
   // ✅ เก็บข้อมูลฟอร์ม Daily-report ทั้งก้อน (แก้ไขได้)
-  payload   Json?
+  payload Json?
 
   // ✅ เก็บ "ข้อมูลครั้งแรกของวันนั้น" (ห้ามแก้ แม้กลับมาแก้ไขรายงานภายหลัง)
-  initialPayload     Json?
-  initialIssues      Json?
-  initialCapturedAt  DateTime?
+  initialPayload    Json?
+  initialIssues     Json?
+  initialCapturedAt DateTime?
 
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   issues    Issue[]
   approvals ReportApproval[] @relation("ReportApprovals")
 
   // ✅ สำคัญมาก: ทำให้ upsert by project+date ได้
   @@unique([projectId, date])
-
   @@index([projectId])
   @@index([date])
 }
-
-
 
 model Issue {
   id        String      @id @default(uuid())
@@ -90,10 +91,13 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  projectAdminOf ProjectAdmin[]
-  issueComments  IssueComment[]
+  projectAdminOf  ProjectAdmin[]
+  issueComments   IssueComment[]
   reportApprovals ReportApproval[] @relation("UserApprovals")
 
+  // ✅ Chat (Project Group Chat) - opposite relation fields
+  chatGroups   ChatGroupMember[]
+  chatMessages ChatMessage[]
 }
 
 model PasswordToken {
@@ -139,13 +143,13 @@ model ProjectAdmin {
 }
 
 model ReportApproval {
-  id            String    @id @default(cuid())
+  id             String   @id @default(cuid())
   reportId       String
   approverName   String
   approverRole   String?
   approverUserId String?
-  approvedAt     DateTime  @default(now())
-  createdAt      DateTime  @default(now())
+  approvedAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
 
   report   DailyReport @relation("ReportApprovals", fields: [reportId], references: [id], onDelete: Cascade)
   approver User?       @relation("UserApprovals", fields: [approverUserId], references: [id], onDelete: SetNull)
@@ -153,4 +157,34 @@ model ReportApproval {
   @@unique([reportId, approverName])
   @@index([reportId])
   @@index([approverUserId])
+}
+
+model ChatGroupMember {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId], name: "projectId_userId")
+  @@index([projectId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id             String   @id @default(cuid())
+  projectId      String
+  authorId       String
+  text           String?
+  reportId       String?
+  mentionUserIds String[] @default([])
+  createdAt      DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([authorId])
 }

@@ -4,7 +4,6 @@
 import Image from "next/image";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-/** ===================== Types (keep compatible with your existing pages) ===================== */
 export type Supervisor = { name: string; role: string };
 
 export type ContractorRow = { id: string; name: string; position: string; qty: number };
@@ -22,7 +21,7 @@ export type IssueComment = {
 export type IssueRowUnified = {
   id: string;
   detail: string;
-  imageUrl: string; // ✅ unify: always url/dataurl
+  imageUrl: string;
   comments?: IssueComment[];
 };
 
@@ -44,22 +43,17 @@ export type ProjectMetaUnified = {
 };
 
 export type ReportRenderModel = {
-  date: string; // YYYY-MM-DD or ISO
+  date: string;
   projectName: string;
-
   projectMeta: ProjectMetaUnified;
-
   contractors: ContractorRow[];
   subContractors: SubContractorRow[];
   majorEquipment: MajorEquipmentRow[];
   workPerformed: WorkRow[];
-
   issues: IssueRowUnified[];
   safetyNote: string;
-
   tempMaxC?: number | null;
   tempMinC?: number | null;
-
   hasOvertime?: boolean;
   supervisors: Supervisor[];
 };
@@ -228,7 +222,83 @@ function normStr(s: any) {
     .replace(/\s+/g, " ");
 }
 
-/** ===================== MAIN RENDER (the A4 Preview UI) ===================== */
+function normalizeModel(raw: any): ReportRenderModel {
+  const pmRaw = raw?.projectMeta ?? raw?.project_meta ?? raw?.meta ?? {};
+  const pm: ProjectMetaUnified = {
+    projectName: String(pmRaw?.projectName ?? raw?.projectName ?? "-"),
+    contractNo: String(pmRaw?.contractNo ?? "-"),
+    annexNo: String(pmRaw?.annexNo ?? "-"),
+    contractStart: String(pmRaw?.contractStart ?? "-"),
+    contractEnd: String(pmRaw?.contractEnd ?? "-"),
+    contractorName: String(pmRaw?.contractorName ?? "-"),
+    siteLocation: String(pmRaw?.siteLocation ?? "-"),
+    contractValue: String(pmRaw?.contractValue ?? "-"),
+    procurementMethod: String(pmRaw?.procurementMethod ?? "-"),
+    installmentCount: Number(pmRaw?.installmentCount ?? 0),
+    totalDurationDays: Number(pmRaw?.totalDurationDays ?? 0),
+    dailyReportNo: String(pmRaw?.dailyReportNo ?? "-"),
+    periodNo: String(pmRaw?.periodNo ?? "-"),
+    weekNo: String(pmRaw?.weekNo ?? "-"),
+  };
+
+  const safeArr = <T,>(v: any): T[] => (Array.isArray(v) ? (v as T[]) : []);
+
+  return {
+    date: String(raw?.date ?? raw?.reportDate ?? "-"),
+    projectName: String(raw?.projectName ?? pm.projectName ?? "-"),
+    projectMeta: pm,
+    contractors: safeArr<ContractorRow>(raw?.contractors).map((x: any, i) => ({
+      id: String(x?.id ?? `C-${i}`),
+      name: String(x?.name ?? "-"),
+      position: String(x?.position ?? "-"),
+      qty: Number(x?.qty ?? 0),
+    })),
+    subContractors: safeArr<SubContractorRow>(raw?.subContractors ?? raw?.sub_contractors).map((x: any, i) => ({
+      id: String(x?.id ?? `S-${i}`),
+      position: String(x?.position ?? "-"),
+      morning: Number(x?.morning ?? 0),
+      afternoon: Number(x?.afternoon ?? 0),
+      overtime: Number(x?.overtime ?? 0),
+    })),
+    majorEquipment: safeArr<MajorEquipmentRow>(raw?.majorEquipment ?? raw?.major_equipment).map((x: any, i) => ({
+      id: String(x?.id ?? `E-${i}`),
+      type: String(x?.type ?? "-"),
+      morning: Number(x?.morning ?? 0),
+      afternoon: Number(x?.afternoon ?? 0),
+      overtime: Number(x?.overtime ?? 0),
+    })),
+    workPerformed: safeArr<WorkRow>(raw?.workPerformed ?? raw?.work_performed).map((x: any, i) => ({
+      id: String(x?.id ?? `W-${i}`),
+      desc: String(x?.desc ?? "-"),
+      location: String(x?.location ?? "-"),
+      qty: String(x?.qty ?? "-"),
+      unit: String(x?.unit ?? "-"),
+      materialDelivered: String(x?.materialDelivered ?? x?.material ?? "-"),
+    })),
+    issues: safeArr<IssueRowUnified>(raw?.issues).map((x: any, i) => ({
+      id: String(x?.id ?? `I-${i}`),
+      detail: String(x?.detail ?? ""),
+      imageUrl: String(x?.imageUrl ?? x?.image_url ?? ""),
+      comments: safeArr<IssueComment>(x?.comments).map((c: any, ci) => ({
+        id: String(c?.id ?? `IC-${i}-${ci}`),
+        comment: String(c?.comment ?? ""),
+        createdAt: String(c?.createdAt ?? new Date().toISOString()),
+        author: c?.author
+          ? { name: c.author?.name ?? null, email: c.author?.email ?? null, role: c.author?.role ?? null }
+          : null,
+      })),
+    })),
+    safetyNote: String(raw?.safetyNote ?? raw?.safety_note ?? ""),
+    tempMaxC: raw?.tempMaxC ?? raw?.temp_max_c ?? null,
+    tempMinC: raw?.tempMinC ?? raw?.temp_min_c ?? null,
+    hasOvertime: raw?.hasOvertime ?? null,
+    supervisors: safeArr<Supervisor>(raw?.supervisors).map((s: any, i) => ({
+      name: String(s?.name ?? "-"),
+      role: String(s?.role ?? "-"),
+    })),
+  };
+}
+
 export function ReportPreviewForm({
   model,
   renderIssueCommentCell,
@@ -236,7 +306,6 @@ export function ReportPreviewForm({
   model: ReportRenderModel;
   renderIssueCommentCell?: (issue: IssueRowUnified, idx: number) => ReactNode;
 }) {
-  // ===== scale same as preview =====
   const init = useMemo(() => {
     if (typeof window === "undefined") return { ss: 1, scaledW: A4_WIDTH_PX };
     const w = window.innerWidth || A4_WIDTH_PX;
@@ -281,7 +350,6 @@ export function ReportPreviewForm({
     return Boolean(subOt || eqOt);
   }, [model]);
 
-  // ===== weather: fetch same as preview =====
   const [tempMax, setTempMax] = useState<number | null>(model.tempMaxC ?? null);
   const [tempMin, setTempMin] = useState<number | null>(model.tempMinC ?? null);
   const [wMorning, setWMorning] = useState<string>("-");
@@ -363,12 +431,7 @@ export function ReportPreviewForm({
     };
   }, [model]);
 
-  const maxRows = Math.max(
-    model.contractors?.length || 0,
-    model.subContractors?.length || 0,
-    model.majorEquipment?.length || 0,
-    1
-  );
+  const maxRows = Math.max(model.contractors?.length || 0, model.subContractors?.length || 0, model.majorEquipment?.length || 0, 1);
 
   const contractorsPadded = useMemo(
     () =>
@@ -434,42 +497,25 @@ export function ReportPreviewForm({
         .previewWrap { width: 100%; display: flex; justify-content: center; }
         .previewSized { margin: 0; }
         .previewScaled { transform-origin: top left; will-change: transform; }
-
-        .a4 {
-          background: #fff;
-          color: #111;
-          border: 2px solid #111;
-          border-radius: 14px;
-          padding: 14px;
-          font-size: 13px;
-          line-height: 1.2;
-        }
-
+        .a4 { background: #fff; color: #111; border: 2px solid #111; border-radius: 14px; padding: 14px; font-size: 13px; line-height: 1.2; }
         .box { border: 2px solid #111; border-radius: 12px; overflow: hidden; }
         .cell { border: 1.5px solid #111; padding: 6px 8px; vertical-align: top; }
         .cellCenter { border: 1.5px solid #111; padding: 6px 8px; text-align: center; vertical-align: middle; }
-
         .titleBar { background: #eadcf6; font-weight: 700; }
         .sectionBar { background: #dff2df; font-weight: 700; text-align: center; }
         .subBar { background: #f4e8d4; font-weight: 700; text-align: center; }
-
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
         th, td { overflow-wrap: break-word; word-break: normal; }
-
         .hMain { font-weight: 800; font-size: 18px; letter-spacing: 0.2px; }
         .hSub  { font-weight: 600; font-size: 13px; }
-
         .mini th, .mini td { border: 1.5px solid #111; padding: 4px 6px; font-size: 12px; line-height: 1.1; }
         .mini th { text-align: center; vertical-align: middle; font-weight: 700; }
         .mini td { vertical-align: top; }
         .mini .c { text-align: center; vertical-align: middle; }
-
         .numTab { font-variant-numeric: tabular-nums; }
         .nowrap { white-space: nowrap; }
-
         .issueImg { width: 100%; max-height: 240px; object-fit: contain; display: block; }
         .issueRowMin { min-height: 260px; }
-
         @media (max-width: 640px) {
           .a4 { font-size: 11px; padding: 10px; }
           .hMain { font-size: 15px; }
@@ -484,7 +530,6 @@ export function ReportPreviewForm({
         <div className="previewSized" style={{ width: scaledWidth }}>
           <div className="previewScaled" style={{ width: A4_WIDTH_PX, transform: `scale(${scale}) translateZ(0)` }}>
             <div className="a4">
-              {/* ===================== Header ===================== */}
               <div className="box">
                 <table>
                   <colgroup>
@@ -495,17 +540,9 @@ export function ReportPreviewForm({
                     <tr>
                       <td className="cellCenter">
                         <div className="mx-auto w-[110px] h-[110px] rounded-full border-2 border-black overflow-hidden flex items-center justify-center bg-white">
-                          <Image
-                            src="/logo.png"
-                            alt="Company Logo"
-                            width={110}
-                            height={110}
-                            className="w-full h-full object-contain"
-                            priority
-                          />
+                          <Image src="/logo.png" alt="Company Logo" width={110} height={110} className="w-full h-full object-contain" priority />
                         </div>
                       </td>
-
                       <td className="cellCenter titleBar">
                         <div className="hMain">รายงานการควบคุมงานก่อสร้างประจำวัน (DAILY REPORT)</div>
                         <div className="mt-1 hSub">ประจำวันที่ {formatDateBE(model.date)}</div>
@@ -515,7 +552,6 @@ export function ReportPreviewForm({
                   </tbody>
                 </table>
 
-                {/* รายละเอียดโครงการ */}
                 <table>
                   <colgroup>
                     <col style={{ width: "18%" }} />
@@ -557,12 +593,10 @@ export function ReportPreviewForm({
                   </tbody>
                 </table>
 
-                {/* ช่วงเวลาทำงาน + กล่องเลขรายงาน */}
                 <div className="grid grid-cols-12">
                   <div className="col-span-9 border-t-2 border-black p-2">
                     <div className="border-2 border-black bg-yellow-50 p-2 text-sm">
                       <div className="font-semibold mb-1">ช่วงเวลาทำงาน</div>
-
                       <div className="grid grid-cols-3 gap-x-10 numTab">
                         <div className="nowrap">ช่วงเช้า 08:30น.-12:00น.</div>
                         <div className="nowrap text-center">ช่วงบ่าย 13:00น.-17:00น.</div>
@@ -580,7 +614,6 @@ export function ReportPreviewForm({
                             <span className="mx-6"> </span>
                             <span className="nowrap">อุณหภูมิ ต่ำสุด: {tempMin ?? "-"}°C</span>
                           </div>
-
                           <div className="grid grid-cols-3 gap-x-10 numTab mt-1">
                             <div className="nowrap">เช้า: {wMorning}</div>
                             <div className="nowrap text-center">บ่าย: {wAfternoon}</div>
@@ -599,10 +632,8 @@ export function ReportPreviewForm({
                 </div>
               </div>
 
-              {/* ===================== PROJECT TEAM ===================== */}
               <div className="box mt-4">
                 <div className="sectionBar cell">ส่วนโครงการ (PROJECT TEAM)</div>
-
                 <table>
                   <colgroup>
                     <col style={{ width: "33.33%" }} />
@@ -611,13 +642,10 @@ export function ReportPreviewForm({
                   </colgroup>
                   <tbody>
                     <tr>
-                      {/* CONTRACTORS */}
                       <td className="cell">
                         <div className="font-semibold text-center leading-tight">
-                          ผู้รับเหมา
-                          <div className="text-xs font-semibold">(CONTRACTORS)</div>
+                          ผู้รับเหมา<div className="text-xs font-semibold">(CONTRACTORS)</div>
                         </div>
-
                         <table className="mini mt-2">
                           <colgroup>
                             <col style={{ width: "12%" }} />
@@ -626,12 +654,7 @@ export function ReportPreviewForm({
                             <col style={{ width: "20%" }} />
                           </colgroup>
                           <thead>
-                            <tr>
-                              <th>#</th>
-                              <th>รายชื่อ</th>
-                              <th>ตำแหน่ง</th>
-                              <th>จำนวน</th>
-                            </tr>
+                            <tr><th>#</th><th>รายชื่อ</th><th>ตำแหน่ง</th><th>จำนวน</th></tr>
                           </thead>
                           <tbody>
                             {contractorsPadded.map((r, i) => (
@@ -644,24 +667,17 @@ export function ReportPreviewForm({
                             ))}
                             <tr>
                               <td className="c" />
-                              <td colSpan={2}>
-                                <span className="font-semibold">รวม</span>
-                              </td>
-                              <td className="c numTab">
-                                <span className="font-semibold">{contractorTotal}</span>
-                              </td>
+                              <td colSpan={2}><span className="font-semibold">รวม</span></td>
+                              <td className="c numTab"><span className="font-semibold">{contractorTotal}</span></td>
                             </tr>
                           </tbody>
                         </table>
                       </td>
 
-                      {/* SUB CONTRACTORS */}
                       <td className="cell">
                         <div className="font-semibold text-center leading-tight">
-                          ผู้รับเหมารายย่อย
-                          <div className="text-xs font-semibold">(SUB CONTRACTORS)</div>
+                          ผู้รับเหมารายย่อย<div className="text-xs font-semibold">(SUB CONTRACTORS)</div>
                         </div>
-
                         <table className="mini mt-2">
                           <colgroup>
                             <col style={{ width: "10%" }} />
@@ -671,13 +687,7 @@ export function ReportPreviewForm({
                             <col style={{ width: "18%" }} />
                           </colgroup>
                           <thead>
-                            <tr>
-                              <th>#</th>
-                              <th>ตำแหน่ง</th>
-                              <th>เช้า</th>
-                              <th>บ่าย</th>
-                              <th>ล่วงเวลา</th>
-                            </tr>
+                            <tr><th>#</th><th>ตำแหน่ง</th><th>เช้า</th><th>บ่าย</th><th>ล่วงเวลา</th></tr>
                           </thead>
                           <tbody>
                             {subPadded.map((r, i) => (
@@ -691,30 +701,19 @@ export function ReportPreviewForm({
                             ))}
                             <tr>
                               <td className="c" />
-                              <td>
-                                <span className="font-semibold">รวม</span>
-                              </td>
-                              <td className="c numTab">
-                                <span className="font-semibold">{subTotals.morning}</span>
-                              </td>
-                              <td className="c numTab">
-                                <span className="font-semibold">{subTotals.afternoon}</span>
-                              </td>
-                              <td className="c numTab">
-                                <span className="font-semibold">{subTotals.overtime}</span>
-                              </td>
+                              <td><span className="font-semibold">รวม</span></td>
+                              <td className="c numTab"><span className="font-semibold">{subTotals.morning}</span></td>
+                              <td className="c numTab"><span className="font-semibold">{subTotals.afternoon}</span></td>
+                              <td className="c numTab"><span className="font-semibold">{subTotals.overtime}</span></td>
                             </tr>
                           </tbody>
                         </table>
                       </td>
 
-                      {/* MAJOR EQUIPMENT */}
                       <td className="cell">
                         <div className="font-semibold text-center leading-tight">
-                          เครื่องจักรหลัก
-                          <div className="text-xs font-semibold">(MAJOR EQUIPMENT)</div>
+                          เครื่องจักรหลัก<div className="text-xs font-semibold">(MAJOR EQUIPMENT)</div>
                         </div>
-
                         <table className="mini mt-2">
                           <colgroup>
                             <col style={{ width: "10%" }} />
@@ -724,13 +723,7 @@ export function ReportPreviewForm({
                             <col style={{ width: "18%" }} />
                           </colgroup>
                           <thead>
-                            <tr>
-                              <th>#</th>
-                              <th>ชนิด</th>
-                              <th>เช้า</th>
-                              <th>บ่าย</th>
-                              <th>ล่วงเวลา</th>
-                            </tr>
+                            <tr><th>#</th><th>ชนิด</th><th>เช้า</th><th>บ่าย</th><th>ล่วงเวลา</th></tr>
                           </thead>
                           <tbody>
                             {equipPadded.map((r, i) => (
@@ -744,18 +737,10 @@ export function ReportPreviewForm({
                             ))}
                             <tr>
                               <td className="c" />
-                              <td>
-                                <span className="font-semibold">รวม</span>
-                              </td>
-                              <td className="c numTab">
-                                <span className="font-semibold">{equipTotals.morning}</span>
-                              </td>
-                              <td className="c numTab">
-                                <span className="font-semibold">{equipTotals.afternoon}</span>
-                              </td>
-                              <td className="c numTab">
-                                <span className="font-semibold">{equipTotals.overtime}</span>
-                              </td>
+                              <td><span className="font-semibold">รวม</span></td>
+                              <td className="c numTab"><span className="font-semibold">{equipTotals.morning}</span></td>
+                              <td className="c numTab"><span className="font-semibold">{equipTotals.afternoon}</span></td>
+                              <td className="c numTab"><span className="font-semibold">{equipTotals.overtime}</span></td>
                             </tr>
                           </tbody>
                         </table>
@@ -765,10 +750,8 @@ export function ReportPreviewForm({
                 </table>
               </div>
 
-              {/* ===================== WORK PERFORMED ===================== */}
               <div className="box mt-4">
                 <div className="subBar cell">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)</div>
-
                 <table>
                   <colgroup>
                     <col style={{ width: "6%" }} />
@@ -791,16 +774,7 @@ export function ReportPreviewForm({
                   <tbody>
                     {(model.workPerformed?.length
                       ? model.workPerformed
-                      : [
-                          {
-                            id: "EMPTY-W",
-                            desc: "-",
-                            location: "-",
-                            qty: "-",
-                            unit: "-",
-                            materialDelivered: "-",
-                          },
-                        ]
+                      : [{ id: "EMPTY-W", desc: "-", location: "-", qty: "-", unit: "-", materialDelivered: "-" }]
                     ).map((r, i) => (
                       <tr key={r.id}>
                         <td className="cellCenter">{i + 1}</td>
@@ -815,7 +789,6 @@ export function ReportPreviewForm({
                 </table>
               </div>
 
-              {/* ===================== ISSUES ===================== */}
               {hasIssues && (
                 <div className="box mt-4">
                   <table>
@@ -824,7 +797,6 @@ export function ReportPreviewForm({
                       <col style={{ width: "33%" }} />
                       <col style={{ width: "22%" }} />
                     </colgroup>
-
                     <thead>
                       <tr>
                         <th className="cellCenter titleBar">ภาพปัญหาและอุปสรรค</th>
@@ -832,34 +804,23 @@ export function ReportPreviewForm({
                         <th className="cellCenter titleBar">ความเห็นของผู้ควบคุมงาน</th>
                       </tr>
                     </thead>
-
                     <tbody>
                       {issuesList.map((it, idx) => (
                         <tr key={it.id}>
                           <td className="cell issueRowMin">
                             <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
                             {it.imageUrl ? (
-                              <img
-                                src={it.imageUrl}
-                                alt={`issue-img-${idx + 1}`}
-                                className="issueImg border border-black/30 rounded"
-                              />
+                              <img src={it.imageUrl} alt={`issue-img-${idx + 1}`} className="issueImg border border-black/30 rounded" />
                             ) : (
                               <div className="text-sm opacity-60">-</div>
                             )}
                           </td>
-
                           <td className="cell issueRowMin">
                             <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
                             <div className="text-sm whitespace-pre-wrap">{it.detail || " "}</div>
                           </td>
-
                           <td className="cell issueRowMin">
-                            {renderIssueCommentCell ? (
-                              renderIssueCommentCell(it, idx)
-                            ) : (
-                              <div className="text-sm opacity-60"> </div>
-                            )}
+                            {renderIssueCommentCell ? renderIssueCommentCell(it, idx) : <div className="text-sm opacity-60"> </div>}
                           </td>
                         </tr>
                       ))}
@@ -868,13 +829,11 @@ export function ReportPreviewForm({
                 </div>
               )}
 
-              {/* ===================== SAFETY ===================== */}
               <div className="box mt-4">
                 <div className="subBar cell">บันทึกด้านความปลอดภัยในการทำงาน</div>
                 <div className="cell whitespace-pre-wrap min-h-[90px]">{model.safetyNote || " "}</div>
               </div>
 
-              {/* ===================== SUPERVISORS ===================== */}
               <div className="box mt-4">
                 <div className="cell">
                   <div className="font-semibold">รายชื่อผู้ควบคุมงาน</div>
@@ -883,7 +842,7 @@ export function ReportPreviewForm({
                   </div>
                 </div>
               </div>
-              {/* end a4 */}
+
             </div>
           </div>
         </div>
@@ -892,15 +851,16 @@ export function ReportPreviewForm({
   );
 }
 
-/** ===================== READONLY WRAPPER (FIX FOR YOUR CONTACT PAGE) ===================== */
-/**
- * NOTE: endpoint นี้เป็น "มาตรฐานที่ผมตั้งให้" เพื่อให้ component ใช้ได้
- * ถ้าโปรเจกต์คุณใช้ endpoint อื่น ให้เปลี่ยนแค่ URL ใน jget() ด้านล่าง
- */
-async function jget<T>(url: string): Promise<T> {
+/** ===== Readonly wrapper for Contact chat ===== */
+async function jgetText(url: string): Promise<any> {
   const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as T;
+  const txt = await res.text();
+  if (!res.ok) throw new Error(txt || `GET ${url} failed`);
+  try {
+    return JSON.parse(txt);
+  } catch {
+    throw new Error(txt || `GET ${url} invalid json`);
+  }
 }
 
 export function ReportPreviewReadonly({ reportId }: { reportId: string }) {
@@ -915,12 +875,13 @@ export function ReportPreviewReadonly({ reportId }: { reportId: string }) {
         setErr(null);
         setModel(null);
 
-        // ✅ คุณปรับ URL ตรงนี้ให้ตรงกับ API จริงของคุณได้
-        const data = await jget<ReportRenderModel>(`/api/daily-reports/${encodeURIComponent(reportId)}?mode=render`);
+        // ✅ ถ้าโปรเจกต์คุณมี endpoint อื่น สามารถเปลี่ยนแค่ URL นี้
+        const raw = await jgetText(`/api/daily-reports/${encodeURIComponent(reportId)}?mode=render`);
+        const normalized = normalizeModel(raw);
 
-        if (!cancelled) setModel(data);
+        if (!cancelled) setModel(normalized);
       } catch (e: any) {
-        if (!cancelled) setErr(e?.message || "โหลดรายงานไม่สำเร็จ");
+        if (!cancelled) setErr(String(e?.message || e));
       }
     })();
 
@@ -930,7 +891,11 @@ export function ReportPreviewReadonly({ reportId }: { reportId: string }) {
   }, [reportId]);
 
   if (err) {
-    return <div className="text-sm text-red-600">Preview โหลดไม่สำเร็จ: {err}</div>;
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        Preview โหลดไม่สำเร็จ: {err}
+      </div>
+    );
   }
   if (!model) {
     return <div className="text-sm text-gray-500">กำลังโหลด Preview...</div>;

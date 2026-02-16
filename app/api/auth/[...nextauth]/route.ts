@@ -1,6 +1,6 @@
 // app/api/auth/[...nextauth]/route.ts
 
-import NextAuth from "next-auth";
+import NextAuth, { type NextAuthOptions } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
@@ -8,7 +8,8 @@ import bcrypt from "bcryptjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const handler = NextAuth({
+// ✅ export ไว้ให้ไฟล์ API อื่น import ไปใช้ได้ (เช่น chat routes)
+export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [
@@ -42,7 +43,7 @@ const handler = NextAuth({
           role: user.role,
           name: (user as any).name ?? null,
           position: (allow as any).position ?? null,
-        };
+        } as any;
       },
     }),
   ],
@@ -52,16 +53,20 @@ const handler = NextAuth({
         token.role = (user as any).role;
         token.name = (user as any).name ?? null;
         token.position = (user as any).position ?? null;
+        token.sub = (user as any).id; // ✅ ให้มี userId อยู่ใน token.sub ด้วย
       }
       return token;
     },
     async session({ session, token }) {
+      (session.user as any).id = (token as any).sub; // ✅ ใส่ id ลง session.user
       (session.user as any).role = (token as any).role;
       (session.user as any).name = (token as any).name ?? null;
       (session.user as any).position = (token as any).position ?? null;
       return session;
     },
   },
-});
+};
+
+const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };
