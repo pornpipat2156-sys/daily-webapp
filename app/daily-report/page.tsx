@@ -185,7 +185,7 @@ function QtySelect({
 }) {
   return (
     <select
-      className="w-full rounded-lg border px-3 py-2 bg-background"
+      className="w-full rounded-lg border px-3 py-2 bg-background text-foreground hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40"
       value={value}
       onChange={(e) => onChange(Number(e.target.value))}
     >
@@ -223,11 +223,11 @@ function SelectOrOther({
 
   return (
     <div>
-      <label className="text-xs opacity-70">{label}</label>
+      <label className="text-xs text-muted-foreground">{label}</label>
 
       {mode === "select" ? (
         <select
-          className="w-full rounded-lg border px-3 py-2 bg-background"
+          className="w-full rounded-lg border px-3 py-2 bg-background text-foreground hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40"
           value={value || ""}
           onChange={(e) => {
             const v = e.target.value;
@@ -250,14 +250,14 @@ function SelectOrOther({
       ) : (
         <div className="grid gap-2">
           <input
-            className="w-full rounded-lg border px-3 py-2 bg-background"
+            className="w-full rounded-lg border px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40"
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder="พิมพ์เอง..."
           />
           <button
             type="button"
-            className="text-xs underline opacity-80 hover:opacity-100 text-left"
+            className="text-xs underline text-muted-foreground hover:text-foreground text-left"
             onClick={() => {
               setMode("select");
               onChange("");
@@ -620,16 +620,16 @@ export default function DailyReportPage() {
     <div className="mx-auto w-full max-w-6xl px-3 sm:px-6 lg:px-8">
       <div className="flex items-end justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-3xl font-semibold">Daily report</h1>
-          <div className="text-sm opacity-70 mt-1">
+          <h1 className="text-3xl font-semibold text-foreground">Daily report</h1>
+          <div className="text-sm text-muted-foreground mt-1">
             {editingReportId ? (
               <span className="inline-flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-blue-600" />
+                <span className="h-2 w-2 rounded-full bg-blue-600 dark:bg-blue-400" />
                 โหมดแก้ไข: มีรายงานของวันที่นี้ในระบบแล้ว
               </span>
             ) : (
               <span className="inline-flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-slate-400" />
+                <span className="h-2 w-2 rounded-full bg-amber-500 dark:bg-amber-400" />
                 โหมดสร้างใหม่: ยังไม่มีรายงานของวันที่นี้
               </span>
             )}
@@ -641,10 +641,10 @@ export default function DailyReportPage() {
       <div className="rounded-xl border bg-card p-4 mb-6 shadow-sm">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium mb-1 text-slate-700">ชื่อโครงการ</label>
+            <label className="block text-sm font-medium mb-1 text-foreground">ชื่อโครงการ</label>
 
             <select
-              className="w-full rounded-lg border px-4 py-3 bg-background hover:opacity-90 disabled:opacity-50"
+              className="w-full rounded-lg border px-4 py-3 bg-background text-foreground hover:bg-muted/40 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
               disabled={loadingProjects || projects.length === 0}
@@ -664,12 +664,12 @@ export default function DailyReportPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1 text-slate-700">วัน/เดือน/ปี พ.ศ.</label>
+            <label className="block text-sm font-medium mb-1 text-foreground">วัน/เดือน/ปี พ.ศ.</label>
 
             {/* ✅ กล่องแสดงผลเป็น พ.ศ. แต่ให้เลือกจาก date picker ได้ */}
             <div className="relative">
               <input
-                className="w-full rounded-lg border px-4 py-3 bg-background text-lg"
+                className="w-full rounded-lg border px-4 py-3 bg-background text-foreground text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40"
                 value={dateBE}
                 readOnly
               />
@@ -682,7 +682,7 @@ export default function DailyReportPage() {
               />
             </div>
 
-            <div className="text-xs mt-1 text-slate-600">
+            <div className="text-xs mt-1 text-muted-foreground">
               (สำรอง) อุณหภูมิรายวัน: สูงสุด {tempMaxC ?? "-"}°C / ต่ำสุด {tempMinC ?? "-"}°C
             </div>
           </div>
@@ -690,17 +690,17 @@ export default function DailyReportPage() {
 
         {project && (
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
-            <div className="rounded-lg border p-3 bg-slate-50">
-              <div className="text-slate-600">สัญญาจ้าง</div>
-              <div className="font-semibold text-slate-900">{project.contractNo || "-"}</div>
+            <div className="rounded-lg border p-3 bg-muted/40">
+              <div className="text-muted-foreground">สัญญาจ้าง</div>
+              <div className="font-semibold text-foreground">{project.contractNo || "-"}</div>
             </div>
-            <div className="rounded-lg border p-3 bg-slate-50">
-              <div className="text-slate-600">ผู้รับจ้าง</div>
-              <div className="font-semibold text-slate-900">{project.contractorName || "-"}</div>
+            <div className="rounded-lg border p-3 bg-muted/40">
+              <div className="text-muted-foreground">ผู้รับจ้าง</div>
+              <div className="font-semibold text-foreground">{project.contractorName || "-"}</div>
             </div>
-            <div className="rounded-lg border p-3 bg-slate-50">
-              <div className="text-slate-600">สถานที่ก่อสร้าง</div>
-              <div className="font-semibold text-slate-900">{project.siteLocation || "-"}</div>
+            <div className="rounded-lg border p-3 bg-muted/40">
+              <div className="text-muted-foreground">สถานที่ก่อสร้าง</div>
+              <div className="font-semibold text-foreground">{project.siteLocation || "-"}</div>
             </div>
           </div>
         )}
@@ -710,8 +710,8 @@ export default function DailyReportPage() {
         {/* PROJECT TEAM */}
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-slate-900">ส่วนโครงการ (PROJECT TEAM)</h2>
-            <span className="text-xs px-2 py-1 rounded-full border bg-slate-50 text-slate-700">
+            <h2 className="text-lg font-semibold text-foreground">ส่วนโครงการ (PROJECT TEAM)</h2>
+            <span className="text-xs px-2 py-1 rounded-full border bg-muted/40 text-foreground">
               ข้อมูลบุคลากร/เครื่องจักร
             </span>
           </div>
@@ -719,10 +719,10 @@ export default function DailyReportPage() {
           {/* Contractors */}
           <div className="mb-5">
             <div className="flex items-center justify-between">
-              <div className="font-semibold text-slate-800">ผู้รับเหมา (CONTRACTORS)</div>
+              <div className="font-semibold text-foreground">ผู้รับเหมา (CONTRACTORS)</div>
               <button
                 type="button"
-                className="rounded-lg border px-3 py-2 text-sm hover:opacity-90 bg-white"
+                className="rounded-lg border px-3 py-2 text-sm bg-background text-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30"
                 onClick={() => addRow(setContractors, { id: uid(), name: "", position: "", qty: 0 })}
               >
                 + เพิ่มแถว
@@ -731,8 +731,11 @@ export default function DailyReportPage() {
 
             <div className="mt-3 space-y-3">
               {contractors.map((r, idx) => (
-                <div key={r.id} className="grid grid-cols-1 gap-3 md:grid-cols-12 items-end rounded-lg border p-3 bg-slate-50">
-                  <div className="md:col-span-1 text-sm font-semibold text-slate-700">#{idx + 1}</div>
+                <div
+                  key={r.id}
+                  className="grid grid-cols-1 gap-3 md:grid-cols-12 items-end rounded-lg border p-3 bg-muted/40"
+                >
+                  <div className="md:col-span-1 text-sm font-semibold text-muted-foreground">#{idx + 1}</div>
 
                   <div className="md:col-span-4">
                     <SelectOrOther
@@ -755,7 +758,7 @@ export default function DailyReportPage() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="text-xs opacity-70">จำนวน</label>
+                    <label className="text-xs text-muted-foreground">จำนวน</label>
                     <QtySelect value={r.qty} onChange={(n) => updateRow(setContractors, r.id, { qty: n } as any)} />
                   </div>
 
@@ -763,7 +766,7 @@ export default function DailyReportPage() {
                     {contractors.length > 1 && (
                       <button
                         type="button"
-                        className="text-sm text-red-600 hover:underline"
+                        className="text-sm text-red-600 dark:text-red-400 hover:underline"
                         onClick={() => removeRow(setContractors, r.id)}
                       >
                         ลบ
@@ -773,17 +776,17 @@ export default function DailyReportPage() {
                 </div>
               ))}
 
-              <div className="text-sm font-semibold text-slate-800">รวม: {contractorTotal}</div>
+              <div className="text-sm font-semibold text-foreground">รวม: {contractorTotal}</div>
             </div>
           </div>
 
           {/* Sub Contractors */}
           <div className="mb-5">
             <div className="flex items-center justify-between">
-              <div className="font-semibold text-slate-800">ผู้รับเหมารายย่อย (SUB CONTRACTORS)</div>
+              <div className="font-semibold text-foreground">ผู้รับเหมารายย่อย (SUB CONTRACTORS)</div>
               <button
                 type="button"
-                className="rounded-lg border px-3 py-2 text-sm hover:opacity-90 bg-white"
+                className="rounded-lg border px-3 py-2 text-sm bg-background text-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30"
                 onClick={() =>
                   addRow(setSubContractors, {
                     id: uid(),
@@ -800,8 +803,8 @@ export default function DailyReportPage() {
 
             <div className="mt-3 space-y-3">
               {subContractors.map((r, idx) => (
-                <div key={r.id} className="grid gap-2 md:grid-cols-12 items-end rounded-lg border p-3 bg-slate-50">
-                  <div className="md:col-span-1 text-sm font-semibold text-slate-700">#{idx + 1}</div>
+                <div key={r.id} className="grid gap-2 md:grid-cols-12 items-end rounded-lg border p-3 bg-muted/40">
+                  <div className="md:col-span-1 text-sm font-semibold text-muted-foreground">#{idx + 1}</div>
 
                   <div className="md:col-span-3">
                     <SelectOrOther
@@ -814,12 +817,12 @@ export default function DailyReportPage() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="text-xs opacity-70">ช่วงเช้า (เลือกจำนวน)</label>
+                    <label className="text-xs text-muted-foreground">ช่วงเช้า (เลือกจำนวน)</label>
                     <QtySelect value={r.morning} onChange={(n) => updateRow(setSubContractors, r.id, { morning: n } as any)} />
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="text-xs opacity-70">ช่วงบ่าย (เลือกจำนวน)</label>
+                    <label className="text-xs text-muted-foreground">ช่วงบ่าย (เลือกจำนวน)</label>
                     <QtySelect
                       value={r.afternoon}
                       onChange={(n) => updateRow(setSubContractors, r.id, { afternoon: n } as any)}
@@ -827,7 +830,7 @@ export default function DailyReportPage() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="text-xs opacity-70">ล่วงเวลา (เลือกจำนวน)</label>
+                    <label className="text-xs text-muted-foreground">ล่วงเวลา (เลือกจำนวน)</label>
                     <QtySelect value={r.overtime} onChange={(n) => updateRow(setSubContractors, r.id, { overtime: n } as any)} />
                   </div>
 
@@ -835,7 +838,7 @@ export default function DailyReportPage() {
                     {subContractors.length > 1 && (
                       <button
                         type="button"
-                        className="text-sm text-red-600 hover:underline"
+                        className="text-sm text-red-600 dark:text-red-400 hover:underline"
                         onClick={() => removeRow(setSubContractors, r.id)}
                       >
                         ลบ
@@ -845,7 +848,7 @@ export default function DailyReportPage() {
                 </div>
               ))}
 
-              <div className="text-sm font-semibold text-slate-800">
+              <div className="text-sm font-semibold text-foreground">
                 รวม: เช้า {subTotals.morning} | บ่าย {subTotals.afternoon} | ล่วงเวลา {subTotals.overtime}
               </div>
             </div>
@@ -854,10 +857,10 @@ export default function DailyReportPage() {
           {/* Major Equipment */}
           <div>
             <div className="flex items-center justify-between">
-              <div className="font-semibold text-slate-800">เครื่องจักรหลัก (MAJOR EQUIPMENT)</div>
+              <div className="font-semibold text-foreground">เครื่องจักรหลัก (MAJOR EQUIPMENT)</div>
               <button
                 type="button"
-                className="rounded-lg border px-3 py-2 text-sm hover:opacity-90 bg-white"
+                className="rounded-lg border px-3 py-2 text-sm bg-background text-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30"
                 onClick={() =>
                   addRow(setMajorEquipment, {
                     id: uid(),
@@ -874,8 +877,8 @@ export default function DailyReportPage() {
 
             <div className="mt-3 space-y-3">
               {majorEquipment.map((r, idx) => (
-                <div key={r.id} className="grid gap-2 md:grid-cols-12 items-end rounded-lg border p-3 bg-slate-50">
-                  <div className="md:col-span-1 text-sm font-semibold text-slate-700">#{idx + 1}</div>
+                <div key={r.id} className="grid gap-2 md:grid-cols-12 items-end rounded-lg border p-3 bg-muted/40">
+                  <div className="md:col-span-1 text-sm font-semibold text-muted-foreground">#{idx + 1}</div>
 
                   <div className="md:col-span-3">
                     <SelectOrOther
@@ -888,17 +891,17 @@ export default function DailyReportPage() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="text-xs opacity-70">ช่วงเช้า (เลือกจำนวน)</label>
+                    <label className="text-xs text-muted-foreground">ช่วงเช้า (เลือกจำนวน)</label>
                     <QtySelect value={r.morning} onChange={(n) => updateRow(setMajorEquipment, r.id, { morning: n } as any)} />
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="text-xs opacity-70">ช่วงบ่าย (เลือกจำนวน)</label>
+                    <label className="text-xs text-muted-foreground">ช่วงบ่าย (เลือกจำนวน)</label>
                     <QtySelect value={r.afternoon} onChange={(n) => updateRow(setMajorEquipment, r.id, { afternoon: n } as any)} />
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="text-xs opacity-70">ล่วงเวลา (เลือกจำนวน)</label>
+                    <label className="text-xs text-muted-foreground">ล่วงเวลา (เลือกจำนวน)</label>
                     <QtySelect value={r.overtime} onChange={(n) => updateRow(setMajorEquipment, r.id, { overtime: n } as any)} />
                   </div>
 
@@ -906,7 +909,7 @@ export default function DailyReportPage() {
                     {majorEquipment.length > 1 && (
                       <button
                         type="button"
-                        className="text-sm text-red-600 hover:underline"
+                        className="text-sm text-red-600 dark:text-red-400 hover:underline"
                         onClick={() => removeRow(setMajorEquipment, r.id)}
                       >
                         ลบ
@@ -916,7 +919,7 @@ export default function DailyReportPage() {
                 </div>
               ))}
 
-              <div className="text-sm font-semibold text-slate-800">
+              <div className="text-sm font-semibold text-foreground">
                 รวม: เช้า {equipTotals.morning} | บ่าย {equipTotals.afternoon} | ล่วงเวลา {equipTotals.overtime}
               </div>
             </div>
@@ -926,10 +929,10 @@ export default function DailyReportPage() {
         {/* WORK PERFORMED */}
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)</h2>
+            <h2 className="text-lg font-semibold text-foreground">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)</h2>
             <button
               type="button"
-              className="rounded-lg border px-3 py-2 text-sm hover:opacity-90 bg-white"
+              className="rounded-lg border px-3 py-2 text-sm bg-background text-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30"
               onClick={() =>
                 addRow(setWorkPerformed, {
                   id: uid(),
@@ -947,49 +950,49 @@ export default function DailyReportPage() {
 
           <div className="mt-3 space-y-3">
             {workPerformed.map((r, idx) => (
-              <div key={r.id} className="grid gap-2 md:grid-cols-12 items-end rounded-lg border p-3 bg-slate-50">
-                <div className="md:col-span-1 text-sm font-semibold text-slate-700">#{idx + 1}</div>
+              <div key={r.id} className="grid gap-2 md:grid-cols-12 items-end rounded-lg border p-3 bg-muted/40">
+                <div className="md:col-span-1 text-sm font-semibold text-muted-foreground">#{idx + 1}</div>
 
                 <div className="md:col-span-4">
-                  <label className="text-xs opacity-70">รายการ (DESCRIPTION)</label>
+                  <label className="text-xs text-muted-foreground">รายการ (DESCRIPTION)</label>
                   <input
-                    className="w-full rounded-lg border px-3 py-2 bg-background"
+                    className="w-full rounded-lg border px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40"
                     value={r.desc}
                     onChange={(e) => updateRow(setWorkPerformed, r.id, { desc: e.target.value } as any)}
                   />
                 </div>
 
                 <div className="md:col-span-3">
-                  <label className="text-xs opacity-70">บริเวณ (LOCATIONS)</label>
+                  <label className="text-xs text-muted-foreground">บริเวณ (LOCATIONS)</label>
                   <input
-                    className="w-full rounded-lg border px-3 py-2 bg-background"
+                    className="w-full rounded-lg border px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40"
                     value={r.location}
                     onChange={(e) => updateRow(setWorkPerformed, r.id, { location: e.target.value } as any)}
                   />
                 </div>
 
                 <div className="md:col-span-1">
-                  <label className="text-xs opacity-70">จำนวน</label>
+                  <label className="text-xs text-muted-foreground">จำนวน</label>
                   <input
-                    className="w-full rounded-lg border px-3 py-2 bg-background"
+                    className="w-full rounded-lg border px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40"
                     value={r.qty}
                     onChange={(e) => updateRow(setWorkPerformed, r.id, { qty: e.target.value } as any)}
                   />
                 </div>
 
                 <div className="md:col-span-1">
-                  <label className="text-xs opacity-70">หน่วย</label>
+                  <label className="text-xs text-muted-foreground">หน่วย</label>
                   <input
-                    className="w-full rounded-lg border px-3 py-2 bg-background"
+                    className="w-full rounded-lg border px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40"
                     value={r.unit}
                     onChange={(e) => updateRow(setWorkPerformed, r.id, { unit: e.target.value } as any)}
                   />
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="text-xs opacity-70">วัสดุนำเข้า (MATERIAL)</label>
+                  <label className="text-xs text-muted-foreground">วัสดุนำเข้า (MATERIAL)</label>
                   <input
-                    className="w-full rounded-lg border px-3 py-2 bg-background"
+                    className="w-full rounded-lg border px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40"
                     value={r.materialDelivered}
                     onChange={(e) => updateRow(setWorkPerformed, r.id, { materialDelivered: e.target.value } as any)}
                   />
@@ -999,7 +1002,7 @@ export default function DailyReportPage() {
                   {workPerformed.length > 1 && (
                     <button
                       type="button"
-                      className="text-sm text-red-600 hover:underline"
+                      className="text-sm text-red-600 dark:text-red-400 hover:underline"
                       onClick={() => removeRow(setWorkPerformed, r.id)}
                     >
                       ลบแถวนี้
@@ -1014,10 +1017,10 @@ export default function DailyReportPage() {
         {/* ISSUES */}
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-slate-900">ปัญหาและอุปสรรค</h2>
+            <h2 className="text-lg font-semibold text-foreground">ปัญหาและอุปสรรค</h2>
             <button
               type="button"
-              className="rounded-lg border px-3 py-2 text-sm hover:opacity-90 bg-white"
+              className="rounded-lg border px-3 py-2 text-sm bg-background text-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30"
               onClick={() => addRow(setIssues, { id: uid(), detail: "", imageDataUrl: "" })}
             >
               + เพิ่มปัญหา
@@ -1029,13 +1032,13 @@ export default function DailyReportPage() {
               const hasImage = Boolean(issue.imageDataUrl);
 
               return (
-                <div key={issue.id} className="rounded-xl border p-4 bg-slate-50">
+                <div key={issue.id} className="rounded-xl border p-4 bg-muted/40">
                   <div className="flex items-center justify-between">
-                    <div className="font-semibold text-sm text-slate-800">ปัญหาที่ {idx + 1}</div>
+                    <div className="font-semibold text-sm text-foreground">ปัญหาที่ {idx + 1}</div>
                     {issues.length > 1 && (
                       <button
                         type="button"
-                        className="text-sm text-red-600 hover:underline"
+                        className="text-sm text-red-600 dark:text-red-400 hover:underline"
                         onClick={() => removeRow(setIssues, issue.id)}
                       >
                         ลบ
@@ -1045,11 +1048,11 @@ export default function DailyReportPage() {
 
                   <div className="mt-3 grid gap-4 md:grid-cols-2">
                     <div>
-                      <label className="block text-sm font-semibold mb-2 text-slate-800">รูปภาพปัญหา (ถ้ามี)</label>
+                      <label className="block text-sm font-semibold mb-2 text-foreground">รูปภาพปัญหา (ถ้ามี)</label>
                       <input
                         type="file"
                         accept="image/*"
-                        className="block w-full text-sm"
+                        className="block w-full text-sm text-foreground file:mr-3 file:rounded-lg file:border file:bg-background file:px-3 file:py-2 file:text-sm file:text-foreground hover:file:bg-muted/40"
                         onChange={(e) => updateIssueImage(issue.id, e.target.files?.[0])}
                       />
 
@@ -1058,11 +1061,11 @@ export default function DailyReportPage() {
                           <img
                             src={issue.imageDataUrl}
                             alt={`issue-${idx + 1}`}
-                            className="w-full max-h-52 object-contain rounded-lg border bg-white"
+                            className="w-full max-h-52 object-contain rounded-lg border bg-background"
                           />
                           <button
                             type="button"
-                            className="mt-2 text-sm text-red-600 hover:underline"
+                            className="mt-2 text-sm text-red-600 dark:text-red-400 hover:underline"
                             onClick={() => updateIssueImage(issue.id, undefined)}
                           >
                             ลบรูป
@@ -1072,9 +1075,9 @@ export default function DailyReportPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold mb-2 text-slate-800">รายละเอียด</label>
+                      <label className="block text-sm font-semibold mb-2 text-foreground">รายละเอียด</label>
                       <textarea
-                        className="w-full min-h-36 rounded-lg border px-3 py-2 bg-background disabled:opacity-50"
+                        className="w-full min-h-36 rounded-lg border px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40"
                         value={issue.detail}
                         onChange={(e) => updateRow(setIssues, issue.id, { detail: e.target.value } as any)}
                         placeholder={hasImage ? "อธิบายปัญหา/อุปสรรค..." : "แนบรูปก่อนถึงจะกรอกรายละเอียดได้"}
@@ -1082,7 +1085,7 @@ export default function DailyReportPage() {
                         required={hasImage}
                       />
                       {hasImage && !issue.detail.trim() && (
-                        <div className="text-xs text-red-600 mt-2">* เมื่อแนบรูป ต้องใส่รายละเอียด</div>
+                        <div className="text-xs text-red-600 dark:text-red-400 mt-2">* เมื่อแนบรูป ต้องใส่รายละเอียด</div>
                       )}
                     </div>
                   </div>
@@ -1094,11 +1097,11 @@ export default function DailyReportPage() {
 
         {/* SAFETY */}
         <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <h2 className="text-lg font-semibold mb-3 text-slate-900">บันทึกความปลอดภัย</h2>
+          <h2 className="text-lg font-semibold mb-3 text-foreground">บันทึกความปลอดภัย</h2>
           <div className="mt-2">
-            <label className="block text-sm font-semibold mb-1 text-slate-800">บันทึกด้านความปลอดภัยในการทำงาน</label>
+            <label className="block text-sm font-semibold mb-1 text-foreground">บันทึกด้านความปลอดภัยในการทำงาน</label>
             <textarea
-              className="w-full min-h-28 rounded-lg border px-3 py-2 bg-background"
+              className="w-full min-h-28 rounded-lg border px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40"
               value={safetyNote}
               onChange={(e) => setSafetyNote(e.target.value)}
               placeholder="เช่น PPE, งานเสี่ยง, มาตรการป้องกัน..."
@@ -1109,7 +1112,7 @@ export default function DailyReportPage() {
         <button
           type="submit"
           disabled={!canSubmit}
-          className="rounded-lg border px-4 py-2 hover:opacity-90 disabled:opacity-50 bg-blue-600 text-white border-blue-700"
+          className="rounded-lg border px-4 py-2 bg-blue-600 text-white border-blue-700 hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500 dark:border-blue-600 dark:hover:bg-blue-600"
         >
           ยืนยัน
         </button>
