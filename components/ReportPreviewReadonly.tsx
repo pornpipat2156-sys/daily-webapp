@@ -1,9 +1,10 @@
-// components/ReportPreviewForm.tsx
+// components/ReportPreviewReadonly.tsx
 "use client";
 
 import Image from "next/image";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+/** ===================== Types (keep compatible with your existing pages) ===================== */
 export type Supervisor = { name: string; role: string };
 
 export type ContractorRow = { id: string; name: string; position: string; qty: number };
@@ -56,14 +57,10 @@ export type ReportRenderModel = {
   issues: IssueRowUnified[];
   safetyNote: string;
 
-  // temp from DB (fallback)
   tempMaxC?: number | null;
   tempMinC?: number | null;
 
-  // for weather fetch decision
   hasOvertime?: boolean;
-
-  // supervisors (DB meta only)
   supervisors: Supervisor[];
 };
 
@@ -73,7 +70,6 @@ function pad2(n: number) {
 
 export function formatDateBE(isoOrYmd?: string) {
   if (!isoOrYmd) return "-";
-  // รองรับ YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(isoOrYmd)) {
     const [y, m, d] = isoOrYmd.split("-").map(Number);
     if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return isoOrYmd;
@@ -232,13 +228,13 @@ function normStr(s: any) {
     .replace(/\s+/g, " ");
 }
 
+/** ===================== MAIN RENDER (the A4 Preview UI) ===================== */
 export function ReportPreviewForm({
   model,
-  // optional: render comment cell (e.g. textarea in commentator)
   renderIssueCommentCell,
 }: {
   model: ReportRenderModel;
-  renderIssueCommentCell?: (issue: IssueRowUnified, idx: number) => React.ReactNode;
+  renderIssueCommentCell?: (issue: IssueRowUnified, idx: number) => ReactNode;
 }) {
   // ===== scale same as preview =====
   const init = useMemo(() => {
@@ -293,7 +289,6 @@ export function ReportPreviewForm({
   const [wOvertime, setWOvertime] = useState<string>("-");
   const [wxLoading, setWxLoading] = useState(false);
 
-  // if model.date is ISO -> convert to YYYY-MM-DD for open-meteo
   const dateISO = useMemo(() => {
     const d = model.date || "";
     if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
@@ -416,7 +411,6 @@ export function ReportPreviewForm({
       const detail = String(it?.detail || "");
       const imageUrl = String(it?.imageUrl || "");
 
-      // ✅ ตัด “รายการประวัติที่ถูกลบ/แก้ไข” ออก (ไม่ให้โผล่เป็นปัญหาใหม่)
       const dNorm = normStr(detail);
       const isHistoryDeleted =
         dNorm.includes("รายการนี้ถูกลบ") ||
@@ -427,8 +421,6 @@ export function ReportPreviewForm({
         Boolean(it?.deletedAt);
 
       if (isHistoryDeleted) return false;
-
-      // ✅ ปัญหาปัจจุบัน: ต้องมีรายละเอียดหรือรูปอย่างใดอย่างหนึ่ง
       return detail.trim() || imageUrl.trim();
     });
   }, [model]);
@@ -503,7 +495,14 @@ export function ReportPreviewForm({
                     <tr>
                       <td className="cellCenter">
                         <div className="mx-auto w-[110px] h-[110px] rounded-full border-2 border-black overflow-hidden flex items-center justify-center bg-white">
-                          <Image src="/logo.png" alt="Company Logo" width={110} height={110} className="w-full h-full object-contain" priority />
+                          <Image
+                            src="/logo.png"
+                            alt="Company Logo"
+                            width={110}
+                            height={110}
+                            className="w-full h-full object-contain"
+                            priority
+                          />
                         </div>
                       </td>
 
@@ -840,7 +839,11 @@ export function ReportPreviewForm({
                           <td className="cell issueRowMin">
                             <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
                             {it.imageUrl ? (
-                              <img src={it.imageUrl} alt={`issue-img-${idx + 1}`} className="issueImg border border-black/30 rounded" />
+                              <img
+                                src={it.imageUrl}
+                                alt={`issue-img-${idx + 1}`}
+                                className="issueImg border border-black/30 rounded"
+                              />
                             ) : (
                               <div className="text-sm opacity-60">-</div>
                             )}
@@ -852,7 +855,11 @@ export function ReportPreviewForm({
                           </td>
 
                           <td className="cell issueRowMin">
-                            {renderIssueCommentCell ? renderIssueCommentCell(it, idx) : <div className="text-sm opacity-60"> </div>}
+                            {renderIssueCommentCell ? (
+                              renderIssueCommentCell(it, idx)
+                            ) : (
+                              <div className="text-sm opacity-60"> </div>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -876,11 +883,57 @@ export function ReportPreviewForm({
                   </div>
                 </div>
               </div>
-
+              {/* end a4 */}
             </div>
           </div>
         </div>
       </div>
     </>
   );
+}
+
+/** ===================== READONLY WRAPPER (FIX FOR YOUR CONTACT PAGE) ===================== */
+/**
+ * NOTE: endpoint นี้เป็น "มาตรฐานที่ผมตั้งให้" เพื่อให้ component ใช้ได้
+ * ถ้าโปรเจกต์คุณใช้ endpoint อื่น ให้เปลี่ยนแค่ URL ใน jget() ด้านล่าง
+ */
+async function jget<T>(url: string): Promise<T> {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()) as T;
+}
+
+export function ReportPreviewReadonly({ reportId }: { reportId: string }) {
+  const [model, setModel] = useState<ReportRenderModel | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setErr(null);
+        setModel(null);
+
+        // ✅ คุณปรับ URL ตรงนี้ให้ตรงกับ API จริงของคุณได้
+        const data = await jget<ReportRenderModel>(`/api/daily-reports/${encodeURIComponent(reportId)}?mode=render`);
+
+        if (!cancelled) setModel(data);
+      } catch (e: any) {
+        if (!cancelled) setErr(e?.message || "โหลดรายงานไม่สำเร็จ");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reportId]);
+
+  if (err) {
+    return <div className="text-sm text-red-600">Preview โหลดไม่สำเร็จ: {err}</div>;
+  }
+  if (!model) {
+    return <div className="text-sm text-gray-500">กำลังโหลด Preview...</div>;
+  }
+  return <ReportPreviewForm model={model} />;
 }
