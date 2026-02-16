@@ -1,8 +1,25 @@
+// app/api/daily-reports/upsert/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 function bangkokStart(dateYmd: string) {
   return new Date(`${dateYmd}T00:00:00.000+07:00`);
+}
+
+function normStr(s: any) {
+  return String(s ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+// เปรียบเทียบรูปแบบ dataUrl / url แบบหยาบ ๆ ให้พอจับ “เปลี่ยนรูป”
+function normImg(s: any) {
+  const x = String(s ?? "").trim();
+  if (!x) return "";
+  // ถ้าเป็น data url ให้เอา prefix พอ (กันยาวมาก)
+  if (x.startsWith("data:")) return x.slice(0, 48);
+  return x.toLowerCase();
 }
 
 export async function POST(req: NextRequest) {
@@ -25,7 +42,29 @@ export async function POST(req: NextRequest) {
     const incomingIssues = Array.isArray(body?.issues) ? body.issues : [];
     const { issues: _omitIssues, ...payload } = body;
 
-    // ✅ ทำความสะอาด issue ก่อน (ใช้เก็บ snapshot + sync)
+    const saved = await prisma.dailyReport.upsert({
+      where: { projectId_date: { projectId, date } },
+      create: { projectId, date, payload },
+      update: { payload },
+      select: { id: true, projectId: true, date: true },
+    });
+
+    const reportId = saved.id;
+
+    // ---- sync issues (ไม่ทำ comment หาย) ----
+    // ✅ ต้องดึง detail/imageUrl + จำนวนคอมเมนต์ เพื่อจับเคส “แทนที่ปัญหา”
+    const existing = await prisma.issue.findMany({
+      where: { reportId },
+      select: {
+        id: true,
+        detail: true,
+        imageUrl: true,
+        _count: { select: { comments: true } },
+      },
+    });
+
+    const existingById = new Map(existing.map((e) => [e.id, e]));
+
     const incomingClean = incomingIssues
       .map((x: any) => ({
         id: x?.id ? String(x.id) : "",
@@ -34,69 +73,50 @@ export async function POST(req: NextRequest) {
       }))
       .filter((x: any) => x.detail || x.imageUrl); // เอาเฉพาะที่มีข้อมูลจริง
 
-    // ✅ 1) หา report เดิมก่อน เพื่อควบคุม initial snapshot
-    const existingReport = await prisma.dailyReport.findUnique({
-      where: { projectId_date: { projectId, date } },
-      select: { id: true, initialPayload: true, initialIssues: true },
-    });
-
-    let reportId: string;
-
-    if (!existingReport) {
-      // ✅ 2) ยังไม่มี: create พร้อม initial snapshot (immutable)
-      const created = await prisma.dailyReport.create({
-        data: {
-          projectId,
-          date,
-          payload,
-          initialPayload: payload,
-          initialIssues: incomingClean,
-          initialCapturedAt: new Date(),
-        },
-        select: { id: true },
-      });
-      reportId = created.id;
-    } else {
-      reportId = existingReport.id;
-
-      // ✅ 3) มีแล้ว: update payload (แก้ไขได้)
-      // ✅ แต่ถ้า initial ยังว่าง (รายงานเก่าก่อนเพิ่มฟิลด์) -> ล็อกครั้งแรก "ครั้งเดียว"
-      const needLockInitial =
-        existingReport.initialPayload == null || existingReport.initialIssues == null;
-
-      await prisma.dailyReport.update({
-        where: { id: reportId },
-        data: {
-          payload,
-          ...(needLockInitial
-            ? {
-                initialPayload: existingReport.initialPayload ?? payload,
-                initialIssues: existingReport.initialIssues ?? incomingClean,
-                initialCapturedAt: new Date(),
-              }
-            : {}),
-        },
-        select: { id: true },
-      });
-    }
-
-    // ---- sync issues (ไม่ทำ comment หาย) ----
-    const existingIssues = await prisma.issue.findMany({
-      where: { reportId },
-      select: { id: true, comments: { select: { id: true } } },
-    });
-
     const incomingIds = new Set(
       incomingClean.filter((x: any) => x.id).map((x: any) => x.id)
     );
 
     // update/create
     for (const it of incomingClean) {
-      const isExisting = it.id && existingIssues.some((e) => e.id === it.id);
+      const ex = it.id ? existingById.get(it.id) : null;
 
-      if (isExisting) {
+      if (ex) {
+        const hasComments = (ex._count?.comments || 0) > 0;
+
+        const changed =
+          normStr(ex.detail) !== normStr(it.detail || "-") ||
+          normImg(ex.imageUrl) !== normImg(it.imageUrl || "");
+
+        // ✅ KEY FIX:
+        // ถ้ามีคอมเมนต์แล้ว และผู้กรอก “เปลี่ยนรูป/รายละเอียด” ให้ถือว่าเป็น “ปัญหาใหม่”
+        // -> สร้าง issue ใหม่, และ archive อันเก่า เพื่อเก็บประวัติคอมเมนต์ไว้
+        if (hasComments && changed) {
+          // 1) create new issue (new id)
+          await prisma.issue.create({
+            data: {
+              reportId,
+              detail: it.detail || "-",
+              imageUrl: it.imageUrl || null,
+            },
+          });
+
+          // 2) archive old issue (คอมเมนต์ไม่หาย แต่ไม่ปะปนกับปัญหาใหม่)
+          await prisma.issue.update({
+            where: { id: ex.id },
+            data: {
+              detail: "(รายการนี้ถูกลบ/แก้ไขโดยผู้กรอก)",
+              imageUrl: null,
+            },
+          });
+
+          // หมายเหตุ: incomingIds มี ex.id อยู่ก็ไม่เป็นไร เพราะเรา archive แล้ว
+          continue;
+        }
+
+        // ✅ ปกติ: update เดิม (เคสยังไม่มีคอมเมนต์ หรือไม่ได้เปลี่ยนสาระสำคัญ)
         await prisma.issue.update({
-          where: { id: it.id },
+          where: { id: ex.id },
           data: { detail: it.detail || "-", imageUrl: it.imageUrl || null },
         });
       } else {
@@ -111,9 +131,9 @@ export async function POST(req: NextRequest) {
     }
 
     // delete removed (only those WITHOUT comments)
-    for (const ex of existingIssues) {
+    for (const ex of existing) {
       if (!incomingIds.has(ex.id)) {
-        const hasComments = (ex.comments || []).length > 0;
+        const hasComments = (ex._count?.comments || 0) > 0;
         if (!hasComments) {
           await prisma.issue.delete({ where: { id: ex.id } });
         } else {
