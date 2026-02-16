@@ -127,17 +127,43 @@ export default function ContactPage() {
   }, [projectId]);
 
   // โหลดรายงานไว้ให้เลือกตอนกด +
-  useEffect(() => {
-    if (!pickerOpen || !projectId) return;
-    (async () => {
-      const rows = await jget<DailyReportRow[]>(
-        `/api/daily-reports?projectId=${encodeURIComponent(projectId)}&mode=picker`
-      );
-      setReports(rows);
-      if (!reportIdToSend && rows.length) setReportIdToSend(rows[0].id);
-    })().catch(console.error);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pickerOpen, projectId]);
+  // โหลดรายงานไว้ให้เลือกตอนกด +
+useEffect(() => {
+  if (!pickerOpen || !projectId) return;
+
+  (async () => {
+    const raw = await jget<any>(`/api/daily-reports?projectId=${encodeURIComponent(projectId)}&mode=picker`);
+
+    // ✅ รองรับหลายรูปแบบที่ API อาจคืนมา
+    const list =
+      Array.isArray(raw) ? raw :
+      Array.isArray(raw?.reports) ? raw.reports :
+      Array.isArray(raw?.rows) ? raw.rows :
+      Array.isArray(raw?.data) ? raw.data :
+      [];
+
+    // ✅ กันเคส item ไม่ครบ field
+    const cleaned: DailyReportRow[] = list
+      .map((x: any) => ({
+        id: String(x?.id ?? ""),
+        date: String(x?.date ?? ""),
+      }))
+      .filter((x: DailyReportRow) => x.id);
+
+    setReports(cleaned);
+
+    // ตั้งค่า default reportId ทุกครั้งที่เปิด picker (กันค้างค่าเก่า)
+    setReportIdToSend(cleaned[0]?.id ?? "");
+  })().catch((e) => {
+    console.error(e);
+    setReports([]);
+    setReportIdToSend("");
+    alert("โหลดรายการ Daily Report ไม่สำเร็จ: " + String((e as any)?.message || e));
+  });
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [pickerOpen, projectId]);
+
 
   const selectedAddIds = useMemo(
     () => Object.entries(selectedToAdd).filter(([, v]) => v).map(([k]) => k),
