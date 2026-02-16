@@ -25,21 +25,7 @@ export async function POST(req: NextRequest) {
     const incomingIssues = Array.isArray(body?.issues) ? body.issues : [];
     const { issues: _omitIssues, ...payload } = body;
 
-    const saved = await prisma.dailyReport.upsert({
-      where: { projectId_date: { projectId, date } },
-      create: { projectId, date, payload },
-      update: { payload },
-      select: { id: true, projectId: true, date: true },
-    });
-
-    const reportId = saved.id;
-
-    // ---- sync issues (ไม่ทำ comment หาย) ----
-    const existing = await prisma.issue.findMany({
-      where: { reportId },
-      select: { id: true, comments: { select: { id: true } } },
-    });
-
+    // ✅ ทำความสะอาด issue ก่อน (ใช้เก็บ snapshot + sync)
     const incomingClean = incomingIssues
       .map((x: any) => ({
         id: x?.id ? String(x.id) : "",
@@ -48,13 +34,65 @@ export async function POST(req: NextRequest) {
       }))
       .filter((x: any) => x.detail || x.imageUrl); // เอาเฉพาะที่มีข้อมูลจริง
 
+    // ✅ 1) หา report เดิมก่อน เพื่อควบคุม initial snapshot
+    const existingReport = await prisma.dailyReport.findUnique({
+      where: { projectId_date: { projectId, date } },
+      select: { id: true, initialPayload: true, initialIssues: true },
+    });
+
+    let reportId: string;
+
+    if (!existingReport) {
+      // ✅ 2) ยังไม่มี: create พร้อม initial snapshot (immutable)
+      const created = await prisma.dailyReport.create({
+        data: {
+          projectId,
+          date,
+          payload,
+          initialPayload: payload,
+          initialIssues: incomingClean,
+          initialCapturedAt: new Date(),
+        },
+        select: { id: true },
+      });
+      reportId = created.id;
+    } else {
+      reportId = existingReport.id;
+
+      // ✅ 3) มีแล้ว: update payload (แก้ไขได้)
+      // ✅ แต่ถ้า initial ยังว่าง (รายงานเก่าก่อนเพิ่มฟิลด์) -> ล็อกครั้งแรก "ครั้งเดียว"
+      const needLockInitial =
+        existingReport.initialPayload == null || existingReport.initialIssues == null;
+
+      await prisma.dailyReport.update({
+        where: { id: reportId },
+        data: {
+          payload,
+          ...(needLockInitial
+            ? {
+                initialPayload: existingReport.initialPayload ?? payload,
+                initialIssues: existingReport.initialIssues ?? incomingClean,
+                initialCapturedAt: new Date(),
+              }
+            : {}),
+        },
+        select: { id: true },
+      });
+    }
+
+    // ---- sync issues (ไม่ทำ comment หาย) ----
+    const existingIssues = await prisma.issue.findMany({
+      where: { reportId },
+      select: { id: true, comments: { select: { id: true } } },
+    });
+
     const incomingIds = new Set(
       incomingClean.filter((x: any) => x.id).map((x: any) => x.id)
     );
 
     // update/create
     for (const it of incomingClean) {
-      const isExisting = it.id && existing.some((e) => e.id === it.id);
+      const isExisting = it.id && existingIssues.some((e) => e.id === it.id);
 
       if (isExisting) {
         await prisma.issue.update({
@@ -73,7 +111,7 @@ export async function POST(req: NextRequest) {
     }
 
     // delete removed (only those WITHOUT comments)
-    for (const ex of existing) {
+    for (const ex of existingIssues) {
       if (!incomingIds.has(ex.id)) {
         const hasComments = (ex.comments || []).length > 0;
         if (!hasComments) {

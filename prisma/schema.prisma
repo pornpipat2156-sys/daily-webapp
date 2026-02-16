@@ -23,8 +23,13 @@ model DailyReport {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  // ✅ เก็บข้อมูลฟอร์ม Daily-report ทั้งก้อน
+  // ✅ เก็บข้อมูลฟอร์ม Daily-report ทั้งก้อน (แก้ไขได้)
   payload   Json?
+
+  // ✅ เก็บ "ข้อมูลครั้งแรกของวันนั้น" (ห้ามแก้ แม้กลับมาแก้ไขรายงานภายหลัง)
+  initialPayload     Json?
+  initialIssues      Json?
+  initialCapturedAt  DateTime?
 
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   issues    Issue[]
@@ -36,6 +41,7 @@ model DailyReport {
   @@index([projectId])
   @@index([date])
 }
+
 
 
 model Issue {

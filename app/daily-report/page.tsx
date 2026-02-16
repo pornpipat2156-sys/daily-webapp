@@ -332,6 +332,21 @@ export default function DailyReportPage() {
   // Safety note
   const [safetyNote, setSafetyNote] = useState("");
 
+  /** ✅ รีเซ็ตฟอร์มเมื่อเลือกวันที่ที่ไม่มีข้อมูลใน DB */
+  function resetForm() {
+    setEditingReportId(null);
+
+    setTempMaxC(null);
+    setTempMinC(null);
+
+    setContractors([{ id: uid(), name: "", position: "", qty: 0 }]);
+    setSubContractors([{ id: uid(), position: "", morning: 0, afternoon: 0, overtime: 0 }]);
+    setMajorEquipment([{ id: uid(), type: "", morning: 0, afternoon: 0, overtime: 0 }]);
+    setWorkPerformed([{ id: uid(), desc: "", location: "", qty: "", unit: "", materialDelivered: "" }]);
+    setIssues([{ id: uid(), detail: "", imageDataUrl: "" }]);
+    setSafetyNote("");
+  }
+
   // ✅ โหลดรายการโครงการจาก DB ครั้งเดียว
   useEffect(() => {
     let alive = true;
@@ -361,82 +376,91 @@ export default function DailyReportPage() {
     };
   }, []);
 
-  useEffect(() => {
-  let alive = true;
-
-  async function run() {
-    if (!projectId || !date) return;
-
-    const res = await fetch(
-      `/api/daily-reports/by-date?projectId=${encodeURIComponent(projectId)}&date=${encodeURIComponent(date)}`,
-      { cache: "no-store" }
-    );
-    const json = await res.json().catch(() => null);
-    if (!alive) return;
-    if (!json?.ok) return;
-
-    if (!json.reportId) {
-      setEditingReportId(null);
-      return;
-    }
-
-    setEditingReportId(String(json.reportId));
-
-    // 1) โหลด payload กลับเข้าฟอร์ม
-    const p = json.payload || {};
-
-    setTempMaxC(p.tempMaxC ?? null);
-    setTempMinC(p.tempMinC ?? null);
-
-    setContractors(
-      Array.isArray(p.contractors) && p.contractors.length
-        ? p.contractors
-        : [{ id: uid(), name: "", position: "", qty: 0 }]
-    );
-
-    setSubContractors(
-      Array.isArray(p.subContractors) && p.subContractors.length
-        ? p.subContractors
-        : [{ id: uid(), position: "", morning: 0, afternoon: 0, overtime: 0 }]
-    );
-
-    setMajorEquipment(
-      Array.isArray(p.majorEquipment) && p.majorEquipment.length
-        ? p.majorEquipment
-        : [{ id: uid(), type: "", morning: 0, afternoon: 0, overtime: 0 }]
-    );
-
-    setWorkPerformed(
-      Array.isArray(p.workPerformed) && p.workPerformed.length
-        ? p.workPerformed
-        : [{ id: uid(), desc: "", location: "", qty: "", unit: "", materialDelivered: "" }]
-    );
-
-    setSafetyNote(String(p.safetyNote || ""));
-
-    // 2) โหลด issues จากตาราง Issue (ใช้ id จริงของ DB)
-    const dbIssues = Array.isArray(json.issues) ? json.issues : [];
-    setIssues(
-      dbIssues.length
-        ? dbIssues.map((it: any) => ({
-            id: String(it.id), // ✅ ใช้ id จาก DB เพื่อให้ update ได้
-            detail: String(it.detail || ""),
-            imageDataUrl: String(it.imageUrl || ""),
-          }))
-        : [{ id: uid(), detail: "", imageDataUrl: "" }]
-    );
-  }
-
-  run();
-  return () => {
-    alive = false;
-  };
-}, [projectId, date]);
-
-
-  // auto fetch daily weather when date changes (สำรอง)
+  /** ✅ โหลดข้อมูลเก่าจาก DB ตาม projectId + date แล้วเด้งกลับเข้าฟอร์ม */
   useEffect(() => {
     let alive = true;
+
+    async function run() {
+      if (!projectId || !date) return;
+
+      const res = await fetch(
+        `/api/daily-reports/by-date?projectId=${encodeURIComponent(projectId)}&date=${encodeURIComponent(date)}`,
+        { cache: "no-store" }
+      );
+      const json = await res.json().catch(() => null);
+      if (!alive) return;
+      if (!json?.ok) return;
+
+      // ✅ ไม่มีรายงานวันนั้น => รีเซ็ตฟอร์มให้สะอาด
+      if (!json.reportId) {
+        resetForm();
+        return;
+      }
+
+      setEditingReportId(String(json.reportId));
+
+      // 1) โหลด payload กลับเข้าฟอร์ม
+      const p = json.payload || {};
+
+      setTempMaxC(p.tempMaxC ?? null);
+      setTempMinC(p.tempMinC ?? null);
+
+      setContractors(
+        Array.isArray(p.contractors) && p.contractors.length
+          ? p.contractors
+          : [{ id: uid(), name: "", position: "", qty: 0 }]
+      );
+
+      setSubContractors(
+        Array.isArray(p.subContractors) && p.subContractors.length
+          ? p.subContractors
+          : [{ id: uid(), position: "", morning: 0, afternoon: 0, overtime: 0 }]
+      );
+
+      setMajorEquipment(
+        Array.isArray(p.majorEquipment) && p.majorEquipment.length
+          ? p.majorEquipment
+          : [{ id: uid(), type: "", morning: 0, afternoon: 0, overtime: 0 }]
+      );
+
+      setWorkPerformed(
+        Array.isArray(p.workPerformed) && p.workPerformed.length
+          ? p.workPerformed
+          : [{ id: uid(), desc: "", location: "", qty: "", unit: "", materialDelivered: "" }]
+      );
+
+      setSafetyNote(String(p.safetyNote || ""));
+
+      // 2) โหลด issues จากตาราง Issue (ใช้ id จริงของ DB)
+      const dbIssues = Array.isArray(json.issues) ? json.issues : [];
+      setIssues(
+        dbIssues.length
+          ? dbIssues.map((it: any) => ({
+              id: String(it.id), // ✅ ใช้ id จาก DB เพื่อให้ update ได้
+              detail: String(it.detail || ""),
+              imageDataUrl: String(it.imageUrl || ""),
+            }))
+          : [{ id: uid(), detail: "", imageDataUrl: "" }]
+      );
+    }
+
+    run();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, date]);
+
+  /** ✅ auto fetch daily weather when date changes
+   *  เงื่อนไข: รัน "เฉพาะกรณีที่วันนั้นยังไม่มีรายงานใน DB" เท่านั้น
+   *  เพื่อกันไปทับค่าที่โหลดจาก DB
+   */
+  useEffect(() => {
+    let alive = true;
+
+    // ถ้ามี report อยู่แล้ว => ไม่ดึง weather ใหม่
+    if (editingReportId) return;
+
     fetchDailyTemp(date)
       .then((t) => {
         if (!alive) return;
@@ -448,10 +472,11 @@ export default function DailyReportPage() {
         setTempMaxC(null);
         setTempMinC(null);
       });
+
     return () => {
       alive = false;
     };
-  }, [date]);
+  }, [date, editingReportId]);
 
   function addRow<T>(setFn: React.Dispatch<React.SetStateAction<T[]>>, row: T) {
     setFn((prev) => [...prev, row]);
@@ -542,81 +567,81 @@ export default function DailyReportPage() {
   }, [projectId, date, issues]);
 
   async function onSubmit(e: React.FormEvent) {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!project) {
-    alert("❌ กรุณาเลือกโครงการก่อน");
-    return;
-  }
-
-  const bad = issues.find((x) => x.imageDataUrl && !x.detail.trim());
-  if (bad) {
-    alert("❌ หากแนบรูปใน 'ปัญหาและอุปสรรค' ต้องกรอกรายละเอียดด้วย");
-    return;
-  }
-
-  const payload: DailyReportPayload = {
-    projectId,
-    projectMeta: project,
-    date,
-    dateBE,
-    tempMaxC,
-    tempMinC,
-    contractors,
-    subContractors,
-    majorEquipment,
-    workPerformed,
-    issues,
-    safetyNote,
-  };
-
-  const res = await fetch("/api/daily-reports/upsert", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  const json = await res.json().catch(() => null);
-  if (!res.ok || !json?.ok) {
-    alert("❌ บันทึกลง DB ไม่สำเร็จ");
-    return;
-  }
-
-  const reportId = String(json.reportId);
-  setEditingReportId(reportId);
-
-  sessionStorage.setItem("lastSubmittedReportId", reportId);
-  sessionStorage.setItem("lastSubmittedProjectId", projectId);
-
-  router.push(`/daily-report/preview?reportId=${encodeURIComponent(reportId)}`);
-
-  // ✅ (แก้ปัญหามือถือ) กัน sessionStorage เต็ม/throw แล้วกดเหมือนไม่ได้
-  try {
-    sessionStorage.setItem("dailyReportPayload", JSON.stringify(payload));
-    } catch (err) {
-      // มักเกิดบนมือถือ/iOS เมื่อรูปเยอะหรือไฟล์ใหญ่
-      alert(
-        "❌ ไม่สามารถบันทึกข้อมูลเพื่อไปหน้า Preview ได้ (ไฟล์รูป/ข้อมูลมีขนาดใหญ่เกินไปบนมือถือ)\n\n" +
-          "แนะนำ:\n" +
-          "- ลดจำนวนรูป หรือเลือกรูปที่ขนาดเล็กลง\n" +
-          "- ถ่าย/เลือกภาพความละเอียดต่ำลง\n" +
-          "- ลองลบรูปบางรายการแล้วกดยืนยันใหม่"
-      );
+    if (!project) {
+      alert("❌ กรุณาเลือกโครงการก่อน");
       return;
     }
 
-    router.push("/daily-report/preview");
+    const bad = issues.find((x) => x.imageDataUrl && !x.detail.trim());
+    if (bad) {
+      alert("❌ หากแนบรูปใน 'ปัญหาและอุปสรรค' ต้องกรอกรายละเอียดด้วย");
+      return;
+    }
+
+    const payload: DailyReportPayload = {
+      projectId,
+      projectMeta: project,
+      date,
+      dateBE,
+      tempMaxC,
+      tempMinC,
+      contractors,
+      subContractors,
+      majorEquipment,
+      workPerformed,
+      issues,
+      safetyNote,
+    };
+
+    const res = await fetch("/api/daily-reports/upsert", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json?.ok) {
+      alert("❌ บันทึกลง DB ไม่สำเร็จ");
+      return;
+    }
+
+    const reportId = String(json.reportId);
+    setEditingReportId(reportId);
+
+    sessionStorage.setItem("lastSubmittedReportId", reportId);
+    sessionStorage.setItem("lastSubmittedProjectId", projectId);
+
+    router.push(`/daily-report/preview?reportId=${encodeURIComponent(reportId)}`);
   }
 
   return (
     <div className="mx-auto w-full max-w-6xl px-3 sm:px-6 lg:px-8">
-      <h1 className="text-3xl font-semibold mb-4">Daily report</h1>
+      <div className="flex items-end justify-between gap-3 mb-4">
+        <div>
+          <h1 className="text-3xl font-semibold">Daily report</h1>
+          <div className="text-sm opacity-70 mt-1">
+            {editingReportId ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-blue-600" />
+                โหมดแก้ไข: มีรายงานของวันที่นี้ในระบบแล้ว
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-slate-400" />
+                โหมดสร้างใหม่: ยังไม่มีรายงานของวันที่นี้
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* โครงการ (DB) */}
-      <div className="rounded-xl border bg-card p-4 mb-6">
+      <div className="rounded-xl border bg-card p-4 mb-6 shadow-sm">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium mb-1">ชื่อโครงการ</label>
+            <label className="block text-sm font-medium mb-1 text-slate-700">ชื่อโครงการ</label>
 
             <select
               className="w-full rounded-lg border px-4 py-3 bg-background hover:opacity-90 disabled:opacity-50"
@@ -639,11 +664,15 @@ export default function DailyReportPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">วัน/เดือน/ปี พ.ศ.</label>
+            <label className="block text-sm font-medium mb-1 text-slate-700">วัน/เดือน/ปี พ.ศ.</label>
 
             {/* ✅ กล่องแสดงผลเป็น พ.ศ. แต่ให้เลือกจาก date picker ได้ */}
             <div className="relative">
-              <input className="w-full rounded-lg border px-4 py-3 bg-background text-lg" value={dateBE} readOnly />
+              <input
+                className="w-full rounded-lg border px-4 py-3 bg-background text-lg"
+                value={dateBE}
+                readOnly
+              />
               <input
                 type="date"
                 className="absolute inset-0 opacity-0 cursor-pointer"
@@ -653,7 +682,7 @@ export default function DailyReportPage() {
               />
             </div>
 
-            <div className="text-xs opacity-60 mt-1">
+            <div className="text-xs mt-1 text-slate-600">
               (สำรอง) อุณหภูมิรายวัน: สูงสุด {tempMaxC ?? "-"}°C / ต่ำสุด {tempMinC ?? "-"}°C
             </div>
           </div>
@@ -661,17 +690,17 @@ export default function DailyReportPage() {
 
         {project && (
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
-            <div className="rounded-lg border p-3">
-              <div className="opacity-60">สัญญาจ้าง</div>
-              <div className="font-semibold">{project.contractNo || "-"}</div>
+            <div className="rounded-lg border p-3 bg-slate-50">
+              <div className="text-slate-600">สัญญาจ้าง</div>
+              <div className="font-semibold text-slate-900">{project.contractNo || "-"}</div>
             </div>
-            <div className="rounded-lg border p-3">
-              <div className="opacity-60">ผู้รับจ้าง</div>
-              <div className="font-semibold">{project.contractorName || "-"}</div>
+            <div className="rounded-lg border p-3 bg-slate-50">
+              <div className="text-slate-600">ผู้รับจ้าง</div>
+              <div className="font-semibold text-slate-900">{project.contractorName || "-"}</div>
             </div>
-            <div className="rounded-lg border p-3">
-              <div className="opacity-60">สถานที่ก่อสร้าง</div>
-              <div className="font-semibold">{project.siteLocation || "-"}</div>
+            <div className="rounded-lg border p-3 bg-slate-50">
+              <div className="text-slate-600">สถานที่ก่อสร้าง</div>
+              <div className="font-semibold text-slate-900">{project.siteLocation || "-"}</div>
             </div>
           </div>
         )}
@@ -679,16 +708,21 @@ export default function DailyReportPage() {
 
       <form onSubmit={onSubmit} className="space-y-6">
         {/* PROJECT TEAM */}
-        <div className="rounded-xl border bg-card p-4">
-          <h2 className="text-lg font-semibold mb-3">ส่วนโครงการ (PROJECT TEAM)</h2>
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-slate-900">ส่วนโครงการ (PROJECT TEAM)</h2>
+            <span className="text-xs px-2 py-1 rounded-full border bg-slate-50 text-slate-700">
+              ข้อมูลบุคลากร/เครื่องจักร
+            </span>
+          </div>
 
           {/* Contractors */}
           <div className="mb-5">
             <div className="flex items-center justify-between">
-              <div className="font-semibold">ผู้รับเหมา (CONTRACTORS)</div>
+              <div className="font-semibold text-slate-800">ผู้รับเหมา (CONTRACTORS)</div>
               <button
                 type="button"
-                className="rounded-lg border px-3 py-2 text-sm hover:opacity-90"
+                className="rounded-lg border px-3 py-2 text-sm hover:opacity-90 bg-white"
                 onClick={() => addRow(setContractors, { id: uid(), name: "", position: "", qty: 0 })}
               >
                 + เพิ่มแถว
@@ -697,8 +731,8 @@ export default function DailyReportPage() {
 
             <div className="mt-3 space-y-3">
               {contractors.map((r, idx) => (
-                <div key={r.id} className="grid grid-cols-1 gap-3 md:grid-cols-12 items-end rounded-lg border p-3">
-                  <div className="md:col-span-1 text-sm font-semibold">#{idx + 1}</div>
+                <div key={r.id} className="grid grid-cols-1 gap-3 md:grid-cols-12 items-end rounded-lg border p-3 bg-slate-50">
+                  <div className="md:col-span-1 text-sm font-semibold text-slate-700">#{idx + 1}</div>
 
                   <div className="md:col-span-4">
                     <SelectOrOther
@@ -739,17 +773,17 @@ export default function DailyReportPage() {
                 </div>
               ))}
 
-              <div className="text-sm font-semibold">รวม: {contractorTotal}</div>
+              <div className="text-sm font-semibold text-slate-800">รวม: {contractorTotal}</div>
             </div>
           </div>
 
           {/* Sub Contractors */}
           <div className="mb-5">
             <div className="flex items-center justify-between">
-              <div className="font-semibold">ผู้รับเหมารายย่อย (SUB CONTRACTORS)</div>
+              <div className="font-semibold text-slate-800">ผู้รับเหมารายย่อย (SUB CONTRACTORS)</div>
               <button
                 type="button"
-                className="rounded-lg border px-3 py-2 text-sm hover:opacity-90"
+                className="rounded-lg border px-3 py-2 text-sm hover:opacity-90 bg-white"
                 onClick={() =>
                   addRow(setSubContractors, {
                     id: uid(),
@@ -766,8 +800,8 @@ export default function DailyReportPage() {
 
             <div className="mt-3 space-y-3">
               {subContractors.map((r, idx) => (
-                <div key={r.id} className="grid gap-2 md:grid-cols-12 items-end rounded-lg border p-3">
-                  <div className="md:col-span-1 text-sm font-semibold">#{idx + 1}</div>
+                <div key={r.id} className="grid gap-2 md:grid-cols-12 items-end rounded-lg border p-3 bg-slate-50">
+                  <div className="md:col-span-1 text-sm font-semibold text-slate-700">#{idx + 1}</div>
 
                   <div className="md:col-span-3">
                     <SelectOrOther
@@ -811,7 +845,7 @@ export default function DailyReportPage() {
                 </div>
               ))}
 
-              <div className="text-sm font-semibold">
+              <div className="text-sm font-semibold text-slate-800">
                 รวม: เช้า {subTotals.morning} | บ่าย {subTotals.afternoon} | ล่วงเวลา {subTotals.overtime}
               </div>
             </div>
@@ -820,10 +854,10 @@ export default function DailyReportPage() {
           {/* Major Equipment */}
           <div>
             <div className="flex items-center justify-between">
-              <div className="font-semibold">เครื่องจักรหลัก (MAJOR EQUIPMENT)</div>
+              <div className="font-semibold text-slate-800">เครื่องจักรหลัก (MAJOR EQUIPMENT)</div>
               <button
                 type="button"
-                className="rounded-lg border px-3 py-2 text-sm hover:opacity-90"
+                className="rounded-lg border px-3 py-2 text-sm hover:opacity-90 bg-white"
                 onClick={() =>
                   addRow(setMajorEquipment, {
                     id: uid(),
@@ -840,8 +874,8 @@ export default function DailyReportPage() {
 
             <div className="mt-3 space-y-3">
               {majorEquipment.map((r, idx) => (
-                <div key={r.id} className="grid gap-2 md:grid-cols-12 items-end rounded-lg border p-3">
-                  <div className="md:col-span-1 text-sm font-semibold">#{idx + 1}</div>
+                <div key={r.id} className="grid gap-2 md:grid-cols-12 items-end rounded-lg border p-3 bg-slate-50">
+                  <div className="md:col-span-1 text-sm font-semibold text-slate-700">#{idx + 1}</div>
 
                   <div className="md:col-span-3">
                     <SelectOrOther
@@ -882,7 +916,7 @@ export default function DailyReportPage() {
                 </div>
               ))}
 
-              <div className="text-sm font-semibold">
+              <div className="text-sm font-semibold text-slate-800">
                 รวม: เช้า {equipTotals.morning} | บ่าย {equipTotals.afternoon} | ล่วงเวลา {equipTotals.overtime}
               </div>
             </div>
@@ -890,12 +924,12 @@ export default function DailyReportPage() {
         </div>
 
         {/* WORK PERFORMED */}
-        <div className="rounded-xl border bg-card p-4">
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)</h2>
+            <h2 className="text-lg font-semibold text-slate-900">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)</h2>
             <button
               type="button"
-              className="rounded-lg border px-3 py-2 text-sm hover:opacity-90"
+              className="rounded-lg border px-3 py-2 text-sm hover:opacity-90 bg-white"
               onClick={() =>
                 addRow(setWorkPerformed, {
                   id: uid(),
@@ -913,8 +947,8 @@ export default function DailyReportPage() {
 
           <div className="mt-3 space-y-3">
             {workPerformed.map((r, idx) => (
-              <div key={r.id} className="grid gap-2 md:grid-cols-12 items-end rounded-lg border p-3">
-                <div className="md:col-span-1 text-sm font-semibold">#{idx + 1}</div>
+              <div key={r.id} className="grid gap-2 md:grid-cols-12 items-end rounded-lg border p-3 bg-slate-50">
+                <div className="md:col-span-1 text-sm font-semibold text-slate-700">#{idx + 1}</div>
 
                 <div className="md:col-span-4">
                   <label className="text-xs opacity-70">รายการ (DESCRIPTION)</label>
@@ -978,12 +1012,12 @@ export default function DailyReportPage() {
         </div>
 
         {/* ISSUES */}
-        <div className="rounded-xl border bg-card p-4">
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">ปัญหาและอุปสรรค </h2>
+            <h2 className="text-lg font-semibold text-slate-900">ปัญหาและอุปสรรค</h2>
             <button
               type="button"
-              className="rounded-lg border px-3 py-2 text-sm hover:opacity-90"
+              className="rounded-lg border px-3 py-2 text-sm hover:opacity-90 bg-white"
               onClick={() => addRow(setIssues, { id: uid(), detail: "", imageDataUrl: "" })}
             >
               + เพิ่มปัญหา
@@ -995,9 +1029,9 @@ export default function DailyReportPage() {
               const hasImage = Boolean(issue.imageDataUrl);
 
               return (
-                <div key={issue.id} className="rounded-xl border p-4">
+                <div key={issue.id} className="rounded-xl border p-4 bg-slate-50">
                   <div className="flex items-center justify-between">
-                    <div className="font-semibold text-sm">ปัญหาที่ {idx + 1}</div>
+                    <div className="font-semibold text-sm text-slate-800">ปัญหาที่ {idx + 1}</div>
                     {issues.length > 1 && (
                       <button
                         type="button"
@@ -1011,7 +1045,7 @@ export default function DailyReportPage() {
 
                   <div className="mt-3 grid gap-4 md:grid-cols-2">
                     <div>
-                      <label className="block text-sm font-semibold mb-2">รูปภาพปัญหา (ถ้ามี)</label>
+                      <label className="block text-sm font-semibold mb-2 text-slate-800">รูปภาพปัญหา (ถ้ามี)</label>
                       <input
                         type="file"
                         accept="image/*"
@@ -1024,7 +1058,7 @@ export default function DailyReportPage() {
                           <img
                             src={issue.imageDataUrl}
                             alt={`issue-${idx + 1}`}
-                            className="w-full max-h-52 object-contain rounded-lg border"
+                            className="w-full max-h-52 object-contain rounded-lg border bg-white"
                           />
                           <button
                             type="button"
@@ -1038,7 +1072,7 @@ export default function DailyReportPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold mb-2">รายละเอียด</label>
+                      <label className="block text-sm font-semibold mb-2 text-slate-800">รายละเอียด</label>
                       <textarea
                         className="w-full min-h-36 rounded-lg border px-3 py-2 bg-background disabled:opacity-50"
                         value={issue.detail}
@@ -1059,10 +1093,10 @@ export default function DailyReportPage() {
         </div>
 
         {/* SAFETY */}
-        <div className="rounded-xl border bg-card p-4">
-          <h2 className="text-lg font-semibold mb-3">บันทึกความปลอดภัย</h2>
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <h2 className="text-lg font-semibold mb-3 text-slate-900">บันทึกความปลอดภัย</h2>
           <div className="mt-2">
-            <label className="block text-sm font-semibold mb-1">บันทึกด้านความปลอดภัยในการทำงาน</label>
+            <label className="block text-sm font-semibold mb-1 text-slate-800">บันทึกด้านความปลอดภัยในการทำงาน</label>
             <textarea
               className="w-full min-h-28 rounded-lg border px-3 py-2 bg-background"
               value={safetyNote}
@@ -1075,7 +1109,7 @@ export default function DailyReportPage() {
         <button
           type="submit"
           disabled={!canSubmit}
-          className="rounded-lg border px-4 py-2 hover:opacity-90 disabled:opacity-50"
+          className="rounded-lg border px-4 py-2 hover:opacity-90 disabled:opacity-50 bg-blue-600 text-white border-blue-700"
         >
           ยืนยัน
         </button>
