@@ -105,9 +105,6 @@ function weatherTextFromCode(code: number | null | undefined) {
 }
 
 async function fetchHourlyWeather(dateISO: string) {
-  // ✅ FIX: Open-Meteo start_date/end_date ต้องเป็น YYYY-MM-DD เท่านั้น
-  const dateOnly = String(dateISO || "").includes("T") ? String(dateISO).slice(0, 10) : String(dateISO);
-
   const lat = 18.7883;
   const lon = 98.9853;
   const url =
@@ -115,7 +112,7 @@ async function fetchHourlyWeather(dateISO: string) {
     `?latitude=${lat}&longitude=${lon}` +
     `&hourly=temperature_2m,weathercode` +
     `&timezone=Asia%2FBangkok` +
-    `&start_date=${dateOnly}&end_date=${dateOnly}`;
+    `&start_date=${dateISO}&end_date=${dateISO}`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error("hourly weather fetch failed");
@@ -228,11 +225,11 @@ function SignatureGrid({ items }: { items: Supervisor[] }) {
   );
 }
 
-// ✅ archived issue marker (จาก API upsert: detail + imageUrl=null เพื่อเก็บคอมเมนต์)
-function isArchivedIssue(it: { detail?: string | null; imageUrl?: string | null }) {
-  const d = String(it?.detail || "").trim();
-  const img = String(it?.imageUrl || "").trim();
-  return d.startsWith("(รายการนี้ถูกลบ/แก้ไขโดยผู้กรอก)") && !img;
+function normStr(s: any) {
+  return String(s ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 }
 
 export function ReportPreviewForm({
@@ -413,16 +410,30 @@ export function ReportPreviewForm({
     [model, maxRows]
   );
 
-  // ✅ FIX: ไม่ให้รายการที่ถูกลบ/แก้ไข (เก็บคอมเมนต์ไว้) ไปปนกับปัญหาปัจจุบัน
   const issuesList = useMemo(() => {
     const list = model.issues || [];
-    return list
-      .filter((it) => !isArchivedIssue(it))
-      .filter((it) => (it.detail || "").trim() || (it.imageUrl || "").trim());
+    return list.filter((it: any) => {
+      const detail = String(it?.detail || "");
+      const imageUrl = String(it?.imageUrl || "");
+
+      // ✅ ตัด “รายการประวัติที่ถูกลบ/แก้ไข” ออก (ไม่ให้โผล่เป็นปัญหาใหม่)
+      const dNorm = normStr(detail);
+      const isHistoryDeleted =
+        dNorm.includes("รายการนี้ถูกลบ") ||
+        dNorm.includes("ถูกลบ/แก้ไข") ||
+        dNorm.includes("deleted/edited") ||
+        dNorm.includes("deleted") ||
+        Boolean(it?.isDeleted) ||
+        Boolean(it?.deletedAt);
+
+      if (isHistoryDeleted) return false;
+
+      // ✅ ปัญหาปัจจุบัน: ต้องมีรายละเอียดหรือรูปอย่างใดอย่างหนึ่ง
+      return detail.trim() || imageUrl.trim();
+    });
   }, [model]);
 
   const hasIssues = issuesList.length > 0;
-
   const pm = model.projectMeta;
 
   return (
@@ -492,14 +503,7 @@ export function ReportPreviewForm({
                     <tr>
                       <td className="cellCenter">
                         <div className="mx-auto w-[110px] h-[110px] rounded-full border-2 border-black overflow-hidden flex items-center justify-center bg-white">
-                          <Image
-                            src="/logo.png"
-                            alt="Company Logo"
-                            width={110}
-                            height={110}
-                            className="w-full h-full object-contain"
-                            priority
-                          />
+                          <Image src="/logo.png" alt="Company Logo" width={110} height={110} className="w-full h-full object-contain" priority />
                         </div>
                       </td>
 
@@ -836,11 +840,7 @@ export function ReportPreviewForm({
                           <td className="cell issueRowMin">
                             <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
                             {it.imageUrl ? (
-                              <img
-                                src={it.imageUrl}
-                                alt={`issue-img-${idx + 1}`}
-                                className="issueImg border border-black/30 rounded"
-                              />
+                              <img src={it.imageUrl} alt={`issue-img-${idx + 1}`} className="issueImg border border-black/30 rounded" />
                             ) : (
                               <div className="text-sm opacity-60">-</div>
                             )}
@@ -852,11 +852,7 @@ export function ReportPreviewForm({
                           </td>
 
                           <td className="cell issueRowMin">
-                            {renderIssueCommentCell ? (
-                              renderIssueCommentCell(it, idx)
-                            ) : (
-                              <div className="text-sm opacity-60"> </div>
-                            )}
+                            {renderIssueCommentCell ? renderIssueCommentCell(it, idx) : <div className="text-sm opacity-60"> </div>}
                           </td>
                         </tr>
                       ))}
@@ -880,6 +876,7 @@ export function ReportPreviewForm({
                   </div>
                 </div>
               </div>
+
             </div>
           </div>
         </div>
