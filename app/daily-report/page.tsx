@@ -1112,7 +1112,6 @@ export default function DailyReportPage() {
         <button
           type="submit"
           disabled={!canSubmit}
-          className="rounded-lg border px-4 py-2 bg-blue-600 text-white border-blue-700 hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500 dark:border-blue-600 dark:hover:bg-blue-600"
         >
           ยืนยัน
         </button>
