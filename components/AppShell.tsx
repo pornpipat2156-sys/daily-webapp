@@ -15,44 +15,23 @@ const nav = [
   { href: "/contact", label: "ติดต่อ" },
 ];
 
-function parseNameAndPosition(user: any): { displayName: string; position: string } {
-  const email = user?.email ? String(user.email).trim() : "";
-  const rawName = user?.name ? String(user.name).trim() : "";
-
-  let namePart = rawName;
-  let position = "";
-
-  // Pattern: "Name (Position)"
-  const mParen = rawName.match(/\(([^)]+)\)\s*$/);
-  if (mParen?.[1]) {
-    position = mParen[1].trim();
-    namePart = rawName.replace(/\(([^)]+)\)\s*$/, "").trim();
-  } else if (rawName.includes("|")) {
-    // Pattern: "Name | Position"
-    const parts = rawName.split("|").map((s) => s.trim());
-    namePart = parts[0] || "";
-    position = parts.slice(1).join(" | ").trim();
-  } else if (rawName.includes(" - ")) {
-    // Pattern: "Name - Position"
-    const parts = rawName.split(" - ").map((s) => s.trim());
-    namePart = parts[0] || "";
-    position = parts.slice(1).join(" - ").trim();
-  }
-
-  const displayName = (namePart && namePart.trim()) || email || "-";
-  const displayPosition = (position && position.trim()) || "-";
-
-  return { displayName, position: displayPosition };
-}
-
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
   const { data: session } = useSession();
-  const role = ((session?.user as any)?.role || "USER") as string; // ✅ คงเดิมเพื่อ permission
-  const { displayName, position } = parseNameAndPosition(session?.user);
+  const role = ((session?.user as any)?.role || "USER") as string;
+
+  const displayName =
+    ((session?.user as any)?.name && String((session?.user as any).name).trim()) ||
+    session?.user?.email ||
+    "-";
+
+  // ✅ แสดง "ตำแหน่ง" จาก DB (AllowedEmail.position) ที่ถูกแนบมาใน session.user.position
+  const position =
+    (((session?.user as any)?.position && String((session?.user as any).position).trim()) ||
+      "-") as string;
 
   function isTabEnabled(href: string) {
     if (role !== "USER") return true; // ADMIN/SUPERADMIN กดได้หมด (ตามเงื่อนไขเดิม)
