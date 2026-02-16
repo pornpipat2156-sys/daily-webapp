@@ -1,3 +1,4 @@
+// components/AppShell.tsx
 "use client";
 
 import { useState } from "react";
@@ -5,7 +6,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import TopRightAuth from "./TopRightAuth";
 import { useSession } from "next-auth/react";
-
 
 const nav = [
   { href: "/daily-report", label: "รายงานประจำวัน" },
@@ -15,24 +15,50 @@ const nav = [
   { href: "/contact", label: "ติดต่อ" },
 ];
 
+function parseNameAndPosition(user: any): { displayName: string; position: string } {
+  const email = user?.email ? String(user.email).trim() : "";
+  const rawName = user?.name ? String(user.name).trim() : "";
+
+  let namePart = rawName;
+  let position = "";
+
+  // Pattern: "Name (Position)"
+  const mParen = rawName.match(/\(([^)]+)\)\s*$/);
+  if (mParen?.[1]) {
+    position = mParen[1].trim();
+    namePart = rawName.replace(/\(([^)]+)\)\s*$/, "").trim();
+  } else if (rawName.includes("|")) {
+    // Pattern: "Name | Position"
+    const parts = rawName.split("|").map((s) => s.trim());
+    namePart = parts[0] || "";
+    position = parts.slice(1).join(" | ").trim();
+  } else if (rawName.includes(" - ")) {
+    // Pattern: "Name - Position"
+    const parts = rawName.split(" - ").map((s) => s.trim());
+    namePart = parts[0] || "";
+    position = parts.slice(1).join(" - ").trim();
+  }
+
+  const displayName = (namePart && namePart.trim()) || email || "-";
+  const displayPosition = (position && position.trim()) || "-";
+
+  return { displayName, position: displayPosition };
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
-   const { data: session } = useSession();
-   const role = ((session?.user as any)?.role || "USER") as string;
-
-   const displayName =
-    ((session?.user as any)?.name && String((session?.user as any).name).trim()) ||
-    session?.user?.email ||
-    "-";
+  const { data: session } = useSession();
+  const role = ((session?.user as any)?.role || "USER") as string; // ✅ คงเดิมเพื่อ permission
+  const { displayName, position } = parseNameAndPosition(session?.user);
 
   function isTabEnabled(href: string) {
-    if (role !== "USER") return true; // ADMIN/GENERATOR กดได้หมด (ตามคำสั่งข้อ 1 UI)
+    if (role !== "USER") return true; // ADMIN/SUPERADMIN กดได้หมด (ตามเงื่อนไขเดิม)
     return href.startsWith("/daily-report") || href.startsWith("/contact");
   }
- 
+
   return (
     <div className="min-h-dvh bg-background text-foreground">
       {/* ===== Top bar ===== */}
@@ -85,9 +111,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 const enabled = isTabEnabled(item.href);
 
                 const baseClass = [
-                "block rounded-xl border px-3 py-2 text-sm",
-                active ? "bg-foreground text-background border-foreground" : "hover:bg-muted",
-                collapsed ? "text-[0px] py-3" : "",
+                  "block rounded-xl border px-3 py-2 text-sm",
+                  active ? "bg-foreground text-background border-foreground" : "hover:bg-muted",
+                  collapsed ? "text-[0px] py-3" : "",
                 ].join(" ");
 
                 // ✅ USER เห็นทุกแท็บ แต่แท็บที่ไม่ได้สิทธิ์: จาง + กดไม่ได้
@@ -117,7 +143,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="m-3 rounded-xl border bg-muted p-3">
-              <div className="text-xs font-semibold">Role : {role}</div>
+              <div className="text-xs font-semibold">ตำแหน่ง : {position}</div>
               <div className="text-sm">{displayName}</div>
             </div>
           </aside>
@@ -147,7 +173,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   {nav.map((item) => {
                     const active = pathname === item.href;
                     const enabled = isTabEnabled(item.href);
-                    
+
                     const baseClass = [
                       "block rounded-xl border px-3 py-2 text-sm",
                       active ? "bg-foreground text-background border-foreground" : "hover:bg-muted",
@@ -166,21 +192,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                       );
                     }
 
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          onClick={() => setMobileOpen(false)}
-                          className={baseClass}
-                        >
-                          {item.label}
-                        </Link>
-                      );
-                    })}   
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMobileOpen(false)}
+                        className={baseClass}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
                 </nav>
 
                 <div className="mt-4 rounded-xl border bg-muted p-3">
-                  <div className="text-xs font-semibold">Role : {role}</div>
+                  <div className="text-xs font-semibold">ตำแหน่ง : {position}</div>
                   <div className="text-sm">{displayName}</div>
                 </div>
               </div>
