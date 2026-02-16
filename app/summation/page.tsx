@@ -88,6 +88,18 @@ function norm(s: string) {
     .replace(/\s+/g, " ");
 }
 
+// ✅ สำหรับกรอง issue “รายการถูกลบ/แก้ไข...”
+function normStr(s: any) {
+  return String(s ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+function isHistoryDeletedIssue(it: Issue) {
+  const d = normStr(it?.detail);
+  return d.includes("รายการนี้ถูกลบ") || d.includes("ถูกลบ/แก้ไข") || d.includes("deleted/edited") || d.includes("deleted");
+}
+
 function padArray<T>(arr: T[], targetLen: number, makeEmpty: (idx: number) => T): T[] {
   const out = [...arr];
   while (out.length < targetLen) out.push(makeEmpty(out.length));
@@ -243,7 +255,7 @@ export default function SummationPage() {
   const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
   const [loadingSup, setLoadingSup] = useState(false);
 
-  // ✅ approvals (เพิ่มกลับมา)
+  // ✅ approvals
   const [approvals, setApprovals] = useState<ApprovalRow[]>([]);
   const [loadingApprovals, setLoadingApprovals] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -456,8 +468,6 @@ export default function SummationPage() {
     let cancelled = false;
     async function run() {
       if (!detail?.date) return;
-
-      // ✅ ทำให้แน่ใจว่าเป็นรูปแบบ YYYY-MM-DD (open-meteo ต้องการแบบนี้)
       const dateISO = String(detail.date).slice(0, 10);
 
       setWxLoading(true);
@@ -481,7 +491,6 @@ export default function SummationPage() {
         }
       } catch {
         if (!cancelled) {
-          // ✅ fallback ใช้ค่าใน DB (ถ้ามี) และไม่ให้กลายเป็น "-" ตลอด
           setTempMax(detail?.tempMaxC ?? null);
           setTempMin(detail?.tempMinC ?? null);
 
@@ -564,12 +573,23 @@ export default function SummationPage() {
     };
   }, [majorEquipment]);
 
-  const issueCount = useMemo(() => detail?.issues?.length ?? 0, [detail]);
-  const allIssuesHaveAtLeastOneComment = useMemo(() => {
+  // ✅ visible issues (ใช้แทน detail.issues ทุกที่ที่เกี่ยวกับ “ปัญหา”)
+  const visibleIssues = useMemo(() => {
     const list = detail?.issues || [];
-    if (!list.length) return true;
-    return list.every((it) => (it.comments || []).length > 0);
-  }, [detail]);
+    return list.filter((it) => {
+      if (isHistoryDeletedIssue(it)) return false;
+      const d = String(it?.detail || "").trim();
+      const img = String(it?.imageUrl || "").trim();
+      return Boolean(d || img);
+    });
+  }, [detail?.issues]);
+
+  const issueCount = useMemo(() => visibleIssues.length, [visibleIssues]);
+
+  const allIssuesHaveAtLeastOneComment = useMemo(() => {
+    if (!visibleIssues.length) return true;
+    return visibleIssues.every((it) => (it.comments || []).length > 0);
+  }, [visibleIssues]);
 
   const disableApproveBecauseComments = issueCount > 0 && !allIssuesHaveAtLeastOneComment;
 
@@ -606,7 +626,6 @@ export default function SummationPage() {
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) throw new Error(json?.message || "ยืนยันไม่สำเร็จ");
 
-      // reload approvals
       const res2 = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, { cache: "no-store" });
       const json2 = await res2.json().catch(() => null);
       if (res2.ok && json2?.ok && Array.isArray(json2.approvals)) setApprovals(json2.approvals);
@@ -625,7 +644,9 @@ export default function SummationPage() {
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <div className="text-lg font-semibold">การตรวจสอบและการอนุมัติ</div>
-            <div className="text-sm opacity-70">เลือกโครงการ → เลือกรายงาน → ตรวจสอบข้อมูล (อ่านอย่างเดียว) → ผู้ควบคุมงานกด “ยืนยันของฉัน”</div>
+            <div className="text-sm opacity-70">
+              เลือกโครงการ → เลือกรายงาน → ตรวจสอบข้อมูล (อ่านอย่างเดียว) → ผู้ควบคุมงานกด “ยืนยันของฉัน”
+            </div>
           </div>
           <div className="flex gap-2">
             <button className="rounded-lg border px-3 py-2" onClick={() => router.push("/commentator")}>
@@ -1053,7 +1074,7 @@ export default function SummationPage() {
                         </table>
                       </div>
 
-                      {/* Issues: อ่านอย่างเดียว + แสดงรายการความเห็น */}
+                      {/* ✅ Issues: ใช้ visibleIssues */}
                       <div className="box mt-4">
                         <table>
                           <colgroup>
@@ -1069,14 +1090,14 @@ export default function SummationPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {(detail.issues || []).length === 0 ? (
+                            {visibleIssues.length === 0 ? (
                               <tr>
                                 <td className="cell" colSpan={3}>
                                   <div className="opacity-70">รายงานนี้ไม่มี “ปัญหาและอุปสรรค”</div>
                                 </td>
                               </tr>
                             ) : (
-                              detail.issues.map((it, idx) => (
+                              visibleIssues.map((it, idx) => (
                                 <tr key={it.id}>
                                   <td className="cell issueRowMin">
                                     <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>

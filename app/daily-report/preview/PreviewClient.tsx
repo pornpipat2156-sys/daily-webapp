@@ -208,6 +208,18 @@ function representativeWeather(
   return weatherTextFromCode(bestCode);
 }
 
+// ===== ✅ Issue filter (แก้ให้แสดงแบบรูปที่ 1) =====
+function normStr(s: any) {
+  return String(s ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+function isHistoryDeletedIssue(it: Issue) {
+  const d = normStr(it?.detail);
+  return d.includes("รายการนี้ถูกลบ") || d.includes("ถูกลบ/แก้ไข") || d.includes("deleted/edited") || d.includes("deleted");
+}
+
 export default function ReviewPage() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -305,9 +317,9 @@ export default function ReviewPage() {
   }, []);
 
   useEffect(() => {
-  const rid = sp.get("reportId");
-  if (rid) setReportId(rid);
-}, [sp]);
+    const rid = sp.get("reportId");
+    if (rid) setReportId(rid);
+  }, [sp]);
 
   // load reports
   useEffect(() => {
@@ -514,8 +526,19 @@ export default function ReviewPage() {
 
   const canShowReport = Boolean(projectId && reportId && detail);
 
-  // ✅ เงื่อนไขการ “ส่ง” (ใช้เฉพาะสำหรับการไปแท็บถัดไป)
-  const hasIssues = (detail?.issues || []).length > 0;
+  // ✅ ใช้ issues ที่กรองแล้วเท่านั้น (ไม่ให้มี “รายการนี้ถูกลบ/แก้ไข...” มาเป็นปัญหาใหม่)
+  const visibleIssues = useMemo(() => {
+    const list = detail?.issues || [];
+    return list.filter((it) => {
+      if (isHistoryDeletedIssue(it)) return false;
+      const d = String(it?.detail || "").trim();
+      const img = String(it?.imageUrl || "").trim();
+      return Boolean(d || img);
+    });
+  }, [detail?.issues]);
+
+  // ✅ เงื่อนไขการ “ส่ง” ไปแท็บถัดไป (ยึดจาก issues จริง)
+  const hasIssues = visibleIssues.length > 0;
   const nextTabPath = hasIssues ? "/commentator" : "/summation";
 
   return (
@@ -933,7 +956,7 @@ export default function ReviewPage() {
                         </table>
                       </div>
 
-                      {/* Issues */}
+                      {/* ✅ Issues (ใช้ visibleIssues แทน detail.issues) */}
                       <div className="box mt-4">
                         <table>
                           <colgroup>
@@ -949,14 +972,14 @@ export default function ReviewPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {(detail.issues || []).length === 0 ? (
+                            {visibleIssues.length === 0 ? (
                               <tr>
                                 <td className="cell" colSpan={3}>
                                   <div className="opacity-70">รายงานนี้ไม่มี “ปัญหาและอุปสรรค”</div>
                                 </td>
                               </tr>
                             ) : (
-                              detail.issues.map((it, idx) => (
+                              visibleIssues.map((it, idx) => (
                                 <tr key={it.id}>
                                   <td className="cell issueRowMin">
                                     <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
