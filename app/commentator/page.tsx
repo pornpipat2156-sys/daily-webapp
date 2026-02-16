@@ -58,7 +58,6 @@ type ReportDetail = {
 function formatDateBE(yyyyMmDdOrIso?: string) {
   if (!yyyyMmDdOrIso) return "-";
 
-  // รองรับทั้ง "YYYY-MM-DD" และ ISO
   if (/^\d{4}-\d{2}-\d{2}$/.test(yyyyMmDdOrIso)) {
     const [yStr, mStr, dStr] = yyyyMmDdOrIso.split("-");
     const y = Number(yStr);
@@ -77,6 +76,13 @@ function formatDateBE(yyyyMmDdOrIso?: string) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
+function norm(s: string) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
 function padArray<T>(arr: T[], targetLen: number, makeEmpty: (idx: number) => T): T[] {
   const out = [...arr];
   while (out.length < targetLen) out.push(makeEmpty(out.length));
@@ -92,19 +98,12 @@ function computeScaleFromWidth(containerWidth: number) {
   return { ss, scaledW };
 }
 
-/** แบ่งรายชื่อเป็นแถว ๆ (แถวละไม่เกิน 5) */
 function chunk<T>(arr: T[], size: number) {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
 }
 
-/**
- * ✅ SignatureGrid เหมือนหน้า Preview:
- * บรรทัดบน: ลงชื่อ .........................
- * บรรทัดล่าง: (<ชื่อ>)
- * บรรทัดล่างถัดไป: <ตำแหน่ง>
- */
 function SignatureGrid({ items }: { items: Supervisor[] }) {
   const clean = (items || [])
     .map((x) => ({
@@ -134,7 +133,7 @@ function SignatureGrid({ items }: { items: Supervisor[] }) {
   );
 }
 
-// ===== Weather helpers (ให้เหมือนหน้า Preview) =====
+// ===== Weather helpers (เหมือน preview) =====
 function hmToMin(hm: string) {
   const [h, m] = hm.split(":").map(Number);
   if (Number.isNaN(h) || Number.isNaN(m)) return 0;
@@ -156,7 +155,6 @@ function weatherTextFromCode(code: number | null | undefined) {
 }
 
 async function fetchHourlyWeather(dateISO: string) {
-  // ✅ FIX: Open-Meteo start_date/end_date ต้องเป็น YYYY-MM-DD เท่านั้น
   const dateOnly = String(dateISO || "").includes("T") ? String(dateISO).slice(0, 10) : String(dateISO);
 
   const lat = 18.7883;
@@ -235,17 +233,11 @@ function representativeWeather(
   return weatherTextFromCode(bestCode);
 }
 
-/** ✅ marker สำหรับ issue ที่ถูกลบ/แก้ไข (มาจาก upsert route) */
+/** ✅ NEW: issue ที่ถูกลบ/แก้ไขโดยผู้กรอก (archived) — ห้ามเอามาปนในตารางหลัก */
 function isArchivedIssue(it: Issue) {
-  const d = String(it?.detail || "");
-  return d.includes("(รายการนี้ถูกลบ/แก้ไขโดยผู้กรอก)");
-}
-
-/** ✅ merge draft เพื่อไม่ให้ข้อความที่พิมพ์ค้างอยู่หาย เมื่อมีการ refetch detail */
-function mergeDraft(prev: Record<string, string>, issues: Issue[]) {
-  const out: Record<string, string> = {};
-  for (const it of issues) out[it.id] = prev[it.id] ?? "";
-  return out;
+  const d = norm(it?.detail || "");
+  // เงื่อนไขนี้สอดคล้องกับฝั่ง upsert ที่ set ข้อความไว้
+  return d.includes("รายการนี้ถูกลบ/แก้ไขโดยผู้กรอก") || d.includes("ถูกลบ/แก้ไขโดยผู้กรอก");
 }
 
 export default function CommentatorPage() {
@@ -265,16 +257,13 @@ export default function CommentatorPage() {
 
   const [err, setErr] = useState<string>("");
 
-  // comment draft per issue
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [posting, setPosting] = useState<Record<string, boolean>>({});
   const [submittingAll, setSubmittingAll] = useState(false);
 
-  // supervisors from DB meta only
   const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
   const [loadingSup, setLoadingSup] = useState(false);
 
-  // ✅ Weather state (ให้เหมือน Preview)
   const [tempMax, setTempMax] = useState<number | null>(null);
   const [tempMin, setTempMin] = useState<number | null>(null);
   const [wMorning, setWMorning] = useState<string>("-");
@@ -282,7 +271,6 @@ export default function CommentatorPage() {
   const [wOvertime, setWOvertime] = useState<string>("-");
   const [wxLoading, setWxLoading] = useState(false);
 
-  // ✅ scale ให้เหมือน preview
   const init = useMemo(() => {
     if (typeof window === "undefined") return { ss: 1, scaledW: A4_WIDTH_PX };
     const w = window.innerWidth || A4_WIDTH_PX;
@@ -404,8 +392,11 @@ export default function CommentatorPage() {
           const rep = json.report as ReportDetail;
           setDetail(rep);
 
-          // ✅ key ตาม issueId เสมอ (รองรับ issue ที่ถูกลบ/แก้ไข/เพิ่มใหม่)
-          setDraft((prev) => mergeDraft(prev, (rep?.issues || []) as Issue[]));
+          // ✅ initDraft เฉพาะ issues ที่ยัง active (ไม่เอา archived มาปน)
+          const initDraft: Record<string, string> = {};
+          const active = (rep?.issues || []).filter((x) => !isArchivedIssue(x));
+          for (const it of active) initDraft[it.id] = "";
+          setDraft(initDraft);
         }
       } catch (e: any) {
         if (!cancel) setErr(e?.message ?? "โหลดรายงานไม่สำเร็จ");
@@ -471,7 +462,7 @@ export default function CommentatorPage() {
     return Boolean(subOt || eqOt);
   }, [detail?.subContractors, detail?.majorEquipment]);
 
-  // ✅ Weather fetch เหมือน preview
+  // ✅ Weather fetch เหมือน preview (ดึงจาก Open-Meteo แล้วคำนวณช่วงเวลา)
   useEffect(() => {
     let cancelled = false;
 
@@ -518,20 +509,13 @@ export default function CommentatorPage() {
 
   const canShowReport = Boolean(projectId && reportId && detail);
 
-  // ✅ แยก issue ปัจจุบัน vs issue ที่ถูกลบ/แก้ไข (เก็บคอมเมนต์ไว้)
-  const activeIssues = useMemo(() => {
-    const list = detail?.issues || [];
-    return list.filter((it) => !isArchivedIssue(it));
-  }, [detail]);
+  // ✅ NEW: แยก issues เป็น active/archived
+  const activeIssues = useMemo(() => (detail?.issues || []).filter((x) => !isArchivedIssue(x)), [detail?.issues]);
+  const archivedIssues = useMemo(() => (detail?.issues || []).filter((x) => isArchivedIssue(x)), [detail?.issues]);
 
-  const archivedIssues = useMemo(() => {
-    const list = detail?.issues || [];
-    return list.filter((it) => isArchivedIssue(it));
-  }, [detail]);
-
-  // ✅ นับ “ต้องคอมเมนต์” เฉพาะปัญหาปัจจุบัน
   const issueCount = useMemo(() => activeIssues.length, [activeIssues]);
 
+  // ✅ ต้องนับ “ครบคอมเมนต์” เฉพาะ active เท่านั้น (ของที่ถูกลบ/แก้ไขไม่ต้องนับ)
   const allIssuesHaveAtLeastOneComment = useMemo(() => {
     if (!activeIssues.length) return true;
     return activeIssues.every((it) => (it.comments || []).length > 0);
@@ -553,14 +537,9 @@ export default function CommentatorPage() {
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) throw new Error(json?.message || "ส่งความเห็นไม่สำเร็จ");
 
-      // ✅ reload detail แล้ว merge draft (กัน draft ช่องอื่นหาย)
       const again = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}`, { cache: "no-store" });
       const againJson = await again.json().catch(() => null);
-      if (again.ok && againJson?.ok) {
-        const rep = againJson.report as ReportDetail;
-        setDetail(rep);
-        setDraft((prev) => mergeDraft(prev, (rep?.issues || []) as Issue[]));
-      }
+      if (again.ok && againJson?.ok) setDetail(againJson.report as ReportDetail);
 
       setDraft((m) => ({ ...m, [issueId]: "" }));
     } catch (e: any) {
@@ -575,7 +554,7 @@ export default function CommentatorPage() {
     if (!detail) return;
 
     if (!allIssuesHaveAtLeastOneComment) {
-      setErr("ยังแสดงความคิดเห็นไม่ครบทุกปัญหา (เฉพาะปัญหาปัจจุบัน) กรุณาใส่ความเห็นให้ครบก่อนกดส่ง");
+      setErr("ยังแสดงความคิดเห็นไม่ครบทุกปัญหา กรุณาใส่ความเห็นให้ครบก่อนกดส่ง");
       return;
     }
 
@@ -588,7 +567,7 @@ export default function CommentatorPage() {
     }
   }
 
-  // ====== prepare preview layout data (with fallback) ======
+  // ====== prepare preview layout data ======
   const pm = detail?.projectMeta || {};
   const contractors = detail?.contractors || [];
   const subContractors = detail?.subContractors || [];
@@ -666,7 +645,6 @@ export default function CommentatorPage() {
           </button>
         </div>
 
-        {/* Select Project */}
         <div className="rounded-2xl border bg-card p-4">
           <div className="grid gap-3 md:grid-cols-3">
             <div>
@@ -707,9 +685,7 @@ export default function CommentatorPage() {
                   </option>
                 ))}
               </select>
-              <div className="text-xs opacity-70 mt-1">
-                ถ้าเด้งมาจาก Preview ระบบจะเลือกให้อัตโนมัติ (report ล่าสุดที่เพิ่งส่ง)
-              </div>
+              <div className="text-xs opacity-70 mt-1">ถ้าเด้งมาจาก Preview ระบบจะเลือกให้อัตโนมัติ (report ล่าสุดที่เพิ่งส่ง)</div>
             </div>
 
             <div className="flex items-end">
@@ -717,7 +693,7 @@ export default function CommentatorPage() {
                 className="w-full rounded-lg border px-3 py-2 disabled:opacity-60"
                 disabled={!canShowReport || submittingAll}
                 onClick={submitAllAndGoNext}
-                title="ต้องแสดงความคิดเห็นครบทุกปัญหาปัจจุบันก่อน"
+                title="ต้องแสดงความคิดเห็นครบทุกปัญหาก่อน"
               >
                 {submittingAll ? "กำลังส่ง..." : "ส่ง → ไปการตรวจสอบและการอนุมัติ"}
               </button>
@@ -727,7 +703,6 @@ export default function CommentatorPage() {
           {err ? <div className="mt-3 text-sm text-red-600">{err}</div> : null}
         </div>
 
-        {/* Report / Preview Form */}
         <div className="mt-4">
           {!reportId ? null : loadingDetail ? (
             <div className="rounded-xl border bg-card p-4 opacity-80">กำลังโหลดข้อมูลรายงาน...</div>
@@ -737,12 +712,12 @@ export default function CommentatorPage() {
             <>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="text-sm">
-                  สถานะความเห็น (เฉพาะปัญหาปัจจุบัน):{" "}
+                  สถานะความเห็น:{" "}
                   <span className={allIssuesHaveAtLeastOneComment ? "text-green-600" : "text-amber-600"}>
                     {allIssuesHaveAtLeastOneComment ? "ครบแล้ว" : "ยังไม่ครบ"}
                   </span>
                 </div>
-                <div className="text-sm opacity-70">จำนวนปัญหาปัจจุบัน: {issueCount}</div>
+                <div className="text-sm opacity-70">จำนวนปัญหา (ปัจจุบัน): {issueCount}</div>
               </div>
 
               <style>{`
@@ -823,7 +798,6 @@ export default function CommentatorPage() {
                           </tbody>
                         </table>
 
-                        {/* รายละเอียดโครงการ */}
                         <table>
                           <colgroup>
                             <col style={{ width: "18%" }} />
@@ -865,7 +839,6 @@ export default function CommentatorPage() {
                           </tbody>
                         </table>
 
-                        {/* ช่วงเวลาทำงาน + กล่องเลขรายงาน */}
                         <div className="grid grid-cols-12">
                           <div className="col-span-9 border-t-2 border-black p-2">
                             <div className="border-2 border-black bg-yellow-50 p-2 text-sm">
@@ -919,7 +892,6 @@ export default function CommentatorPage() {
                           </colgroup>
                           <tbody>
                             <tr>
-                              {/* CONTRACTORS */}
                               <td className="cell">
                                 <div className="font-semibold text-center leading-tight">
                                   ผู้รับเหมา
@@ -963,7 +935,6 @@ export default function CommentatorPage() {
                                 </table>
                               </td>
 
-                              {/* SUB CONTRACTORS */}
                               <td className="cell">
                                 <div className="font-semibold text-center leading-tight">
                                   ผู้รับเหมารายย่อย
@@ -1016,7 +987,6 @@ export default function CommentatorPage() {
                                 </table>
                               </td>
 
-                              {/* MAJOR EQUIPMENT */}
                               <td className="cell">
                                 <div className="font-semibold text-center leading-tight">
                                   เครื่องจักรหลัก
@@ -1114,7 +1084,7 @@ export default function CommentatorPage() {
                         </table>
                       </div>
 
-                      {/* ===================== ISSUES (เฉพาะปัจจุบัน) ===================== */}
+                      {/* ===================== ISSUES (✅ ใช้เฉพาะ activeIssues ไม่เอา archived มาปน) ===================== */}
                       <div className="box mt-4">
                         <table>
                           <colgroup>
@@ -1144,11 +1114,7 @@ export default function CommentatorPage() {
                                   <td className="cell issueRowMin">
                                     <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
                                     {it.imageUrl ? (
-                                      <img
-                                        src={it.imageUrl}
-                                        alt={`issue-img-${idx + 1}`}
-                                        className="issueImg border border-black/30 rounded"
-                                      />
+                                      <img src={it.imageUrl} alt={`issue-img-${idx + 1}`} className="issueImg border border-black/30 rounded" />
                                     ) : (
                                       <div className="text-sm opacity-60">-</div>
                                     )}
@@ -1205,64 +1171,43 @@ export default function CommentatorPage() {
                         </table>
                       </div>
 
-                      {/* ===================== ISSUES HISTORY (Archived/Deleted) ===================== */}
-                      {archivedIssues.length > 0 ? (
+                      {/* ✅ NEW: ประวัติที่ถูกลบ/แก้ไข (เก็บคอมเมนต์ไว้ แต่ไม่ปนในตารางหลัก) */}
+                      {archivedIssues.length ? (
                         <div className="box mt-4">
-                          <div className="cell titleBar">
-                            ประวัติปัญหา (ถูกลบ/แก้ไขแล้ว แต่เก็บความเห็นไว้) — {archivedIssues.length} รายการ
-                          </div>
+                          <div className="subBar cell">ประวัติ “ปัญหา/อุปสรรค” ที่ถูกลบหรือแก้ไข</div>
+                          <div className="cell">
+                            <div className="text-sm opacity-70 mb-2">
+                              ส่วนนี้เป็นประวัติ เพื่อไม่ให้ “ความเห็นเดิม” หายไป แต่จะไม่ถูกนับเป็นปัญหาปัจจุบัน
+                            </div>
 
-                          <table>
-                            <colgroup>
-                              <col style={{ width: "45%" }} />
-                              <col style={{ width: "33%" }} />
-                              <col style={{ width: "22%" }} />
-                            </colgroup>
-                            <thead>
-                              <tr>
-                                <th className="cellCenter">ภาพเดิม</th>
-                                <th className="cellCenter">หมายเหตุ</th>
-                                <th className="cellCenter">ความเห็นที่เคยให้ไว้</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {archivedIssues.map((it, idx) => (
-                                <tr key={it.id}>
-                                  <td className="cell issueRowMin">
-                                    <div className="text-sm font-semibold mb-2">รายการเก่า {idx + 1}</div>
-                                    <div className="text-sm opacity-60">- (ถูกลบ/แก้ไขแล้ว)</div>
-                                  </td>
+                            <div className="space-y-3">
+                              {archivedIssues.map((it, i) => (
+                                <div key={it.id} className="rounded-xl border p-3">
+                                  <div className="text-sm font-semibold">รายการเดิม #{i + 1}</div>
+                                  <div className="text-sm mt-1 whitespace-pre-wrap">{it.detail || "-"}</div>
 
-                                  <td className="cell issueRowMin">
-                                    <div className="text-sm font-semibold mb-2">รายการเก่า {idx + 1}</div>
-                                    <div className="text-sm whitespace-pre-wrap">{it.detail || " "}</div>
-                                  </td>
-
-                                  <td className="cell issueRowMin">
-                                    <div className="text-sm font-semibold mb-2">ความเห็นเดิม</div>
-                                    {(it.comments || []).length > 0 ? (
-                                      <div className="rounded-xl border p-2">
-                                        <div className="text-sm font-medium mb-2">รายการความเห็น ({it.comments.length})</div>
-                                        <div className="space-y-2">
-                                          {it.comments.map((c) => (
-                                            <div key={c.id} className="rounded-lg border p-2">
-                                              <div className="text-xs opacity-70">
-                                                โดย {c.author?.name || c.author?.email || "-"} ({c.author?.role || "-"}) —{" "}
-                                                {formatDateBE(c.createdAt)}
-                                              </div>
-                                              <div className="whitespace-pre-wrap text-sm mt-1">{c.comment}</div>
+                                  {(it.comments || []).length ? (
+                                    <div className="mt-2 rounded-xl border p-2">
+                                      <div className="text-sm font-medium mb-2">รายการความเห็น ({it.comments.length})</div>
+                                      <div className="space-y-2">
+                                        {it.comments.map((c) => (
+                                          <div key={c.id} className="rounded-lg border p-2">
+                                            <div className="text-xs opacity-70">
+                                              โดย {c.author?.name || c.author?.email || "-"} ({c.author?.role || "-"}) —{" "}
+                                              {formatDateBE(c.createdAt)}
                                             </div>
-                                          ))}
-                                        </div>
+                                            <div className="whitespace-pre-wrap text-sm mt-1">{c.comment}</div>
+                                          </div>
+                                        ))}
                                       </div>
-                                    ) : (
-                                      <div className="text-sm opacity-60">ไม่มีความเห็น</div>
-                                    )}
-                                  </td>
-                                </tr>
+                                    </div>
+                                  ) : (
+                                    <div className="text-xs opacity-70 mt-2">ไม่มีความเห็น</div>
+                                  )}
+                                </div>
                               ))}
-                            </tbody>
-                          </table>
+                            </div>
+                          </div>
                         </div>
                       ) : null}
 
@@ -1272,16 +1217,12 @@ export default function CommentatorPage() {
                         <div className="cell whitespace-pre-wrap min-h-[90px]">{safetyNote || " "}</div>
                       </div>
 
-                      {/* ===================== SUPERVISORS (DB meta เท่านั้น) ===================== */}
+                      {/* ===================== SUPERVISORS ===================== */}
                       <div className="box mt-4">
                         <div className="cell">
                           <div className="font-semibold">รายชื่อผู้ควบคุมงาน</div>
                           <div className="mt-3">
-                            {loadingSup ? (
-                              <div className="opacity-70">กำลังโหลดรายชื่อ...</div>
-                            ) : (
-                              <SignatureGrid items={supervisors} />
-                            )}
+                            {loadingSup ? <div className="opacity-70">กำลังโหลดรายชื่อ...</div> : <SignatureGrid items={supervisors} />}
                           </div>
                         </div>
                       </div>
