@@ -1,3 +1,5 @@
+// app/api/auth/[...nextauth]/route.ts
+
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
@@ -33,8 +35,14 @@ const handler = NextAuth({
         const ok = await bcrypt.compare(password, user.passwordHash);
         if (!ok) return null;
 
-        // คืนข้อมูลไปทำ session/jwt
-        return { id: user.id, email: user.email, role: user.role, name: (user as any).name ?? null };
+        // ✅ คืนข้อมูลไปทำ session/jwt (เพิ่ม position จาก allowlist)
+        return {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          name: (user as any).name ?? null,
+          position: (allow as any).position ?? null,
+        };
       },
     }),
   ],
@@ -43,12 +51,14 @@ const handler = NextAuth({
       if (user) {
         token.role = (user as any).role;
         token.name = (user as any).name ?? null;
+        token.position = (user as any).position ?? null;
       }
       return token;
     },
     async session({ session, token }) {
-      (session.user as any).role = token.role;
+      (session.user as any).role = (token as any).role;
       (session.user as any).name = (token as any).name ?? null;
+      (session.user as any).position = (token as any).position ?? null;
       return session;
     },
   },

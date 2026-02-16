@@ -3,40 +3,6 @@
 
 import { useSession, signIn, signOut } from "next-auth/react";
 
-function parseNameAndPosition(user: any): { displayName: string; position: string } {
-  const email = user?.email ? String(user.email).trim() : "";
-  const rawName = user?.name ? String(user.name).trim() : "";
-
-  let namePart = rawName;
-  let position = "";
-
-  // Pattern: "Name (Position)"
-  const mParen = rawName.match(/\(([^)]+)\)\s*$/);
-  if (mParen?.[1]) {
-    position = mParen[1].trim();
-    namePart = rawName.replace(/\(([^)]+)\)\s*$/, "").trim();
-  } else if (rawName.includes("|")) {
-    // Pattern: "Name | Position"
-    const parts = rawName.split("|").map((s) => s.trim());
-    namePart = parts[0] || "";
-    position = parts.slice(1).join(" | ").trim();
-  } else if (rawName.includes(" - ")) {
-    // Pattern: "Name - Position"
-    const parts = rawName.split(" - ").map((s) => s.trim());
-    namePart = parts[0] || "";
-    position = parts.slice(1).join(" - ").trim();
-  }
-
-  const displayName =
-    (namePart && namePart.trim()) ||
-    email ||
-    "Account";
-
-  const displayPosition = (position && position.trim()) || "-";
-
-  return { displayName, position: displayPosition };
-}
-
 export default function TopRightAuth() {
   const { data, status } = useSession();
 
@@ -57,7 +23,14 @@ export default function TopRightAuth() {
     );
   }
 
-  const { displayName, position } = parseNameAndPosition(data.user);
+  const email = data.user.email || "";
+  const rawName = (data.user as any)?.name ? String((data.user as any).name).trim() : "";
+
+  const displayName =
+    rawName && rawName.toLowerCase() !== email.toLowerCase() ? rawName : "Account";
+
+  const position =
+    ((data.user as any)?.position && String((data.user as any).position).trim()) || "-";
 
   return (
     <div className="flex items-center gap-2">

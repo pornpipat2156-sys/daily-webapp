@@ -15,36 +15,6 @@ const nav = [
   { href: "/contact", label: "ติดต่อ" },
 ];
 
-function parseNameAndPosition(user: any): { displayName: string; position: string } {
-  const email = user?.email ? String(user.email).trim() : "";
-  const rawName = user?.name ? String(user.name).trim() : "";
-
-  let namePart = rawName;
-  let position = "";
-
-  // Pattern: "Name (Position)"
-  const mParen = rawName.match(/\(([^)]+)\)\s*$/);
-  if (mParen?.[1]) {
-    position = mParen[1].trim();
-    namePart = rawName.replace(/\(([^)]+)\)\s*$/, "").trim();
-  } else if (rawName.includes("|")) {
-    // Pattern: "Name | Position"
-    const parts = rawName.split("|").map((s) => s.trim());
-    namePart = parts[0] || "";
-    position = parts.slice(1).join(" | ").trim();
-  } else if (rawName.includes(" - ")) {
-    // Pattern: "Name - Position"
-    const parts = rawName.split(" - ").map((s) => s.trim());
-    namePart = parts[0] || "";
-    position = parts.slice(1).join(" - ").trim();
-  }
-
-  const displayName = (namePart && namePart.trim()) || email || "-";
-  const displayPosition = (position && position.trim()) || "-";
-
-  return { displayName, position: displayPosition };
-}
-
 export default function SidebarShell({
   role = "USER",
   children,
@@ -56,11 +26,19 @@ export default function SidebarShell({
   const [openMobile, setOpenMobile] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
-  // ✅ role prop ยังรับไว้เหมือนเดิม (ไม่กระทบ logic อื่น) แต่จะไม่แสดงบน UI
+  // ✅ role prop ยังรับไว้เหมือนเดิม (ไม่กระทบสิทธิ์/logic อื่น) แต่ไม่แสดงบน UI
   void role;
 
   const { data: session } = useSession();
-  const { displayName, position } = parseNameAndPosition(session?.user);
+
+  const displayName =
+    ((session?.user as any)?.name && String((session?.user as any).name).trim()) ||
+    session?.user?.email ||
+    "-";
+
+  const position =
+    (((session?.user as any)?.position && String((session?.user as any).position).trim()) ||
+      "-") as string;
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
@@ -80,7 +58,6 @@ export default function SidebarShell({
           <div className="font-semibold tracking-wide">DAILY-WEBAPP</div>
 
           <div className="ml-auto">
-            {/* ✅ ใช้ตัวที่เชื่อม next-auth จริง */}
             <TopRightAuth />
           </div>
         </div>
@@ -145,7 +122,11 @@ export default function SidebarShell({
             <div className="absolute left-0 top-0 h-full w-[82%] max-w-[320px] bg-background border-r p-3">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold">TABS</div>
-                <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setOpenMobile(false)} type="button">
+                <button
+                  className="rounded-lg border px-3 py-2 text-sm"
+                  onClick={() => setOpenMobile(false)}
+                  type="button"
+                >
                   ✕
                 </button>
               </div>
