@@ -77,13 +77,6 @@ function formatDateBE(yyyyMmDdOrIso?: string) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-function norm(s: string) {
-  return String(s || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-}
-
 function padArray<T>(arr: T[], targetLen: number, makeEmpty: (idx: number) => T): T[] {
   const out = [...arr];
   while (out.length < targetLen) out.push(makeEmpty(out.length));
@@ -127,11 +120,7 @@ function SignatureGrid({ items }: { items: Supervisor[] }) {
   return (
     <div className="space-y-4">
       {rows.map((row, ri) => (
-        <div
-          key={ri}
-          className="grid gap-4"
-          style={{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }}
-        >
+        <div key={ri} className="grid gap-4" style={{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }}>
           {row.map((it, i) => (
             <div key={`${ri}-${i}`} className="text-center">
               <div className="text-sm">ลงชื่อ ................................</div>
@@ -244,6 +233,19 @@ function representativeWeather(
     }
   }
   return weatherTextFromCode(bestCode);
+}
+
+/** ✅ marker สำหรับ issue ที่ถูกลบ/แก้ไข (มาจาก upsert route) */
+function isArchivedIssue(it: Issue) {
+  const d = String(it?.detail || "");
+  return d.includes("(รายการนี้ถูกลบ/แก้ไขโดยผู้กรอก)");
+}
+
+/** ✅ merge draft เพื่อไม่ให้ข้อความที่พิมพ์ค้างอยู่หาย เมื่อมีการ refetch detail */
+function mergeDraft(prev: Record<string, string>, issues: Issue[]) {
+  const out: Record<string, string> = {};
+  for (const it of issues) out[it.id] = prev[it.id] ?? "";
+  return out;
 }
 
 export default function CommentatorPage() {
@@ -402,9 +404,8 @@ export default function CommentatorPage() {
           const rep = json.report as ReportDetail;
           setDetail(rep);
 
-          const initDraft: Record<string, string> = {};
-          for (const it of (rep?.issues || []) as Issue[]) initDraft[it.id] = "";
-          setDraft(initDraft);
+          // ✅ key ตาม issueId เสมอ (รองรับ issue ที่ถูกลบ/แก้ไข/เพิ่มใหม่)
+          setDraft((prev) => mergeDraft(prev, (rep?.issues || []) as Issue[]));
         }
       } catch (e: any) {
         if (!cancel) setErr(e?.message ?? "โหลดรายงานไม่สำเร็จ");
@@ -447,7 +448,7 @@ export default function CommentatorPage() {
             if (!s) return { name: "", role: "" };
             return looksLikeRole(s) ? { name: "", role: s } : { name: s, role: "" };
           })
-          .filter((x) => x.name || x.role); // ✅ เหมือน preview (ไม่บังคับว่าต้องมีชื่อ)
+          .filter((x) => x.name || x.role);
 
         if (!cancel) setSupervisors(sup);
       } catch (e: any) {
@@ -470,7 +471,7 @@ export default function CommentatorPage() {
     return Boolean(subOt || eqOt);
   }, [detail?.subContractors, detail?.majorEquipment]);
 
-  // ✅ Weather fetch เหมือน preview (ดึงจาก Open-Meteo แล้วคำนวณช่วงเวลา)
+  // ✅ Weather fetch เหมือน preview
   useEffect(() => {
     let cancelled = false;
 
@@ -517,12 +518,24 @@ export default function CommentatorPage() {
 
   const canShowReport = Boolean(projectId && reportId && detail);
 
-  const issueCount = useMemo(() => detail?.issues?.length ?? 0, [detail]);
-  const allIssuesHaveAtLeastOneComment = useMemo(() => {
+  // ✅ แยก issue ปัจจุบัน vs issue ที่ถูกลบ/แก้ไข (เก็บคอมเมนต์ไว้)
+  const activeIssues = useMemo(() => {
     const list = detail?.issues || [];
-    if (!list.length) return true;
-    return list.every((it) => (it.comments || []).length > 0);
+    return list.filter((it) => !isArchivedIssue(it));
   }, [detail]);
+
+  const archivedIssues = useMemo(() => {
+    const list = detail?.issues || [];
+    return list.filter((it) => isArchivedIssue(it));
+  }, [detail]);
+
+  // ✅ นับ “ต้องคอมเมนต์” เฉพาะปัญหาปัจจุบัน
+  const issueCount = useMemo(() => activeIssues.length, [activeIssues]);
+
+  const allIssuesHaveAtLeastOneComment = useMemo(() => {
+    if (!activeIssues.length) return true;
+    return activeIssues.every((it) => (it.comments || []).length > 0);
+  }, [activeIssues]);
 
   async function postComment(issueId: string) {
     const text = (draft[issueId] || "").trim();
@@ -540,9 +553,14 @@ export default function CommentatorPage() {
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) throw new Error(json?.message || "ส่งความเห็นไม่สำเร็จ");
 
+      // ✅ reload detail แล้ว merge draft (กัน draft ช่องอื่นหาย)
       const again = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}`, { cache: "no-store" });
       const againJson = await again.json().catch(() => null);
-      if (again.ok && againJson?.ok) setDetail(againJson.report as ReportDetail);
+      if (again.ok && againJson?.ok) {
+        const rep = againJson.report as ReportDetail;
+        setDetail(rep);
+        setDraft((prev) => mergeDraft(prev, (rep?.issues || []) as Issue[]));
+      }
 
       setDraft((m) => ({ ...m, [issueId]: "" }));
     } catch (e: any) {
@@ -557,7 +575,7 @@ export default function CommentatorPage() {
     if (!detail) return;
 
     if (!allIssuesHaveAtLeastOneComment) {
-      setErr("ยังแสดงความคิดเห็นไม่ครบทุกปัญหา กรุณาใส่ความเห็นให้ครบก่อนกดส่ง");
+      setErr("ยังแสดงความคิดเห็นไม่ครบทุกปัญหา (เฉพาะปัญหาปัจจุบัน) กรุณาใส่ความเห็นให้ครบก่อนกดส่ง");
       return;
     }
 
@@ -689,7 +707,9 @@ export default function CommentatorPage() {
                   </option>
                 ))}
               </select>
-              <div className="text-xs opacity-70 mt-1">ถ้าเด้งมาจาก Preview ระบบจะเลือกให้อัตโนมัติ (report ล่าสุดที่เพิ่งส่ง)</div>
+              <div className="text-xs opacity-70 mt-1">
+                ถ้าเด้งมาจาก Preview ระบบจะเลือกให้อัตโนมัติ (report ล่าสุดที่เพิ่งส่ง)
+              </div>
             </div>
 
             <div className="flex items-end">
@@ -697,7 +717,7 @@ export default function CommentatorPage() {
                 className="w-full rounded-lg border px-3 py-2 disabled:opacity-60"
                 disabled={!canShowReport || submittingAll}
                 onClick={submitAllAndGoNext}
-                title="ต้องแสดงความคิดเห็นครบทุกปัญหาก่อน"
+                title="ต้องแสดงความคิดเห็นครบทุกปัญหาปัจจุบันก่อน"
               >
                 {submittingAll ? "กำลังส่ง..." : "ส่ง → ไปการตรวจสอบและการอนุมัติ"}
               </button>
@@ -717,12 +737,12 @@ export default function CommentatorPage() {
             <>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="text-sm">
-                  สถานะความเห็น:{" "}
+                  สถานะความเห็น (เฉพาะปัญหาปัจจุบัน):{" "}
                   <span className={allIssuesHaveAtLeastOneComment ? "text-green-600" : "text-amber-600"}>
                     {allIssuesHaveAtLeastOneComment ? "ครบแล้ว" : "ยังไม่ครบ"}
                   </span>
                 </div>
-                <div className="text-sm opacity-70">จำนวนปัญหา: {issueCount}</div>
+                <div className="text-sm opacity-70">จำนวนปัญหาปัจจุบัน: {issueCount}</div>
               </div>
 
               <style>{`
@@ -777,13 +797,7 @@ export default function CommentatorPage() {
 
               <div ref={wrapRef} className="previewWrap">
                 <div className="previewSized" style={{ width: scaledWidth }}>
-                  <div
-                    className="previewScaled"
-                    style={{
-                      width: A4_WIDTH_PX,
-                      transform: `scale(${scale}) translateZ(0)`,
-                    }}
-                  >
+                  <div className="previewScaled" style={{ width: A4_WIDTH_PX, transform: `scale(${scale}) translateZ(0)` }}>
                     <div className="a4">
                       {/* ===================== Header ===================== */}
                       <div className="box">
@@ -796,14 +810,7 @@ export default function CommentatorPage() {
                             <tr>
                               <td className="cellCenter">
                                 <div className="mx-auto w-[110px] h-[110px] rounded-full border-2 border-black overflow-hidden flex items-center justify-center bg-white">
-                                  <Image
-                                    src="/logo.png"
-                                    alt="Company Logo"
-                                    width={110}
-                                    height={110}
-                                    className="w-full h-full object-contain"
-                                    priority
-                                  />
+                                  <Image src="/logo.png" alt="Company Logo" width={110} height={110} className="w-full h-full object-contain" priority />
                                 </div>
                               </td>
 
@@ -1107,7 +1114,7 @@ export default function CommentatorPage() {
                         </table>
                       </div>
 
-                      {/* ===================== ISSUES (เหมือน Preview + comment ในช่องขวา) ===================== */}
+                      {/* ===================== ISSUES (เฉพาะปัจจุบัน) ===================== */}
                       <div className="box mt-4">
                         <table>
                           <colgroup>
@@ -1125,16 +1132,15 @@ export default function CommentatorPage() {
                           </thead>
 
                           <tbody>
-                            {(detail.issues || []).length === 0 ? (
+                            {activeIssues.length === 0 ? (
                               <tr>
                                 <td className="cell" colSpan={3}>
-                                  <div className="opacity-70">รายงานนี้ไม่มี “ปัญหาและอุปสรรค”</div>
+                                  <div className="opacity-70">รายงานนี้ไม่มี “ปัญหาและอุปสรรค” (ปัจจุบัน)</div>
                                 </td>
                               </tr>
                             ) : (
-                              detail.issues.map((it, idx) => (
+                              activeIssues.map((it, idx) => (
                                 <tr key={it.id}>
-                                  {/* image */}
                                   <td className="cell issueRowMin">
                                     <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
                                     {it.imageUrl ? (
@@ -1148,13 +1154,11 @@ export default function CommentatorPage() {
                                     )}
                                   </td>
 
-                                  {/* detail */}
                                   <td className="cell issueRowMin">
                                     <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
                                     <div className="text-sm whitespace-pre-wrap">{it.detail || " "}</div>
                                   </td>
 
-                                  {/* comment (inside form) */}
                                   <td className="cell issueRowMin">
                                     <div className="text-sm font-semibold mb-2">ความเห็นของผู้ควบคุมงาน</div>
 
@@ -1201,6 +1205,67 @@ export default function CommentatorPage() {
                         </table>
                       </div>
 
+                      {/* ===================== ISSUES HISTORY (Archived/Deleted) ===================== */}
+                      {archivedIssues.length > 0 ? (
+                        <div className="box mt-4">
+                          <div className="cell titleBar">
+                            ประวัติปัญหา (ถูกลบ/แก้ไขแล้ว แต่เก็บความเห็นไว้) — {archivedIssues.length} รายการ
+                          </div>
+
+                          <table>
+                            <colgroup>
+                              <col style={{ width: "45%" }} />
+                              <col style={{ width: "33%" }} />
+                              <col style={{ width: "22%" }} />
+                            </colgroup>
+                            <thead>
+                              <tr>
+                                <th className="cellCenter">ภาพเดิม</th>
+                                <th className="cellCenter">หมายเหตุ</th>
+                                <th className="cellCenter">ความเห็นที่เคยให้ไว้</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {archivedIssues.map((it, idx) => (
+                                <tr key={it.id}>
+                                  <td className="cell issueRowMin">
+                                    <div className="text-sm font-semibold mb-2">รายการเก่า {idx + 1}</div>
+                                    <div className="text-sm opacity-60">- (ถูกลบ/แก้ไขแล้ว)</div>
+                                  </td>
+
+                                  <td className="cell issueRowMin">
+                                    <div className="text-sm font-semibold mb-2">รายการเก่า {idx + 1}</div>
+                                    <div className="text-sm whitespace-pre-wrap">{it.detail || " "}</div>
+                                  </td>
+
+                                  <td className="cell issueRowMin">
+                                    <div className="text-sm font-semibold mb-2">ความเห็นเดิม</div>
+                                    {(it.comments || []).length > 0 ? (
+                                      <div className="rounded-xl border p-2">
+                                        <div className="text-sm font-medium mb-2">รายการความเห็น ({it.comments.length})</div>
+                                        <div className="space-y-2">
+                                          {it.comments.map((c) => (
+                                            <div key={c.id} className="rounded-lg border p-2">
+                                              <div className="text-xs opacity-70">
+                                                โดย {c.author?.name || c.author?.email || "-"} ({c.author?.role || "-"}) —{" "}
+                                                {formatDateBE(c.createdAt)}
+                                              </div>
+                                              <div className="whitespace-pre-wrap text-sm mt-1">{c.comment}</div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="text-sm opacity-60">ไม่มีความเห็น</div>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : null}
+
                       {/* ===================== SAFETY ===================== */}
                       <div className="box mt-4">
                         <div className="subBar cell">บันทึกด้านความปลอดภัยในการทำงาน</div>
@@ -1212,7 +1277,11 @@ export default function CommentatorPage() {
                         <div className="cell">
                           <div className="font-semibold">รายชื่อผู้ควบคุมงาน</div>
                           <div className="mt-3">
-                            {loadingSup ? <div className="opacity-70">กำลังโหลดรายชื่อ...</div> : <SignatureGrid items={supervisors} />}
+                            {loadingSup ? (
+                              <div className="opacity-70">กำลังโหลดรายชื่อ...</div>
+                            ) : (
+                              <SignatureGrid items={supervisors} />
+                            )}
                           </div>
                         </div>
                       </div>
