@@ -13,6 +13,15 @@ type AllowUserRow = {
   role: "USER" | "ADMIN" | "SUPERADMIN" | string;
 };
 
+type GroupMemberRow = {
+  memberId: string; // ChatGroupMember.id
+  userId: string; // User.id
+  email: string;
+  name: string | null;
+  role: string;
+  isActive: boolean;
+};
+
 type ChatMessage = {
   id: string;
   projectId: string;
@@ -40,6 +49,10 @@ function fmtDateTime(iso: string) {
   });
 }
 
+function normEmail(s: string) {
+  return (s || "").trim().toLowerCase();
+}
+
 export default function ContactPage() {
   const { data: session, status } = useSession();
 
@@ -49,8 +62,11 @@ export default function ContactPage() {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [projectId, setProjectId] = useState<string>("");
 
-  const [members, setMembers] = useState<AllowUserRow[]>([]);
-  const [selectedToAdd, setSelectedToAdd] = useState<Record<string, boolean>>({});
+  // ✅ แยกชัด: allow list vs สมาชิกกลุ่มจริง
+  const [allowUsers, setAllowUsers] = useState<AllowUserRow[]>([]);
+  const [groupMembers, setGroupMembers] = useState<GroupMemberRow[]>([]);
+
+  const [selectedToAdd, setSelectedToAdd] = useState<Record<string, boolean>>({}); // key = userId
   const [adding, setAdding] = useState(false);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -88,6 +104,15 @@ export default function ContactPage() {
     if (!res.ok) throw new Error(await res.text());
     return (await res.json()) as T;
   }
+  async function jpatch<T>(url: string, body?: any): Promise<T> {
+    const res = await fetch(url, {
+      method: "PATCH",
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return (await res.json()) as T;
+  }
 
   // โหลดรายการโครงการ
   useEffect(() => {
@@ -100,17 +125,37 @@ export default function ContactPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  // โหลด allow-email list (เพื่อให้ SuperAdmin add)
+  // โหลด allow-email + สมาชิกกลุ่มจริง (เพื่อทำให้ UI “เพิ่มแล้วหาย” และมีปุ่มลบ/disable)
   useEffect(() => {
     if (!projectId) return;
+
     (async () => {
-      const rows = await jget<AllowUserRow[]>(`/api/allow-email?projectId=${encodeURIComponent(projectId)}`);
-      setMembers(rows);
-      setSelectedToAdd({});
-    })().catch((e) => {
-      console.error(e);
-      alert("โหลด AllowEmail ไม่สำเร็จ: " + String(e?.message || e));
-    });
+      try {
+        const [allowRows, memberRows] = await Promise.all([
+          jget<AllowUserRow[]>(`/api/allow-email?projectId=${encodeURIComponent(projectId)}`),
+          jget<any>(`/api/chat/members?projectId=${encodeURIComponent(projectId)}`),
+        ]);
+
+        setAllowUsers(allowRows);
+
+        // รองรับทั้งแบบ API คืน array ตรงๆ
+        const list = Array.isArray(memberRows) ? memberRows : Array.isArray(memberRows?.members) ? memberRows.members : [];
+        const normalized: GroupMemberRow[] = list.map((m: any) => ({
+          memberId: String(m.memberId ?? m.id ?? ""),
+          userId: String(m.userId ?? ""),
+          email: String(m.email ?? ""),
+          name: m.name ?? null,
+          role: String(m.role ?? "USER"),
+          isActive: Boolean(m.isActive ?? true),
+        }));
+
+        setGroupMembers(normalized);
+        setSelectedToAdd({});
+      } catch (e) {
+        console.error(e);
+        alert("โหลดรายชื่อสมาชิกไม่สำเร็จ: " + String((e as any)?.message || e));
+      }
+    })();
   }, [projectId]);
 
   // โหลดข้อความ
@@ -127,57 +172,78 @@ export default function ContactPage() {
   }, [projectId]);
 
   // โหลดรายงานไว้ให้เลือกตอนกด +
-  // โหลดรายงานไว้ให้เลือกตอนกด +
-useEffect(() => {
-  if (!pickerOpen || !projectId) return;
+  useEffect(() => {
+    if (!pickerOpen || !projectId) return;
 
-  (async () => {
-    const raw = await jget<any>(`/api/daily-reports?projectId=${encodeURIComponent(projectId)}&mode=picker`);
+    (async () => {
+      const raw = await jget<any>(`/api/daily-reports?projectId=${encodeURIComponent(projectId)}&mode=picker`);
 
-    // ✅ รองรับหลายรูปแบบที่ API อาจคืนมา
-    const list =
-      Array.isArray(raw) ? raw :
-      Array.isArray(raw?.reports) ? raw.reports :
-      Array.isArray(raw?.rows) ? raw.rows :
-      Array.isArray(raw?.data) ? raw.data :
-      [];
+      const list =
+        Array.isArray(raw) ? raw :
+        Array.isArray(raw?.reports) ? raw.reports :
+        Array.isArray(raw?.rows) ? raw.rows :
+        Array.isArray(raw?.data) ? raw.data :
+        [];
 
-    // ✅ กันเคส item ไม่ครบ field
-    const cleaned: DailyReportRow[] = list
-      .map((x: any) => ({
-        id: String(x?.id ?? ""),
-        date: String(x?.date ?? ""),
-      }))
-      .filter((x: DailyReportRow) => x.id);
+      const cleaned: DailyReportRow[] = list
+        .map((x: any) => ({
+          id: String(x?.id ?? ""),
+          date: String(x?.date ?? ""),
+        }))
+        .filter((x: DailyReportRow) => x.id);
 
-    setReports(cleaned);
+      setReports(cleaned);
+      setReportIdToSend(cleaned[0]?.id ?? "");
+    })().catch((e) => {
+      console.error(e);
+      setReports([]);
+      setReportIdToSend("");
+      alert("โหลดรายการ Daily Report ไม่สำเร็จ: " + String((e as any)?.message || e));
+    });
 
-    // ตั้งค่า default reportId ทุกครั้งที่เปิด picker (กันค้างค่าเก่า)
-    setReportIdToSend(cleaned[0]?.id ?? "");
-  })().catch((e) => {
-    console.error(e);
-    setReports([]);
-    setReportIdToSend("");
-    alert("โหลดรายการ Daily Report ไม่สำเร็จ: " + String((e as any)?.message || e));
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickerOpen, projectId]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [pickerOpen, projectId]);
+  // ✅ ทำเพื่อ: คำนวณ “คนที่เพิ่มได้” = AllowEmail ที่ยังไม่เป็นสมาชิกกลุ่ม (Active/Disabled ก็ถือว่าเป็น member แล้ว)
+  const memberEmailSet = useMemo(() => {
+    const s = new Set<string>();
+    for (const m of groupMembers) s.add(normEmail(m.email));
+    return s;
+  }, [groupMembers]);
 
+  const addableUsers = useMemo(() => {
+    return allowUsers.filter((u) => !memberEmailSet.has(normEmail(u.email)));
+  }, [allowUsers, memberEmailSet]);
 
   const selectedAddIds = useMemo(
     () => Object.entries(selectedToAdd).filter(([, v]) => v).map(([k]) => k),
     [selectedToAdd]
   );
 
+  async function reloadMembersOnly() {
+    const memberRows = await jget<any>(`/api/chat/members?projectId=${encodeURIComponent(projectId)}`);
+    const list = Array.isArray(memberRows) ? memberRows : Array.isArray(memberRows?.members) ? memberRows.members : [];
+    const normalized: GroupMemberRow[] = list.map((m: any) => ({
+      memberId: String(m.memberId ?? m.id ?? ""),
+      userId: String(m.userId ?? ""),
+      email: String(m.email ?? ""),
+      name: m.name ?? null,
+      role: String(m.role ?? "USER"),
+      isActive: Boolean(m.isActive ?? true),
+    }));
+    setGroupMembers(normalized);
+  }
+
   async function addMembersToGroup() {
     if (!projectId || selectedAddIds.length === 0) return;
     setAdding(true);
     try {
-      await jpost(`/api/chat/members/add`, { projectId, userIds: selectedAddIds });
-      // reload allow-email list
-      const rows = await jget<AllowUserRow[]>(`/api/allow-email?projectId=${encodeURIComponent(projectId)}`);
-      setMembers(rows);
+      // ✅ ใช้ API ใหม่ที่เสถียร: POST /api/chat/members (เพิ่มทีละคน)
+      for (const userId of selectedAddIds) {
+        await jpost(`/api/chat/members`, { projectId, userId });
+      }
+
+      await reloadMembersOnly();
       setSelectedToAdd({});
       alert("เพิ่มสมาชิกสำเร็จ");
     } catch (e) {
@@ -188,14 +254,33 @@ useEffect(() => {
     }
   }
 
-  // --- Mention logic ---
+  async function disableMember(memberId: string) {
+    if (!memberId) return;
+    if (!confirm("ต้องการปิดสิทธิ์สมาชิกคนนี้ใช่ไหม? (Disable)")) return;
+
+    try {
+      await jpatch(`/api/chat/members/${encodeURIComponent(memberId)}/disable`);
+      setGroupMembers((prev) => prev.map((m) => (m.memberId === memberId ? { ...m, isActive: false } : m)));
+    } catch (e) {
+      console.error(e);
+      alert("Disable ไม่สำเร็จ: " + String((e as any)?.message || e));
+    }
+  }
+
+  // --- Mention logic (ใช้เฉพาะสมาชิกที่ active เท่านั้น) ---
+  const mentionSource: AllowUserRow[] = useMemo(() => {
+    return groupMembers
+      .filter((m) => m.isActive)
+      .map((m) => ({ id: m.userId, email: m.email, name: m.name, role: m.role }));
+  }, [groupMembers]);
+
   const mentionCandidates = useMemo(() => {
     const q = mentionQuery.trim().toLowerCase();
-    if (!q) return members.slice(0, 8);
-    return members
+    if (!q) return mentionSource.slice(0, 8);
+    return mentionSource
       .filter((m) => (m.name ?? m.email).toLowerCase().includes(q) || m.email.toLowerCase().includes(q))
       .slice(0, 8);
-  }, [members, mentionQuery]);
+  }, [mentionSource, mentionQuery]);
 
   function handleTextChange(v: string) {
     setText(v);
@@ -258,20 +343,6 @@ useEffect(() => {
     setMentionAnchor(null);
   }
 
-  function escapeRegExp(s: string) {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  }
-
-  function extractMentionUserIdsFromText(v: string) {
-    const ids: string[] = [];
-    for (const m of members) {
-      const display = m.name?.trim() ? m.name.trim() : m.email;
-      const re = new RegExp(`(^|\\s)@${escapeRegExp(display)}(\\s|$)`, "g");
-      if (re.test(v)) ids.push(m.id);
-    }
-    return Array.from(new Set(ids));
-  }
-
   async function sendMessage(opts?: { reportId?: string | null }) {
     if (!projectId) return;
     const hasText = text.trim().length > 0;
@@ -281,13 +352,11 @@ useEffect(() => {
 
     setSending(true);
     try {
-      const mentionUserIds = extractMentionUserIdsFromText(text);
-
+      // ✅ ทำเพื่อความปลอดภัย: mentionUserIds ไม่ส่งจาก client (backend จะ parse เองใน Phase C)
       const created = await jpost<ChatMessage>("/api/chat/messages", {
         projectId,
         text: hasText ? text.trim() : null,
         reportId: repId,
-        mentionUserIds,
       });
 
       setMessages((prev) => [...prev, created]);
@@ -306,9 +375,11 @@ useEffect(() => {
   const canPickProject = isSuperAdmin;
 
   function openReport(reportId: string) {
-    // ✅ เปิดหน้า preview แบบ readonly (ทุกคนในกลุ่มเปิดได้)
     window.open(`/daily-report/preview?reportId=${encodeURIComponent(reportId)}`, "_blank");
   }
+
+  const activeMembers = useMemo(() => groupMembers.filter((m) => m.isActive), [groupMembers]);
+  const disabledMembers = useMemo(() => groupMembers.filter((m) => !m.isActive), [groupMembers]);
 
   return (
     <div className="min-h-[calc(100vh-0px)] p-4 md:p-6">
@@ -340,46 +411,106 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* Member management (SuperAdmin only) */}
+        {/* ✅ Member management: เพิ่ม + ลบ ดูง่ายในหน้าเดียว */}
         {isSuperAdmin ? (
-          <div className="rounded-2xl border bg-white p-4 shadow-sm">
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Members */}
+            <div className="rounded-2xl border bg-white p-4 shadow-sm">
               <div className="space-y-1">
-                <div className="font-semibold">เพิ่มผู้เข้าร่วมกลุ่ม</div>
-                <div className="text-sm text-gray-600">เลือกจาก AllowEmail (เพิ่มหลายคนพร้อมกันได้)</div>
+                <div className="font-semibold">สมาชิกในกลุ่ม (Current Members)</div>
+                <div className="text-sm text-gray-600">
+                  Active: <span className="font-medium">{activeMembers.length}</span> / ทั้งหมด {groupMembers.length}
+                </div>
               </div>
 
-              <button
-                className={cn(
-                  "h-10 rounded-xl px-4 text-sm font-medium",
-                  selectedAddIds.length === 0 || adding
-                    ? "cursor-not-allowed bg-gray-200 text-gray-500"
-                    : "bg-black text-white"
+              <div className="mt-3 space-y-2">
+                {activeMembers.length === 0 ? (
+                  <div className="text-sm text-gray-500">ยังไม่มีสมาชิก</div>
+                ) : (
+                  activeMembers.map((m) => {
+                    const label = m.name?.trim() ? m.name : m.email;
+                    return (
+                      <div key={m.memberId} className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">{label}</div>
+                          <div className="truncate text-xs text-gray-500">{m.email}</div>
+                        </div>
+
+                        <button
+                          className="h-9 rounded-xl border px-3 text-xs hover:bg-gray-50"
+                          onClick={() => disableMember(m.memberId)}
+                          title="Disable member"
+                        >
+                          Disable
+                        </button>
+                      </div>
+                    );
+                  })
                 )}
-                disabled={selectedAddIds.length === 0 || adding}
-                onClick={addMembersToGroup}
-              >
-                {adding ? "กำลังเพิ่ม..." : `Add (${selectedAddIds.length})`}
-              </button>
+
+                {disabledMembers.length > 0 ? (
+                  <div className="pt-2">
+                    <div className="text-xs font-medium text-gray-600">Disabled</div>
+                    <div className="mt-2 space-y-2">
+                      {disabledMembers.map((m) => (
+                        <div key={m.memberId} className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2 opacity-60">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium">{m.name?.trim() ? m.name : m.email}</div>
+                            <div className="truncate text-xs text-gray-500">{m.email}</div>
+                          </div>
+                          <div className="text-xs text-gray-500">Disabled</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
 
-            <div className="mt-3 grid gap-2 md:grid-cols-2">
-              {members.map((m) => {
-                const label = m.name?.trim() ? m.name : m.email;
-                return (
-                  <label key={m.id} className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm hover:bg-gray-50">
-                    <input
-                      type="checkbox"
-                      checked={!!selectedToAdd[m.id]}
-                      onChange={(e) => setSelectedToAdd((p) => ({ ...p, [m.id]: e.target.checked }))}
-                    />
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{label}</div>
-                      <div className="truncate text-xs text-gray-500">{m.email}</div>
-                    </div>
-                  </label>
-                );
-              })}
+            {/* Add members */}
+            <div className="rounded-2xl border bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div className="space-y-1">
+                  <div className="font-semibold">เพิ่มผู้เข้าร่วมกลุ่ม (Add Members)</div>
+                  <div className="text-sm text-gray-600">แสดงเฉพาะคนที่ “ยังไม่เป็นสมาชิก”</div>
+                </div>
+
+                <button
+                  className={cn(
+                    "h-10 rounded-xl px-4 text-sm font-medium",
+                    selectedAddIds.length === 0 || adding
+                      ? "cursor-not-allowed bg-gray-200 text-gray-500"
+                      : "bg-black text-white"
+                  )}
+                  disabled={selectedAddIds.length === 0 || adding}
+                  onClick={addMembersToGroup}
+                >
+                  {adding ? "กำลังเพิ่ม..." : `Add (${selectedAddIds.length})`}
+                </button>
+              </div>
+
+              <div className="mt-3 grid gap-2">
+                {addableUsers.length === 0 ? (
+                  <div className="text-sm text-gray-500">ไม่มีรายชื่อที่เพิ่มได้ (ทุกคนเป็นสมาชิกแล้ว)</div>
+                ) : (
+                  addableUsers.map((m) => {
+                    const label = m.name?.trim() ? m.name : m.email;
+                    return (
+                      <label key={m.id} className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          checked={!!selectedToAdd[m.id]}
+                          onChange={(e) => setSelectedToAdd((p) => ({ ...p, [m.id]: e.target.checked }))}
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">{label}</div>
+                          <div className="truncate text-xs text-gray-500">{m.email}</div>
+                        </div>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
         ) : null}
@@ -414,7 +545,6 @@ useEffect(() => {
                           <div className="shrink-0 text-[11px] text-gray-500">{fmtDateTime(msg.createdAt)}</div>
                         </div>
 
-                        {/* ✅ แนบรายงาน: แสดงเป็นลิงก์ ไม่ render preview ในแชท (กัน client crash) */}
                         {msg.reportId ? (
                           <div className="mb-2 rounded-xl border bg-white p-2">
                             <div className="mb-2 text-xs font-medium text-gray-700">แนบ Daily Report</div>
@@ -467,7 +597,7 @@ useEffect(() => {
               <textarea
                 ref={inputRef}
                 className="h-20 w-full resize-none rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
-                placeholder="พิมพ์ข้อความ... ใช้ @ เพื่อ mention คนในโครงการ"
+                placeholder="พิมพ์ข้อความ... ใช้ @ เพื่อ mention คนในกลุ่ม"
                 value={text}
                 onChange={(e) => handleTextChange(e.target.value)}
                 onKeyDown={(e) => {
@@ -516,7 +646,9 @@ useEffect(() => {
                       </button>
                     </div>
                   ) : (
-                    <div className="text-xs text-gray-500">กด <span className="font-semibold">+</span> เพื่อแนบ Daily Report</div>
+                    <div className="text-xs text-gray-500">
+                      กด <span className="font-semibold">+</span> เพื่อแนบ Daily Report
+                    </div>
                   )}
                 </div>
 
