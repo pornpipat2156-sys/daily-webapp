@@ -1,9 +1,13 @@
+// app/api/chat/members/[memberId]/disable/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 
-export async function PATCH(_: Request, { params }: { params: { memberId: string } }) {
+export async function PATCH(
+  _req: Request,
+  context: { params: Promise<{ memberId: string }> }
+) {
   const session = await getServerSession(authOptions);
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
 
@@ -14,7 +18,7 @@ export async function PATCH(_: Request, { params }: { params: { memberId: string
   // ✅ ทำเพื่อ: เฉพาะ SUPERADMIN เท่านั้นที่ disable สมาชิกได้
   if (role !== "SUPERADMIN") return new NextResponse("Forbidden", { status: 403 });
 
-  const memberId = params.memberId;
+  const { memberId } = await context.params; // ✅ สำคัญ: await เพราะเป็น Promise
   if (!memberId) return new NextResponse("Missing memberId", { status: 400 });
 
   const updated = await prisma.chatGroupMember.update({
