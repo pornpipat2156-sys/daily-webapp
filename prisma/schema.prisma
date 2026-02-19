@@ -163,6 +163,7 @@ model ChatGroupMember {
   id        String   @id @default(cuid())
   projectId String
   userId    String
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
