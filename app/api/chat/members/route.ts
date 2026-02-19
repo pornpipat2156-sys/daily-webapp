@@ -48,76 +48,38 @@ export async function GET(req: Request) {
     }))
   );
 }
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
 
-  const meId = (session as any)?.user?.id as string | undefined;
   const role = (session as any)?.user?.role as string | undefined;
-  if (!meId) return new NextResponse("Missing session user id", { status: 400 });
-
-  // ✅ ทำเพื่อ: เฉพาะ SUPERADMIN เท่านั้นที่เพิ่มสมาชิกได้
   if (role !== "SUPERADMIN") return new NextResponse("Forbidden", { status: 403 });
 
-  const body = await req.json().catch(() => null);
+  const body = await req.json();
   const projectId = String(body?.projectId || "");
-  const userId = body?.userId == null ? "" : String(body.userId);
-  const email = body?.email == null ? "" : String(body.email).trim().toLowerCase();
+  const userId = String(body?.userId || "");
+  if (!projectId || !userId) return new NextResponse("Missing projectId/userId", { status: 400 });
 
-  if (!projectId) return new NextResponse("Missing projectId", { status: 400 });
-  if (!userId && !email) return new NextResponse("Missing userId or email", { status: 400 });
-
-  // ✅ ทำเพื่อ: รองรับทั้งเพิ่มด้วย userId หรือด้วย email
-  const user = userId
-    ? await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true, role: true } })
-    : await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, name: true, role: true } });
-
-  if (!user) return new NextResponse("User not found", { status: 404 });
-
-  // ✅ ทำเพื่อ: ถ้ามี member อยู่แล้ว ให้ "reactivate" แทนการสร้างใหม่
-  const existing = await prisma.chatGroupMember.findUnique({
-    where: { projectId_userId: { projectId, userId: user.id } },
-    select: { id: true, isActive: true },
-  });
-
-  if (existing) {
-    const updated = await prisma.chatGroupMember.update({
-      where: { id: existing.id },
-      data: { isActive: true },
-      include: { user: { select: { id: true, email: true, name: true, role: true } } },
-    });
-
-    return NextResponse.json({
-      ok: true,
-      member: {
-        memberId: updated.id,
-        userId: updated.user.id,
-        email: updated.user.email,
-        name: updated.user.name,
-        role: updated.user.role ?? "USER",
-        isActive: updated.isActive,
-        createdAt: updated.createdAt.toISOString(),
-      },
-      reactivated: true,
-    });
-  }
-
-  const created = await prisma.chatGroupMember.create({
-    data: { projectId, userId: user.id, isActive: true },
-    include: { user: { select: { id: true, email: true, name: true, role: true } } },
+  const row = await prisma.chatGroupMember.upsert({
+    where: { projectId_userId: { projectId, userId } },
+    create: { projectId, userId },
+    update: {}, // ถ้ามีอยู่แล้วก็ถือว่าสมาชิกอยู่แล้ว
+    select: {
+      id: true,
+      projectId: true,
+      userId: true,
+      createdAt: true,
+      user: { select: { id: true, email: true, name: true, role: true } },
+    },
   });
 
   return NextResponse.json({
-    ok: true,
-    member: {
-      memberId: created.id,
-      userId: created.user.id,
-      email: created.user.email,
-      name: created.user.name,
-      role: created.user.role ?? "USER",
-      isActive: created.isActive,
-      createdAt: created.createdAt.toISOString(),
-    },
-    reactivated: false,
+    memberId: row.id,
+    userId: row.userId,
+    email: row.user.email,
+    name: row.user.name,
+    role: row.user.role ?? "USER",
+    isActive: true, // สำหรับ UI เดิม (ตอนนี้เราไม่ใช้ disabled แล้ว)
   });
 }

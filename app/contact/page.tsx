@@ -19,6 +19,7 @@ type GroupMemberRow = {
   email: string;
   name: string | null;
   role: string;
+  // ✅ คงไว้เพื่อ backward compatible (ตอนนี้เราใช้ Remove จริง จึงแทบจะเป็น true เสมอ)
   isActive: boolean;
 };
 
@@ -66,15 +67,15 @@ export default function ContactPage() {
   const [allowUsers, setAllowUsers] = useState<AllowUserRow[]>([]);
   const [groupMembers, setGroupMembers] = useState<GroupMemberRow[]>([]);
 
-  // ✅ UI helpers (กันรกเวลา 100 คน)
+  // ✅ ทำเพื่อ: ไม่รกเวลาสมาชิกเยอะ
   const [memberQuery, setMemberQuery] = useState("");
   const [addQuery, setAddQuery] = useState("");
   const [showAllMembers, setShowAllMembers] = useState(false);
-  const [showDisabled, setShowDisabled] = useState(false);
   const PAGE_SIZE = 20;
 
   const [selectedToAdd, setSelectedToAdd] = useState<Record<string, boolean>>({}); // key = userId
   const [adding, setAdding] = useState(false);
+  const [togglingMemberId, setTogglingMemberId] = useState<string | null>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -111,12 +112,8 @@ export default function ContactPage() {
     if (!res.ok) throw new Error(await res.text());
     return (await res.json()) as T;
   }
-  async function jpatch<T>(url: string, body?: any): Promise<T> {
-    const res = await fetch(url, {
-      method: "PATCH",
-      headers: body ? { "Content-Type": "application/json" } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+  async function jdel<T>(url: string): Promise<T> {
+    const res = await fetch(url, { method: "DELETE" });
     if (!res.ok) throw new Error(await res.text());
     return (await res.json()) as T;
   }
@@ -132,7 +129,7 @@ export default function ContactPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  // โหลด allow-email + สมาชิกกลุ่มจริง (เพื่อทำให้ UI “เพิ่มแล้วหาย” และมีปุ่มลบ/disable)
+  // โหลด allow-email + สมาชิกกลุ่มจริง
   useEffect(() => {
     if (!projectId) return;
 
@@ -145,11 +142,10 @@ export default function ContactPage() {
 
         setAllowUsers(allowRows);
 
-        // รองรับทั้งแบบ API คืน array ตรงๆ
         const list = Array.isArray(memberRows) ? memberRows : Array.isArray(memberRows?.members) ? memberRows.members : [];
         const normalized: GroupMemberRow[] = list.map((m: any) => ({
           memberId: String(m.memberId ?? m.id ?? ""),
-          userId: String(m.userId ?? ""),
+          userId: String(m.userId ?? m.id ?? ""),
           email: String(m.email ?? ""),
           name: m.name ?? null,
           role: String(m.role ?? "USER"),
@@ -214,7 +210,7 @@ export default function ContactPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickerOpen, projectId]);
 
-  // ✅ คำนวณ “คนที่เพิ่มได้” = AllowEmail ที่ยังไม่เป็นสมาชิกกลุ่ม (Active/Disabled ก็ถือว่าเป็น member แล้ว)
+  // ✅ ทำเพื่อ: ให้ “Add Members” แสดงเฉพาะคนที่ยังไม่อยู่ในกลุ่มจริง
   const memberEmailSet = useMemo(() => {
     const s = new Set<string>();
     for (const m of groupMembers) s.add(normEmail(m.email));
@@ -225,28 +221,22 @@ export default function ContactPage() {
     return allowUsers.filter((u) => !memberEmailSet.has(normEmail(u.email)));
   }, [allowUsers, memberEmailSet]);
 
-  // ✅ filter/search members
-  const filteredActiveMembers = useMemo(() => {
+  // ✅ ทำเพื่อ: search + limit members (กันรกถ้ามี 100 คน)
+  const filteredMembers = useMemo(() => {
     const q = memberQuery.trim().toLowerCase();
-    const list = groupMembers.filter((m) => m.isActive);
-    if (!q) return list;
-    return list.filter(
+    const base = groupMembers.filter((m) => m.isActive !== false); // ตอนนี้จริง ๆ คือ active ทั้งหมด
+    if (!q) return base;
+    return base.filter(
       (m) =>
         (m.name ?? m.email).toLowerCase().includes(q) ||
         m.email.toLowerCase().includes(q)
     );
   }, [groupMembers, memberQuery]);
 
-  const filteredDisabledMembers = useMemo(() => {
-    const q = memberQuery.trim().toLowerCase();
-    const list = groupMembers.filter((m) => !m.isActive);
-    if (!q) return list;
-    return list.filter(
-      (m) =>
-        (m.name ?? m.email).toLowerCase().includes(q) ||
-        m.email.toLowerCase().includes(q)
-    );
-  }, [groupMembers, memberQuery]);
+  const visibleMembers = useMemo(() => {
+    if (showAllMembers) return filteredMembers;
+    return filteredMembers.slice(0, PAGE_SIZE);
+  }, [filteredMembers, showAllMembers]);
 
   const filteredAddable = useMemo(() => {
     const q = addQuery.trim().toLowerCase();
@@ -258,12 +248,8 @@ export default function ContactPage() {
     );
   }, [addableUsers, addQuery]);
 
-  const visibleActiveMembers = useMemo(() => {
-    if (showAllMembers) return filteredActiveMembers;
-    return filteredActiveMembers.slice(0, PAGE_SIZE);
-  }, [filteredActiveMembers, showAllMembers]);
-
   const visibleAddable = useMemo(() => {
+    // จำกัดแสดง list ฝั่ง Add กันยาวเกิน
     return filteredAddable.slice(0, 50);
   }, [filteredAddable]);
 
@@ -277,7 +263,7 @@ export default function ContactPage() {
     const list = Array.isArray(memberRows) ? memberRows : Array.isArray(memberRows?.members) ? memberRows.members : [];
     const normalized: GroupMemberRow[] = list.map((m: any) => ({
       memberId: String(m.memberId ?? m.id ?? ""),
-      userId: String(m.userId ?? ""),
+      userId: String(m.userId ?? m.id ?? ""),
       email: String(m.email ?? ""),
       name: m.name ?? null,
       role: String(m.role ?? "USER"),
@@ -290,11 +276,10 @@ export default function ContactPage() {
     if (!projectId || selectedAddIds.length === 0) return;
     setAdding(true);
     try {
-      // ✅ ใช้ API ใหม่ที่เสถียร: POST /api/chat/members (เพิ่มทีละคน)
+      // ✅ ทำเพื่อความเสถียร: add ทีละคน (และ server ควร upsert กันกดซ้ำ)
       for (const userId of selectedAddIds) {
         await jpost(`/api/chat/members`, { projectId, userId });
       }
-
       await reloadMembersOnly();
       setSelectedToAdd({});
       alert("เพิ่มสมาชิกสำเร็จ");
@@ -306,23 +291,27 @@ export default function ContactPage() {
     }
   }
 
-  async function disableMember(memberId: string) {
+  async function removeMember(memberId: string) {
     if (!memberId) return;
-    if (!confirm("ต้องการปิดสิทธิ์สมาชิกคนนี้ใช่ไหม? (Disable)")) return;
+    if (!confirm("ต้องการ Remove สมาชิกคนนี้ออกจากกลุ่มใช่ไหม?")) return;
 
+    setTogglingMemberId(memberId);
     try {
-      await jpatch(`/api/chat/members/${encodeURIComponent(memberId)}/disable`);
-      setGroupMembers((prev) => prev.map((m) => (m.memberId === memberId ? { ...m, isActive: false } : m)));
+      // ✅ ทำเพื่อ: Remove จริง (ลบสมาชิกออกจากกลุ่ม) แต่ยัง Add กลับได้เพราะ AllowEmail ยังอยู่
+      await jdel(`/api/chat/members/${encodeURIComponent(memberId)}`);
+      setGroupMembers((prev) => prev.filter((m) => m.memberId !== memberId));
     } catch (e) {
       console.error(e);
-      alert("Disable ไม่สำเร็จ: " + String((e as any)?.message || e));
+      alert("Remove ไม่สำเร็จ: " + String((e as any)?.message || e));
+    } finally {
+      setTogglingMemberId(null);
     }
   }
 
-  // --- Mention logic (ใช้เฉพาะสมาชิกที่ active เท่านั้น) ---
+  // --- Mention logic (ใช้เฉพาะคนในกลุ่ม) ---
   const mentionSource: AllowUserRow[] = useMemo(() => {
     return groupMembers
-      .filter((m) => m.isActive)
+      .filter((m) => m.isActive !== false)
       .map((m) => ({ id: m.userId, email: m.email, name: m.name, role: m.role }));
   }, [groupMembers]);
 
@@ -404,7 +393,7 @@ export default function ContactPage() {
 
     setSending(true);
     try {
-      // ✅ เสถียร: mentionUserIds ไม่ส่งจาก client (backend จะ parse เองใน Phase C)
+      // ✅ ทำเพื่อความปลอดภัย/เสถียร: mentionUserIds จะไปทำ backend parse ใน Phase C
       const created = await jpost<ChatMessage>("/api/chat/messages", {
         projectId,
         text: hasText ? text.trim() : null,
@@ -460,15 +449,15 @@ export default function ContactPage() {
           </div>
         </div>
 
-        {/* ✅ Member management: เพิ่ม + ลบ ดูง่ายในหน้าเดียว */}
+        {/* ✅ Member management: เพิ่ม + Remove ดูง่ายในหน้าเดียว */}
         {isSuperAdmin ? (
           <div className="grid gap-4 md:grid-cols-2">
-            {/* Members */}
+            {/* Current Members */}
             <div className="rounded-2xl border bg-white p-4 shadow-sm">
               <div className="space-y-1">
                 <div className="font-semibold">สมาชิกในกลุ่ม (Current Members)</div>
                 <div className="text-sm text-gray-600">
-                  Active: <span className="font-medium">{filteredActiveMembers.length}</span> / ทั้งหมด {groupMembers.length}
+                  Active: <span className="font-medium">{groupMembers.length}</span> / ทั้งหมด {groupMembers.length}
                 </div>
               </div>
 
@@ -479,78 +468,53 @@ export default function ContactPage() {
                 onChange={(e) => setMemberQuery(e.target.value)}
               />
 
-              <label className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-                <input
-                  type="checkbox"
-                  checked={showDisabled}
-                  onChange={(e) => setShowDisabled(e.target.checked)}
-                />
-                แสดง Disabled
-              </label>
-
               <div className="mt-3 space-y-2">
-                {filteredActiveMembers.length === 0 ? (
+                {filteredMembers.length === 0 ? (
                   <div className="text-sm text-gray-500">ยังไม่มีสมาชิก</div>
                 ) : (
-                  visibleActiveMembers.map((m) => {
-                    const label = m.name?.trim() ? m.name : m.email;
-                    return (
-                      <div key={m.memberId} className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium">{label}</div>
-                          <div className="truncate text-xs text-gray-500">{m.email}</div>
-                        </div>
-
-                        <button
-                          className="h-9 rounded-xl border px-3 text-xs hover:bg-gray-50"
-                          onClick={() => disableMember(m.memberId)}
-                          title="Disable member"
-                        >
-                          Disable
-                        </button>
-                      </div>
-                    );
-                  })
-                )}
-
-                {showAllMembers === false && filteredActiveMembers.length > PAGE_SIZE ? (
-                  <div className="text-xs text-gray-500">
-                    แสดง {PAGE_SIZE} คนแรก จากทั้งหมด {filteredActiveMembers.length}
-                  </div>
-                ) : null}
-
-                {filteredActiveMembers.length > PAGE_SIZE ? (
-                  <button
-                    className="mt-3 h-10 w-full rounded-xl border text-sm hover:bg-gray-50"
-                    onClick={() => setShowAllMembers((v) => !v)}
-                  >
-                    {showAllMembers ? "ซ่อน (แสดง 20 คนแรก)" : `ดูทั้งหมด (${filteredActiveMembers.length})`}
-                  </button>
-                ) : null}
-
-                {showDisabled && filteredDisabledMembers.length > 0 ? (
-                  <div className="pt-2">
-                    <div className="text-xs font-medium text-gray-600">Disabled</div>
-                    <div className="mt-2 space-y-2">
-                      {filteredDisabledMembers.map((m) => (
-                        <div
-                          key={m.memberId}
-                          className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2 opacity-60"
-                        >
+                  <>
+                    {visibleMembers.map((m) => {
+                      const label = m.name?.trim() ? m.name : m.email;
+                      const busy = togglingMemberId === m.memberId;
+                      return (
+                        <div key={m.memberId} className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2">
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-medium">{m.name?.trim() ? m.name : m.email}</div>
+                            <div className="truncate text-sm font-medium">{label}</div>
                             <div className="truncate text-xs text-gray-500">{m.email}</div>
                           </div>
-                          <div className="text-xs text-gray-500">Disabled</div>
+
+                          <button
+                            className={cn(
+                              "h-9 rounded-xl border px-3 text-xs",
+                              busy ? "cursor-not-allowed bg-gray-100 text-gray-400" : "hover:bg-gray-50"
+                            )}
+                            onClick={() => removeMember(m.memberId)}
+                            disabled={busy}
+                            title="Remove member"
+                          >
+                            {busy ? "กำลังทำ..." : "Remove"}
+                          </button>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+                      );
+                    })}
+
+                    {filteredMembers.length > PAGE_SIZE ? (
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          className="h-9 rounded-xl border px-3 text-xs hover:bg-gray-50"
+                          onClick={() => setShowAllMembers((v) => !v)}
+                        >
+                          {showAllMembers ? "แสดงน้อยลง" : `แสดงทั้งหมด (${filteredMembers.length})`}
+                        </button>
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </div>
             </div>
 
-            {/* Add members */}
+            {/* Add Members */}
             <div className="rounded-2xl border bg-white p-4 shadow-sm">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div className="space-y-1">
@@ -583,29 +547,34 @@ export default function ContactPage() {
                 {filteredAddable.length === 0 ? (
                   <div className="text-sm text-gray-500">ไม่มีรายชื่อที่เพิ่มได้ (ทุกคนเป็นสมาชิกแล้ว)</div>
                 ) : (
-                  visibleAddable.map((m) => {
-                    const label = m.name?.trim() ? m.name : m.email;
-                    return (
-                      <label key={m.id} className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm hover:bg-gray-50">
-                        <input
-                          type="checkbox"
-                          checked={!!selectedToAdd[m.id]}
-                          onChange={(e) => setSelectedToAdd((p) => ({ ...p, [m.id]: e.target.checked }))}
-                        />
-                        <div className="min-w-0">
-                          <div className="truncate font-medium">{label}</div>
-                          <div className="truncate text-xs text-gray-500">{m.email}</div>
-                        </div>
-                      </label>
-                    );
-                  })
-                )}
+                  <>
+                    {visibleAddable.map((u) => {
+                      const label = u.name?.trim() ? u.name : u.email;
+                      return (
+                        <label
+                          key={u.id}
+                          className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm hover:bg-gray-50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!!selectedToAdd[u.id]}
+                            onChange={(e) => setSelectedToAdd((p) => ({ ...p, [u.id]: e.target.checked }))}
+                          />
+                          <div className="min-w-0">
+                            <div className="truncate font-medium">{label}</div>
+                            <div className="truncate text-xs text-gray-500">{u.email}</div>
+                          </div>
+                        </label>
+                      );
+                    })}
 
-                {filteredAddable.length > 50 ? (
-                  <div className="text-xs text-gray-500">
-                    แสดง 50 รายชื่อแรกจากทั้งหมด {filteredAddable.length} (ใช้ช่องค้นหาเพื่อหาเร็วขึ้น)
-                  </div>
-                ) : null}
+                    {filteredAddable.length > 50 ? (
+                      <div className="text-xs text-gray-500">
+                        แสดง 50 รายชื่อแรก (ใช้ช่องค้นหาเพื่อเจาะจง)
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -616,7 +585,8 @@ export default function ContactPage() {
           <div className="border-b p-4">
             <div className="font-semibold">ห้องแชท</div>
             <div className="text-sm text-gray-600">
-              โครงการ: <span className="font-medium">{projects.find((p) => p.id === projectId)?.projectName ?? "-"}</span>
+              โครงการ:{" "}
+              <span className="font-medium">{projects.find((p) => p.id === projectId)?.projectName ?? "-"}</span>
             </div>
           </div>
 
@@ -641,7 +611,6 @@ export default function ContactPage() {
                           <div className="shrink-0 text-[11px] text-gray-500">{fmtDateTime(msg.createdAt)}</div>
                         </div>
 
-                        {/* ✅ แนบรายงาน: แสดงเป็นลิงก์ ไม่ render preview ในแชท (กัน client crash) */}
                         {msg.reportId ? (
                           <div className="mb-2 rounded-xl border bg-white p-2">
                             <div className="mb-2 text-xs font-medium text-gray-700">แนบ Daily Report</div>
