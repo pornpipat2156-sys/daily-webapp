@@ -23,6 +23,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
         id: true,
         projectId: true,
         date: true,
+        payload: true, // ✅ สำคัญ: ดึง payload กลับมา
         project: { select: { name: true, meta: true } },
         issues: {
           orderBy: { createdAt: "asc" },
@@ -47,6 +48,8 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 
     if (!report) return NextResponse.json({ ok: false, message: "report not found" }, { status: 404 });
 
+    const payload = (report.payload && typeof report.payload === "object") ? report.payload : {};
+
     return NextResponse.json({
       ok: true,
       report: {
@@ -55,6 +58,11 @@ export async function GET(req: NextRequest, ctx: Ctx) {
         date: report.date.toISOString(),
         projectName: report.project.name,
         projectMeta: report.project.meta ?? null,
+
+        // ✅ ส่งข้อมูลฟอร์มทั้งหมดกลับมาแบบ “top-level” เพื่อให้ทุกหน้าอ่านได้
+        ...(payload as any),
+
+        // ✅ issues จากตาราง Issue จริง (พร้อม comments)
         issues: report.issues.map((it) => ({
           ...it,
           createdAt: it.createdAt.toISOString(),

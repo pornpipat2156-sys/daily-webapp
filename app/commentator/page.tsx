@@ -233,11 +233,59 @@ function representativeWeather(
   return weatherTextFromCode(bestCode);
 }
 
-/** ✅ NEW: issue ที่ถูกลบ/แก้ไขโดยผู้กรอก (archived) — ห้ามเอามาปนในตารางหลัก */
+/** ✅ issue ที่ถูกลบ/แก้ไขโดยผู้กรอก (archived) — ห้ามเอามาปนในตารางหลัก */
 function isArchivedIssue(it: Issue) {
   const d = norm(it?.detail || "");
-  // เงื่อนไขนี้สอดคล้องกับฝั่ง upsert ที่ set ข้อความไว้
   return d.includes("รายการนี้ถูกลบ/แก้ไขโดยผู้กรอก") || d.includes("ถูกลบ/แก้ไขโดยผู้กรอก");
+}
+
+/** ✅ NEW: normalize report ให้รองรับทั้ง
+ * - API ส่ง field ฟอร์มมาแบบ top-level (แนะนำ)
+ * - หรือเก่า ๆ ที่ยังอยู่ใน report.payload
+ */
+function normalizeReport(raw: any): ReportDetail {
+  const payload = raw?.payload && typeof raw.payload === "object" ? raw.payload : {};
+
+  const projectMeta: ProjectMeta | null =
+    (raw?.projectMeta && typeof raw.projectMeta === "object" ? raw.projectMeta : null) ??
+    (payload?.projectMeta && typeof payload.projectMeta === "object" ? payload.projectMeta : null) ??
+    null;
+
+  return {
+    id: String(raw?.id || ""),
+    projectId: String(raw?.projectId || payload?.projectId || ""),
+    date: String(raw?.date || payload?.date || ""),
+    projectName: String(raw?.projectName || payload?.projectName || ""),
+
+    projectMeta,
+    issues: Array.isArray(raw?.issues) ? raw.issues : Array.isArray(payload?.issues) ? payload.issues : [],
+
+    contractors: Array.isArray(raw?.contractors)
+      ? raw.contractors
+      : Array.isArray(payload?.contractors)
+      ? payload.contractors
+      : [],
+    subContractors: Array.isArray(raw?.subContractors)
+      ? raw.subContractors
+      : Array.isArray(payload?.subContractors)
+      ? payload.subContractors
+      : [],
+    majorEquipment: Array.isArray(raw?.majorEquipment)
+      ? raw.majorEquipment
+      : Array.isArray(payload?.majorEquipment)
+      ? payload.majorEquipment
+      : [],
+    workPerformed: Array.isArray(raw?.workPerformed)
+      ? raw.workPerformed
+      : Array.isArray(payload?.workPerformed)
+      ? payload.workPerformed
+      : [],
+    safetyNote:
+      typeof raw?.safetyNote === "string" ? raw.safetyNote : typeof payload?.safetyNote === "string" ? payload.safetyNote : "",
+
+    tempMaxC: raw?.tempMaxC ?? payload?.tempMaxC ?? null,
+    tempMinC: raw?.tempMinC ?? payload?.tempMinC ?? null,
+  };
 }
 
 export default function CommentatorPage() {
@@ -389,7 +437,7 @@ export default function CommentatorPage() {
         if (!res.ok || !json?.ok) throw new Error(json?.message || "โหลดรายงานไม่สำเร็จ");
 
         if (!cancel) {
-          const rep = json.report as ReportDetail;
+          const rep = normalizeReport(json.report);
           setDetail(rep);
 
           // ✅ initDraft เฉพาะ issues ที่ยัง active (ไม่เอา archived มาปน)
@@ -509,7 +557,7 @@ export default function CommentatorPage() {
 
   const canShowReport = Boolean(projectId && reportId && detail);
 
-  // ✅ NEW: แยก issues เป็น active/archived
+  // ✅ แยก issues เป็น active/archived
   const activeIssues = useMemo(() => (detail?.issues || []).filter((x) => !isArchivedIssue(x)), [detail?.issues]);
   const archivedIssues = useMemo(() => (detail?.issues || []).filter((x) => isArchivedIssue(x)), [detail?.issues]);
 
@@ -539,7 +587,7 @@ export default function CommentatorPage() {
 
       const again = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}`, { cache: "no-store" });
       const againJson = await again.json().catch(() => null);
-      if (again.ok && againJson?.ok) setDetail(againJson.report as ReportDetail);
+      if (again.ok && againJson?.ok) setDetail(normalizeReport(againJson.report));
 
       setDraft((m) => ({ ...m, [issueId]: "" }));
     } catch (e: any) {
@@ -1084,7 +1132,7 @@ export default function CommentatorPage() {
                         </table>
                       </div>
 
-                      {/* ===================== ISSUES (✅ ใช้เฉพาะ activeIssues ไม่เอา archived มาปน) ===================== */}
+                      {/* ===================== ISSUES (active เท่านั้น) ===================== */}
                       <div className="box mt-4">
                         <table>
                           <colgroup>
@@ -1171,7 +1219,7 @@ export default function CommentatorPage() {
                         </table>
                       </div>
 
-                      {/* ✅ NEW: ประวัติที่ถูกลบ/แก้ไข (เก็บคอมเมนต์ไว้ แต่ไม่ปนในตารางหลัก) */}
+                      {/* ✅ ประวัติ issue ที่ถูกลบ/แก้ไข */}
                       {archivedIssues.length ? (
                         <div className="box mt-4">
                           <div className="subBar cell">ประวัติ “ปัญหา/อุปสรรค” ที่ถูกลบหรือแก้ไข</div>

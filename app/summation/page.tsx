@@ -165,7 +165,7 @@ function weatherTextFromCode(code: number | null | undefined) {
   if (code >= 95) return "พายุฝนฟ้าคะนอง";
   return "สภาพอากาศแปรปรวน";
 }
-async function fetchHourlyWeather(dateISO: string) {
+async function fetchHourlyWeather(dateYmd: string) {
   const lat = 18.7883;
   const lon = 98.9853;
   const url =
@@ -173,7 +173,7 @@ async function fetchHourlyWeather(dateISO: string) {
     `?latitude=${lat}&longitude=${lon}` +
     `&hourly=temperature_2m,weathercode` +
     `&timezone=Asia%2FBangkok` +
-    `&start_date=${dateISO}&end_date=${dateISO}`;
+    `&start_date=${dateYmd}&end_date=${dateYmd}`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error("hourly weather fetch failed");
@@ -233,6 +233,55 @@ function representativeWeather(
     }
   }
   return weatherTextFromCode(bestCode);
+}
+
+/** ✅ NEW: normalize report ให้รองรับทั้ง
+ * - API ส่ง field ฟอร์มมาแบบ top-level (แนะนำ)
+ * - หรือเก่า ๆ ที่ยังอยู่ใน report.payload
+ */
+function normalizeReport(raw: any): ReportDetail {
+  const payload = raw?.payload && typeof raw.payload === "object" ? raw.payload : {};
+
+  const projectMeta: ProjectMeta | null =
+    (raw?.projectMeta && typeof raw.projectMeta === "object" ? raw.projectMeta : null) ??
+    (payload?.projectMeta && typeof payload.projectMeta === "object" ? payload.projectMeta : null) ??
+    null;
+
+  return {
+    id: String(raw?.id || ""),
+    projectId: String(raw?.projectId || payload?.projectId || ""),
+    date: String(raw?.date || payload?.date || ""),
+    projectName: String(raw?.projectName || payload?.projectName || ""),
+
+    projectMeta,
+    issues: Array.isArray(raw?.issues) ? raw.issues : Array.isArray(payload?.issues) ? payload.issues : [],
+
+    contractors: Array.isArray(raw?.contractors)
+      ? raw.contractors
+      : Array.isArray(payload?.contractors)
+      ? payload.contractors
+      : [],
+    subContractors: Array.isArray(raw?.subContractors)
+      ? raw.subContractors
+      : Array.isArray(payload?.subContractors)
+      ? payload.subContractors
+      : [],
+    majorEquipment: Array.isArray(raw?.majorEquipment)
+      ? raw.majorEquipment
+      : Array.isArray(payload?.majorEquipment)
+      ? payload.majorEquipment
+      : [],
+    workPerformed: Array.isArray(raw?.workPerformed)
+      ? raw.workPerformed
+      : Array.isArray(payload?.workPerformed)
+      ? payload.workPerformed
+      : [],
+    safetyNote:
+      typeof raw?.safetyNote === "string" ? raw.safetyNote : typeof payload?.safetyNote === "string" ? payload.safetyNote : "",
+
+    tempMaxC: raw?.tempMaxC ?? payload?.tempMaxC ?? null,
+    tempMinC: raw?.tempMinC ?? payload?.tempMinC ?? null,
+  };
 }
 
 export default function SummationPage() {
@@ -376,7 +425,7 @@ export default function SummationPage() {
         const res = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.ok) throw new Error(json?.message || "โหลดรายงานไม่สำเร็จ");
-        if (!cancel) setDetail(json.report as ReportDetail);
+        if (!cancel) setDetail(normalizeReport(json.report));
       } catch (e: any) {
         if (!cancel) setErr(e?.message ?? "โหลดรายงานไม่สำเร็จ");
       } finally {
@@ -468,11 +517,11 @@ export default function SummationPage() {
     let cancelled = false;
     async function run() {
       if (!detail?.date) return;
-      const dateISO = String(detail.date).slice(0, 10);
+      const dateYmd = String(detail.date).includes("T") ? String(detail.date).slice(0, 10) : String(detail.date);
 
       setWxLoading(true);
       try {
-        const hourly = await fetchHourlyWeather(dateISO);
+        const hourly = await fetchHourlyWeather(dateYmd);
 
         const start = hmToMin("06:00");
         const end = hasOvertime ? hmToMin("24:00") : hmToMin("18:00");
@@ -508,8 +557,6 @@ export default function SummationPage() {
       cancelled = true;
     };
   }, [detail?.date, detail?.tempMaxC, detail?.tempMinC, hasOvertime]);
-
-  const canShowReport = Boolean(projectId && reportId && detail);
 
   const pm = detail?.projectMeta || {};
   const contractors = detail?.contractors || [];
