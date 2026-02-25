@@ -1,3 +1,4 @@
+// app/daily-report/pagr.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -151,6 +152,53 @@ async function compressImageToDataUrl(
   }
 }
 
+/** ✅ คำนวณ weekNo / periodNo / annexNo / dailyReportNo อัตโนมัติจากวันเริ่ม-สิ้นสุดสัญญา + วันที่รายงาน */
+function computeAutoMeta(p: ProjectMeta, reportDate: string) {
+  function parseISODateOnly(iso: string) {
+    const [y, m, d] = (iso || "").split("-").map(Number);
+    if (!y || !m || !d) return null;
+    // บังคับเที่ยงวันกัน timezone เพี้ยน
+    return new Date(y, m - 1, d, 12, 0, 0, 0);
+  }
+  function clamp(n: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, n));
+  }
+
+  const s = parseISODateOnly(p.contractStart);
+  const e = parseISODateOnly(p.contractEnd);
+  const r = parseISODateOnly(reportDate);
+
+  // fallback ถ้าวันไม่ครบ ให้คืนค่าเดิม (กันระบบพัง)
+  if (!s || !e || !r) {
+    return {
+      weekNo: p.weekNo,
+      annexNo: "1",
+      periodNo: p.periodNo,
+      dailyReportNo: p.dailyReportNo,
+    };
+  }
+
+  const totalDaysByDates = Math.max(1, Math.floor((e.getTime() - s.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+  const totalDays = Number.isFinite(totalDaysByDates) ? totalDaysByDates : Math.max(1, p.totalDurationDays || 1);
+
+  const rawDayNo = Math.floor((r.getTime() - s.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+  const dayNo = clamp(rawDayNo, 1, totalDays);
+
+  const totalWeeks = Math.max(1, Math.ceil(totalDays / 7));
+  const weekIndex = clamp(Math.floor((dayNo - 1) / 7) + 1, 1, totalWeeks);
+
+  const installmentCount = Math.max(1, Math.floor(p.installmentCount || 1));
+  const periodLen = totalDays / installmentCount;
+  const periodIndex = clamp(Math.ceil(dayNo / periodLen), 1, installmentCount);
+
+  return {
+    weekNo: `สัปดาห์ ${weekIndex}/${totalWeeks}`,
+    annexNo: "1",
+    periodNo: `งวด ${periodIndex}/${installmentCount}`,
+    dailyReportNo: `${dayNo}/${totalDays}`,
+  };
+}
+
 /** อุณหภูมิรายวัน (กันพังไว้ก่อน) */
 async function fetchDailyTemp(yyyyMmDd: string) {
   const lat = 18.7883;
@@ -299,8 +347,15 @@ export default function DailyReportPage() {
   );
 
   // ✅ เก็บแบบ ISO เพื่อให้ระบบเดิม + weather ทำงาน
+  // ✅ อนุญาตให้เลือกย้อนหลังได้: ใช้ date picker เดิม (ไม่มี max จำกัด) + โหลด/กรอกย้อนหลังผ่าน DB ได้
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const dateBE = useMemo(() => toBE(date), [date]);
+
+  // ✅ คำนวณเลขรายงานอัตโนมัติจากสัญญา + วันที่ที่เลือก
+  const autoMeta = useMemo(() => {
+    if (!project || !date) return null;
+    return computeAutoMeta(project, date);
+  }, [project, date]);
 
   // weather auto (สำรอง)
   const [tempMaxC, setTempMaxC] = useState<number | null>(null);
@@ -391,7 +446,7 @@ export default function DailyReportPage() {
       if (!alive) return;
       if (!json?.ok) return;
 
-      // ✅ ไม่มีรายงานวันนั้น => รีเซ็ตฟอร์มให้สะอาด
+      // ✅ ไม่มีรายงานวันนั้น => รีเซ็ตฟอร์มให้สะอาด (รองรับการกรอกย้อนหลัง: เลือกวันไหนก็กรอกได้)
       if (!json.reportId) {
         resetForm();
         return;
@@ -580,9 +635,18 @@ export default function DailyReportPage() {
       return;
     }
 
+    // ✅ อัปเดทเลขรายงานอัตโนมัติ (weekNo/annexNo/periodNo/dailyReportNo) ตามสัญญา + วันที่ที่เลือก
+    const patchedProjectMeta: ProjectMeta = {
+      ...project,
+      weekNo: autoMeta?.weekNo ?? project.weekNo,
+      annexNo: autoMeta?.annexNo ?? "1",
+      periodNo: autoMeta?.periodNo ?? project.periodNo,
+      dailyReportNo: autoMeta?.dailyReportNo ?? project.dailyReportNo,
+    };
+
     const payload: DailyReportPayload = {
       projectId,
-      projectMeta: project,
+      projectMeta: patchedProjectMeta,
       date,
       dateBE,
       tempMaxC,
@@ -666,7 +730,7 @@ export default function DailyReportPage() {
           <div>
             <label className="block text-sm font-medium mb-1 text-foreground">วัน/เดือน/ปี พ.ศ.</label>
 
-            {/* ✅ กล่องแสดงผลเป็น พ.ศ. แต่ให้เลือกจาก date picker ได้ */}
+            {/* ✅ กล่องแสดงผลเป็น พ.ศ. แต่ให้เลือกจาก date picker ได้ (รองรับเลือกย้อนหลัง) */}
             <div className="relative">
               <input
                 className="w-full rounded-lg border px-4 py-3 bg-background text-foreground text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40"
@@ -685,6 +749,12 @@ export default function DailyReportPage() {
             <div className="text-xs mt-1 text-muted-foreground">
               (สำรอง) อุณหภูมิรายวัน: สูงสุด {tempMaxC ?? "-"}°C / ต่ำสุด {tempMinC ?? "-"}°C
             </div>
+
+            {project && autoMeta && (
+              <div className="text-xs mt-1 text-muted-foreground">
+                เลขอัตโนมัติ: {autoMeta.weekNo} | {autoMeta.periodNo} | รายงาน {autoMeta.dailyReportNo} | ภาคผนวก {autoMeta.annexNo}
+              </div>
+            )}
           </div>
         </div>
 
