@@ -3,6 +3,8 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 /** ✅ Type ให้ตรงกับ /api/projects และ meta jsonb */
 type ProjectMeta = {
@@ -178,8 +180,13 @@ function computeAutoMeta(p: ProjectMeta, reportDate: string) {
     };
   }
 
-  const totalDaysByDates = Math.max(1, Math.floor((e.getTime() - s.getTime()) / (24 * 60 * 60 * 1000)) + 1);
-  const totalDays = Number.isFinite(totalDaysByDates) ? totalDaysByDates : Math.max(1, p.totalDurationDays || 1);
+  const totalDaysByDates = Math.max(
+    1,
+    Math.floor((e.getTime() - s.getTime()) / (24 * 60 * 60 * 1000)) + 1
+  );
+  const totalDays = Number.isFinite(totalDaysByDates)
+    ? totalDaysByDates
+    : Math.max(1, p.totalDurationDays || 1);
 
   const rawDayNo = Math.floor((r.getTime() - s.getTime()) / (24 * 60 * 60 * 1000)) + 1;
   const dayNo = clamp(rawDayNo, 1, totalDays);
@@ -330,6 +337,21 @@ function toBE(isoYmd: string) {
   return `${dd}/${mm}/${be}`;
 }
 
+/** ✅ (แก้เฉพาะส่วน date) แปลง yyyy-mm-dd -> Date (ตั้ง 12:00 กัน timezone เพี้ยน) */
+function isoToDateOnly(isoYmd: string) {
+  const [y, m, d] = (isoYmd || "").split("-").map(Number);
+  if (!y || !m || !d) return new Date();
+  return new Date(y, m - 1, d, 12, 0, 0, 0);
+}
+
+/** ✅ (แก้เฉพาะส่วน date) แปลง Date -> yyyy-mm-dd (ใช้ local parts กันเพี้ยน) */
+function dateToISODateOnly(dt: Date) {
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const d = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export default function DailyReportPage() {
   const router = useRouter();
 
@@ -350,6 +372,13 @@ export default function DailyReportPage() {
   // ✅ อนุญาตให้เลือกย้อนหลังได้: ใช้ date picker เดิม (ไม่มี max จำกัด) + โหลด/กรอกย้อนหลังผ่าน DB ได้
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const dateBE = useMemo(() => toBE(date), [date]);
+
+  // ✅ (แก้เฉพาะส่วน date) สร้าง state Date สำหรับ DatePicker และ sync กับ `date`
+  const [selectedDate, setSelectedDate] = useState<Date>(() => isoToDateOnly(new Date().toISOString().slice(0, 10)));
+  useEffect(() => {
+    // เมื่อ `date` เปลี่ยนจากที่ไหนก็ตาม ให้ DatePicker ตามเสมอ
+    setSelectedDate(isoToDateOnly(date));
+  }, [date]);
 
   // ✅ คำนวณเลขรายงานอัตโนมัติจากสัญญา + วันที่ที่เลือก
   const autoMeta = useMemo(() => {
@@ -606,7 +635,10 @@ export default function DailyReportPage() {
     [project]
   );
   const equipmentTypeOptions = useMemo(
-    () => (project?.equipmentTypeOptions && project.equipmentTypeOptions.length ? project.equipmentTypeOptions : []),
+    () =>
+      project?.equipmentTypeOptions && project.equipmentTypeOptions.length
+        ? project.equipmentTypeOptions
+        : [],
     [project]
   );
 
@@ -730,19 +762,27 @@ export default function DailyReportPage() {
           <div>
             <label className="block text-sm font-medium mb-1 text-foreground">วัน/เดือน/ปี พ.ศ.</label>
 
-            {/* ✅ กล่องแสดงผลเป็น พ.ศ. แต่ให้เลือกจาก date picker ได้ (รองรับเลือกย้อนหลัง) */}
+            {/* ✅ กล่องแสดงผลเป็น พ.ศ. และ “ซ้อน” input ของ DatePicker แบบใสไว้ด้านบนให้กดแล้วขึ้นแน่นอน */}
             <div className="relative">
               <input
                 className="w-full rounded-lg border px-4 py-3 bg-background text-foreground text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40"
                 value={dateBE}
                 readOnly
               />
-              <input
-                type="date"
-                className="absolute inset-0 opacity-0 cursor-pointer"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                required
+
+              <DatePicker
+                selected={selectedDate}
+                onChange={(d: Date | null) => {
+                  if (!d) return;
+                  setSelectedDate(d);
+                  setDate(dateToISODateOnly(d)); // ✅ สำคัญ: ทำให้ระบบเดิม (load/report/weather) ทำงานต่อได้
+                }}
+                dateFormat="dd/MM/yyyy"
+                withPortal
+                popperPlacement="bottom-start"
+                showPopperArrow={false}
+                // ✅ ทำให้ “คลิกตรงกล่อง พ.ศ.” แล้วเปิดปฏิทินแน่นอนทุก platform
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
             </div>
 
@@ -752,7 +792,8 @@ export default function DailyReportPage() {
 
             {project && autoMeta && (
               <div className="text-xs mt-1 text-muted-foreground">
-                เลขอัตโนมัติ: {autoMeta.weekNo} | {autoMeta.periodNo} | รายงาน {autoMeta.dailyReportNo} | ภาคผนวก {autoMeta.annexNo}
+                เลขอัตโนมัติ: {autoMeta.weekNo} | {autoMeta.periodNo} | รายงาน {autoMeta.dailyReportNo} | ภาคผนวก{" "}
+                {autoMeta.annexNo}
               </div>
             )}
           </div>
@@ -888,7 +929,10 @@ export default function DailyReportPage() {
 
                   <div className="md:col-span-2">
                     <label className="text-xs text-muted-foreground">ช่วงเช้า (เลือกจำนวน)</label>
-                    <QtySelect value={r.morning} onChange={(n) => updateRow(setSubContractors, r.id, { morning: n } as any)} />
+                    <QtySelect
+                      value={r.morning}
+                      onChange={(n) => updateRow(setSubContractors, r.id, { morning: n } as any)}
+                    />
                   </div>
 
                   <div className="md:col-span-2">
@@ -901,7 +945,10 @@ export default function DailyReportPage() {
 
                   <div className="md:col-span-2">
                     <label className="text-xs text-muted-foreground">ล่วงเวลา (เลือกจำนวน)</label>
-                    <QtySelect value={r.overtime} onChange={(n) => updateRow(setSubContractors, r.id, { overtime: n } as any)} />
+                    <QtySelect
+                      value={r.overtime}
+                      onChange={(n) => updateRow(setSubContractors, r.id, { overtime: n } as any)}
+                    />
                   </div>
 
                   <div className="md:col-span-1">
@@ -962,17 +1009,26 @@ export default function DailyReportPage() {
 
                   <div className="md:col-span-2">
                     <label className="text-xs text-muted-foreground">ช่วงเช้า (เลือกจำนวน)</label>
-                    <QtySelect value={r.morning} onChange={(n) => updateRow(setMajorEquipment, r.id, { morning: n } as any)} />
+                    <QtySelect
+                      value={r.morning}
+                      onChange={(n) => updateRow(setMajorEquipment, r.id, { morning: n } as any)}
+                    />
                   </div>
 
                   <div className="md:col-span-2">
                     <label className="text-xs text-muted-foreground">ช่วงบ่าย (เลือกจำนวน)</label>
-                    <QtySelect value={r.afternoon} onChange={(n) => updateRow(setMajorEquipment, r.id, { afternoon: n } as any)} />
+                    <QtySelect
+                      value={r.afternoon}
+                      onChange={(n) => updateRow(setMajorEquipment, r.id, { afternoon: n } as any)}
+                    />
                   </div>
 
                   <div className="md:col-span-2">
                     <label className="text-xs text-muted-foreground">ล่วงเวลา (เลือกจำนวน)</label>
-                    <QtySelect value={r.overtime} onChange={(n) => updateRow(setMajorEquipment, r.id, { overtime: n } as any)} />
+                    <QtySelect
+                      value={r.overtime}
+                      onChange={(n) => updateRow(setMajorEquipment, r.id, { overtime: n } as any)}
+                    />
                   </div>
 
                   <div className="md:col-span-1">
@@ -999,7 +1055,9 @@ export default function DailyReportPage() {
         {/* WORK PERFORMED */}
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-foreground">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)</h2>
+            <h2 className="text-lg font-semibold text-foreground">
+              รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)
+            </h2>
             <button
               type="button"
               className="rounded-lg border px-3 py-2 text-sm bg-background text-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30"
