@@ -374,7 +374,9 @@ export default function DailyReportPage() {
   const dateBE = useMemo(() => toBE(date), [date]);
 
   // ✅ (แก้เฉพาะส่วน date) สร้าง state Date สำหรับ DatePicker และ sync กับ `date`
-  const [selectedDate, setSelectedDate] = useState<Date>(() => isoToDateOnly(new Date().toISOString().slice(0, 10)));
+  const [selectedDate, setSelectedDate] = useState<Date>(() =>
+    isoToDateOnly(new Date().toISOString().slice(0, 10))
+  );
   useEffect(() => {
     // เมื่อ `date` เปลี่ยนจากที่ไหนก็ตาม ให้ DatePicker ตามเสมอ
     setSelectedDate(isoToDateOnly(date));
@@ -762,10 +764,10 @@ export default function DailyReportPage() {
           <div>
             <label className="block text-sm font-medium mb-1 text-foreground">วัน/เดือน/ปี พ.ศ.</label>
 
-            {/* ✅ กล่องแสดงผลเป็น พ.ศ. และ “ซ้อน” input ของ DatePicker แบบใสไว้ด้านบนให้กดแล้วขึ้นแน่นอน */}
+            {/* ✅ กล่องแสดงผลเป็น พ.ศ. แต่ “ให้ DatePicker รับคลิกได้จริงทุก platform” */}
             <div className="relative">
               <input
-                className="w-full rounded-lg border px-4 py-3 bg-background text-foreground text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40"
+                className="w-full rounded-lg border px-4 py-3 bg-background text-foreground text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40 pointer-events-none"
                 value={dateBE}
                 readOnly
               />
@@ -775,14 +777,13 @@ export default function DailyReportPage() {
                 onChange={(d: Date | null) => {
                   if (!d) return;
                   setSelectedDate(d);
-                  setDate(dateToISODateOnly(d)); // ✅ สำคัญ: ทำให้ระบบเดิม (load/report/weather) ทำงานต่อได้
+                  setDate(dateToISODateOnly(d)); // ✅ ทำให้ระบบเดิม (load/report/weather) ทำงาน
                 }}
                 dateFormat="dd/MM/yyyy"
                 withPortal
                 popperPlacement="bottom-start"
                 showPopperArrow={false}
-                // ✅ ทำให้ “คลิกตรงกล่อง พ.ศ.” แล้วเปิดปฏิทินแน่นอนทุก platform
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               />
             </div>
 
@@ -1055,9 +1056,7 @@ export default function DailyReportPage() {
         {/* WORK PERFORMED */}
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-foreground">
-              รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)
-            </h2>
+            <h2 className="text-lg font-semibold text-foreground">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)</h2>
             <button
               type="button"
               className="rounded-lg border px-3 py-2 text-sm bg-background text-foreground hover:bg-blue-50 dark:hover:bg-blue-950/30"
