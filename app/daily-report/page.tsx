@@ -352,6 +352,23 @@ function dateToISODateOnly(dt: Date) {
   return `${y}-${m}-${d}`;
 }
 
+/** ✅ (แก้เฉพาะส่วน date) custom input ที่คลิกได้ชัวร์ทุกแพลตฟอร์ม */
+const DateBEInput = React.forwardRef<HTMLInputElement, any>(function DateBEInput(props, ref) {
+  const { value, onClick, onKeyDown } = props;
+  return (
+    <input
+      ref={ref}
+      className="w-full rounded-lg border px-4 py-3 bg-background text-foreground text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40 cursor-pointer"
+      value={value || ""}
+      readOnly
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+      inputMode="none"
+      aria-label="เลือกวันที่"
+    />
+  );
+});
+
 export default function DailyReportPage() {
   const router = useRouter();
 
@@ -369,7 +386,6 @@ export default function DailyReportPage() {
   );
 
   // ✅ เก็บแบบ ISO เพื่อให้ระบบเดิม + weather ทำงาน
-  // ✅ อนุญาตให้เลือกย้อนหลังได้: ใช้ date picker เดิม (ไม่มี max จำกัด) + โหลด/กรอกย้อนหลังผ่าน DB ได้
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const dateBE = useMemo(() => toBE(date), [date]);
 
@@ -378,9 +394,11 @@ export default function DailyReportPage() {
     isoToDateOnly(new Date().toISOString().slice(0, 10))
   );
   useEffect(() => {
-    // เมื่อ `date` เปลี่ยนจากที่ไหนก็ตาม ให้ DatePicker ตามเสมอ
     setSelectedDate(isoToDateOnly(date));
   }, [date]);
+
+  // ✅ (แก้เฉพาะส่วน date) คุมการเปิด/ปิด popup ให้ชัวร์ทุก platform
+  const [dateOpen, setDateOpen] = useState(false);
 
   // ✅ คำนวณเลขรายงานอัตโนมัติจากสัญญา + วันที่ที่เลือก
   const autoMeta = useMemo(() => {
@@ -477,7 +495,7 @@ export default function DailyReportPage() {
       if (!alive) return;
       if (!json?.ok) return;
 
-      // ✅ ไม่มีรายงานวันนั้น => รีเซ็ตฟอร์มให้สะอาด (รองรับการกรอกย้อนหลัง: เลือกวันไหนก็กรอกได้)
+      // ✅ ไม่มีรายงานวันนั้น => รีเซ็ตฟอร์มให้สะอาด
       if (!json.reportId) {
         resetForm();
         return;
@@ -764,28 +782,24 @@ export default function DailyReportPage() {
           <div>
             <label className="block text-sm font-medium mb-1 text-foreground">วัน/เดือน/ปี พ.ศ.</label>
 
-            {/* ✅ กล่องแสดงผลเป็น พ.ศ. แต่ “ให้ DatePicker รับคลิกได้จริงทุก platform” */}
-            <div className="relative">
-              <input
-                className="w-full rounded-lg border px-4 py-3 bg-background text-foreground text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-400/40 pointer-events-none"
-                value={dateBE}
-                readOnly
-              />
-
-              <DatePicker
-                selected={selectedDate}
-                onChange={(d: Date | null) => {
-                  if (!d) return;
-                  setSelectedDate(d);
-                  setDate(dateToISODateOnly(d)); // ✅ ทำให้ระบบเดิม (load/report/weather) ทำงาน
-                }}
-                dateFormat="dd/MM/yyyy"
-                withPortal
-                popperPlacement="bottom-start"
-                showPopperArrow={false}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-              />
-            </div>
+            {/* ✅ แก้: ใช้ react-datepicker + customInput (คลิกได้ทุก platform) */}
+            <DatePicker
+              selected={selectedDate}
+              onChange={(d: Date | null) => {
+                if (!d) return;
+                setSelectedDate(d);
+                setDate(dateToISODateOnly(d));
+                setDateOpen(false);
+              }}
+              open={dateOpen}
+              onClickOutside={() => setDateOpen(false)}
+              onSelect={() => setDateOpen(false)}
+              onInputClick={() => setDateOpen(true)}
+              withPortal
+              showPopperArrow={false}
+              dateFormat="dd/MM/yyyy"
+              customInput={<DateBEInput value={dateBE} />}
+            />
 
             <div className="text-xs mt-1 text-muted-foreground">
               (สำรอง) อุณหภูมิรายวัน: สูงสุด {tempMaxC ?? "-"}°C / ต่ำสุด {tempMinC ?? "-"}°C
