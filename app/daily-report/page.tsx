@@ -397,7 +397,7 @@ export default function DailyReportPage() {
     setSelectedDate(isoToDateOnly(date));
   }, [date]);
 
-  // ✅ (แก้เฉพาะส่วน date) คุมการเปิด/ปิด popup ให้ชัวร์ทุก platform
+  // ✅ (แก้เฉพาะส่วน date) คุมการเปิด/ปิด popup ให้ชัวร์ทุก platform (แต่แสดงเป็น popup ใต้ช่อง)
   const [dateOpen, setDateOpen] = useState(false);
 
   // ✅ คำนวณเลขรายงานอัตโนมัติจากสัญญา + วันที่ที่เลือก
@@ -782,7 +782,7 @@ export default function DailyReportPage() {
           <div>
             <label className="block text-sm font-medium mb-1 text-foreground">วัน/เดือน/ปี พ.ศ.</label>
 
-            {/* ✅ แก้: ใช้ react-datepicker + customInput (คลิกได้ทุก platform) */}
+            {/* ✅ popup เล็กใต้ช่อง (ไม่ใช้ portal) */}
             <DatePicker
               selected={selectedDate}
               onChange={(d: Date | null) => {
@@ -795,8 +795,9 @@ export default function DailyReportPage() {
               onClickOutside={() => setDateOpen(false)}
               onSelect={() => setDateOpen(false)}
               onInputClick={() => setDateOpen(true)}
-              withPortal
               showPopperArrow={false}
+              popperPlacement="bottom-start"
+              popperProps={{ strategy: "fixed" }}
               dateFormat="dd/MM/yyyy"
               customInput={<DateBEInput value={dateBE} />}
             />
@@ -832,6 +833,7 @@ export default function DailyReportPage() {
         )}
       </div>
 
+      {/* ---- ส่วนที่เหลือเหมือนเดิมทั้งหมด ---- */}
       <form onSubmit={onSubmit} className="space-y-6">
         {/* PROJECT TEAM */}
         <div className="rounded-xl border bg-card p-4 shadow-sm">
