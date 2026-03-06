@@ -18,6 +18,10 @@ model Project {
   // ✅ Chat (Project Group Chat) - opposite relation fields
   chatMembers  ChatGroupMember[]
   chatMessages ChatMessage[]
+
+  // ✅ เพิ่มตามคำสั่ง: weekly / monthly reports
+  weeklyReports  WeeklyReport[]
+  monthlyReports MonthlyReport[]
 }
 
 model DailyReport {
@@ -56,6 +60,56 @@ model Issue {
   comments IssueComment[]
 
   @@index([reportId])
+}
+
+/**
+ * =========================
+ * Weekly / Monthly Reports
+ * =========================
+ */
+
+model WeeklyReport {
+  id              String   @id @default(cuid())
+  projectId       String
+  year            Int
+  weekNo          Int
+  startDate       DateTime
+  endDate         DateTime
+  title           String?
+  summary         String?
+  payload         Json?
+  sourceReportIds String[] @default([])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, year, weekNo])
+  @@index([projectId])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+model MonthlyReport {
+  id              String   @id @default(cuid())
+  projectId       String
+  year            Int
+  month           Int
+  startDate       DateTime
+  endDate         DateTime
+  title           String?
+  summary         String?
+  payload         Json?
+  sourceReportIds String[] @default([])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, year, month])
+  @@index([projectId])
+  @@index([startDate])
+  @@index([endDate])
 }
 
 /**
