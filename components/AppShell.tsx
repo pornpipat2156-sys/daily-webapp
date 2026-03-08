@@ -28,7 +28,6 @@ export default function AppShell({
   const { data: session } = useSession();
 
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [desktopCollapsed, setDesktopCollapsed] = useState(false);
   const [summary, setSummary] = useState({
     unreadCount: 0,
     unreadMentions: 0,
@@ -59,8 +58,7 @@ export default function AppShell({
 
   function renderNavItem(
     item: (typeof nav)[number],
-    options: {
-      compact: boolean;
+    options?: {
       onNavigate?: () => void;
     }
   ) {
@@ -76,13 +74,10 @@ export default function AppShell({
         href={enabled ? item.href : "#"}
         onClick={(e) => {
           if (!enabled) e.preventDefault();
-          options.onNavigate?.();
+          options?.onNavigate?.();
         }}
         className={cn(
-          "relative flex rounded-xl transition",
-          options.compact
-            ? "h-11 w-full items-center justify-center px-0"
-            : "h-11 items-center justify-between px-3",
+          "relative flex h-11 items-center justify-between rounded-xl px-3 transition",
           active
             ? "bg-neutral-900 text-white"
             : enabled
@@ -91,106 +86,45 @@ export default function AppShell({
         )}
         title={item.label}
       >
-        {options.compact ? (
-          <span
-            className={cn(
-              "block h-2.5 w-2.5 rounded-full transition",
-              active
-                ? "bg-white"
-                : enabled
-                ? "bg-neutral-400"
-                : "bg-neutral-200"
-            )}
-          />
-        ) : (
-          <>
-            <span className="block truncate text-sm">{item.label}</span>
+        <span className="block truncate text-sm">{item.label}</span>
 
-            {hasUnreadMentions && (
-              <span className="ml-3 inline-flex min-w-[22px] items-center justify-center rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                {contactBadge}
-              </span>
-            )}
-          </>
-        )}
-
-        {options.compact && hasUnreadMentions && (
-          <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-rose-500" />
+        {hasUnreadMentions && (
+          <span className="ml-3 inline-flex min-w-[22px] items-center justify-center rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-bold text-white">
+            {contactBadge}
+          </span>
         )}
       </Link>
     );
   }
 
   const desktopSidebar = (
-    <div
-      className={cn(
-        "flex h-full flex-col border-r border-neutral-200 bg-neutral-50 transition-all duration-300",
-        desktopCollapsed ? "w-14" : "w-72"
-      )}
-    >
-      <div
-        className={cn(
-          "flex h-20 items-center border-b border-neutral-200",
-          desktopCollapsed ? "justify-center px-2" : "justify-between px-4"
-        )}
-      >
-        {!desktopCollapsed && (
-          <div className="min-w-0">
-            <div className="truncate text-2xl font-bold tracking-tight text-neutral-900">
-              DAILY-WEBAPP
-            </div>
-            <div className="truncate text-sm text-neutral-500">
-              Construction Collaboration
-            </div>
+    <div className="flex h-full w-72 flex-col border-r border-neutral-200 bg-neutral-50">
+      <div className="flex h-20 items-center border-b border-neutral-200 px-4">
+        <div className="min-w-0">
+          <div className="truncate text-2xl font-bold tracking-tight text-neutral-900">
+            DAILY-WEBAPP
           </div>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setDesktopCollapsed((v) => !v)}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-sm text-neutral-600 shadow-sm hover:bg-neutral-100"
-          aria-label={desktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={desktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {desktopCollapsed ? "›" : "‹"}
-        </button>
+          <div className="truncate text-sm text-neutral-500">
+            Construction Collaboration
+          </div>
+        </div>
       </div>
 
-      <div
-        className={cn(
-          "flex-1 overflow-y-auto py-4",
-          desktopCollapsed ? "px-1.5" : "px-3"
-        )}
-      >
+      <div className="flex-1 overflow-y-auto px-3 py-4">
         <nav className="space-y-2">
-          {nav.map((item) =>
-            renderNavItem(item, {
-              compact: desktopCollapsed,
-            })
-          )}
+          {nav.map((item) => renderNavItem(item))}
         </nav>
       </div>
 
       <div className="border-t border-neutral-200 p-3">
-        {desktopCollapsed ? (
-          <div className="flex justify-center">
-            <div
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-900 text-xs font-semibold text-white"
-              title={displayName}
-            >
-              {displayName.slice(0, 1).toUpperCase()}
-            </div>
+        <div className="rounded-2xl border border-neutral-200 bg-white px-3 py-3">
+          <div className="truncate text-sm font-semibold text-neutral-900">
+            {displayName}
           </div>
-        ) : (
-          <div className="rounded-2xl border border-neutral-200 bg-white px-3 py-3">
-            <div className="truncate text-sm font-semibold text-neutral-900">
-              {displayName}
-            </div>
-            <div className="truncate text-xs text-neutral-500">
-              {role} • {position}
-            </div>
+          <div className="truncate text-xs text-neutral-500">
+            {role} • {position}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -222,7 +156,6 @@ export default function AppShell({
         <nav className="space-y-2">
           {nav.map((item) =>
             renderNavItem(item, {
-              compact: false,
               onNavigate: () => setMobileOpen(false),
             })
           )}
