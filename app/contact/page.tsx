@@ -65,19 +65,6 @@ function normEmail(s: string) {
   return (s || "").trim().toLowerCase();
 }
 
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-
-  return outputArray;
-}
-
 function mergeChatMessages(prev: ChatMessage[], next: ChatMessage[]) {
   const map = new Map<string, ChatMessage>();
 
@@ -125,11 +112,6 @@ function ContactPageInner() {
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionAnchor, setMentionAnchor] = useState<{ start: number; end: number } | null>(null);
-
-  const [pushSupported, setPushSupported] = useState(false);
-  const [pushSubscribed, setPushSubscribed] = useState(false);
-  const [pushBusy, setPushBusy] = useState(false);
-  const [pushPermission, setPushPermission] = useState("unsupported");
 
   const [realtimeState, setRealtimeState] = useState<
     "disabled" | "connecting" | "connected" | "error"
@@ -186,43 +168,6 @@ function ContactPageInner() {
     }
   }
 
-  async function getServiceWorkerRegistration() {
-    if (typeof window === "undefined") return null;
-    if (!("serviceWorker" in navigator)) return null;
-
-    const reg = await navigator.serviceWorker.getRegistration();
-    if (reg) return reg;
-
-    return navigator.serviceWorker.ready;
-  }
-
-  async function refreshPushStatus() {
-    if (typeof window === "undefined") return;
-
-    const supported =
-      "Notification" in window &&
-      "serviceWorker" in navigator &&
-      "PushManager" in window;
-
-    if (!supported) {
-      setPushSupported(false);
-      setPushSubscribed(false);
-      setPushPermission("unsupported");
-      return;
-    }
-
-    setPushSupported(true);
-    setPushPermission(Notification.permission);
-
-    try {
-      const reg = await getServiceWorkerRegistration();
-      const sub = await reg?.pushManager.getSubscription();
-      setPushSubscribed(Boolean(sub));
-    } catch {
-      setPushSubscribed(false);
-    }
-  }
-
   useEffect(() => {
     if (status !== "authenticated") return;
 
@@ -243,11 +188,6 @@ function ContactPageInner() {
     })().catch(console.error);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, queryProjectId]);
-
-  useEffect(() => {
-    if (status !== "authenticated") return;
-    refreshPushStatus().catch(console.error);
-  }, [status]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -405,9 +345,7 @@ function ContactPageInner() {
     if (!q) return base;
 
     return base.filter(
-      (m) =>
-        (m.name ?? m.email).toLowerCase().includes(q) ||
-        m.email.toLowerCase().includes(q)
+      (m) => (m.name ?? m.email).toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
     );
   }, [groupMembers, memberQuery]);
 
@@ -422,9 +360,7 @@ function ContactPageInner() {
     if (!q) return addableUsers;
 
     return addableUsers.filter(
-      (u) =>
-        (u.name ?? u.email).toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q)
+      (u) => (u.name ?? u.email).toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
     );
   }, [addableUsers, addQuery]);
 
@@ -441,9 +377,7 @@ function ContactPageInner() {
   );
 
   async function reloadMembersOnly() {
-    const memberRows = await jget<any>(
-      `/api/chat/members?projectId=${encodeURIComponent(projectId)}`
-    );
+    const memberRows = await jget<any>(`/api/chat/members?projectId=${encodeURIComponent(projectId)}`);
 
     const list = Array.isArray(memberRows)
       ? memberRows
@@ -519,9 +453,7 @@ function ContactPageInner() {
 
     return mentionSource
       .filter(
-        (m) =>
-          (m.name ?? m.email).toLowerCase().includes(q) ||
-          m.email.toLowerCase().includes(q)
+        (m) => (m.name ?? m.email).toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
       )
       .slice(0, 8);
   }, [mentionSource, mentionQuery]);
@@ -590,86 +522,6 @@ function ContactPageInner() {
     setMentionAnchor(null);
   }
 
-  async function enablePushNotifications() {
-    if (!pushSupported) {
-      alert("อุปกรณ์/เบราว์เซอร์นี้ยังไม่รองรับ Push Notification");
-      return;
-    }
-
-    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
-
-    if (!vapidPublicKey) {
-      alert("ยังไม่ได้ตั้งค่า NEXT_PUBLIC_VAPID_PUBLIC_KEY");
-      return;
-    }
-
-    setPushBusy(true);
-
-    try {
-      const permission = await Notification.requestPermission();
-      setPushPermission(permission);
-
-      if (permission !== "granted") {
-        alert("คุณยังไม่ได้อนุญาตการแจ้งเตือน");
-        return;
-      }
-
-      const reg = await getServiceWorkerRegistration();
-
-      if (!reg) {
-        alert("ไม่พบ Service Worker registration");
-        return;
-      }
-
-      let sub = await reg.pushManager.getSubscription();
-
-      if (!sub) {
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-        });
-      }
-
-      await jpost("/api/push/subscribe", {
-        subscription: sub.toJSON(),
-      });
-
-      setPushSubscribed(true);
-      alert("เปิดการแจ้งเตือนสำเร็จ");
-    } catch (e) {
-      console.error(e);
-      alert("เปิดการแจ้งเตือนไม่สำเร็จ: " + String((e as any)?.message || e));
-    } finally {
-      setPushBusy(false);
-      refreshPushStatus().catch(console.error);
-    }
-  }
-
-  async function disablePushNotifications() {
-    setPushBusy(true);
-
-    try {
-      const reg = await getServiceWorkerRegistration();
-      const sub = await reg?.pushManager.getSubscription();
-
-      if (sub) {
-        await jpost("/api/push/unsubscribe", {
-          endpoint: sub.endpoint,
-        });
-        await sub.unsubscribe();
-      }
-
-      setPushSubscribed(false);
-      alert("ปิดการแจ้งเตือนสำเร็จ");
-    } catch (e) {
-      console.error(e);
-      alert("ปิดการแจ้งเตือนไม่สำเร็จ: " + String((e as any)?.message || e));
-    } finally {
-      setPushBusy(false);
-      refreshPushStatus().catch(console.error);
-    }
-  }
-
   async function sendMessage(opts?: { reportId?: string | null }) {
     if (!projectId) return;
 
@@ -704,10 +556,7 @@ function ContactPageInner() {
   }
 
   function openReport(reportId: string) {
-    window.open(
-      `/daily-report/preview?reportId=${encodeURIComponent(reportId)}`,
-      "_blank"
-    );
+    window.open(`/daily-report/preview?reportId=${encodeURIComponent(reportId)}`, "_blank");
   }
 
   const canPickProject = isSuperAdmin;
@@ -721,8 +570,7 @@ function ContactPageInner() {
           ? "Realtime: Reconnecting..."
           : "Realtime: Disabled";
 
-  const sendDisabled =
-    sending || (!text.trim() && !(pickerOpen && reportIdToSend));
+  const sendDisabled = sending || (!text.trim() && !(pickerOpen && reportIdToSend));
 
   if (status === "loading") {
     return <div className="p-4 text-sm text-gray-600">กำลังโหลด...</div>;
@@ -744,9 +592,7 @@ function ContactPageInner() {
               </p>
             </div>
 
-            <label className="mb-2 block text-sm font-medium text-gray-700">
-              โครงการ
-            </label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">โครงการ</label>
             <select
               className="h-11 w-full rounded-xl border px-3 text-sm"
               value={projectId}
@@ -765,56 +611,11 @@ function ContactPageInner() {
             </div>
           </div>
 
-          <div className="rounded-2xl border bg-white p-4 shadow-sm">
-            <div className="mb-3">
-              <h2 className="text-base font-semibold">Push Notification</h2>
-            </div>
-
-            {!pushSupported ? (
-              <div className="rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-600">
-                อุปกรณ์/เบราว์เซอร์นี้ยังไม่รองรับ
-              </div>
-            ) : (
-              <>
-                <div className="mb-3 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                  สถานะ:{" "}
-                  {pushSubscribed
-                    ? "เปิดอยู่"
-                    : pushPermission === "denied"
-                      ? "ถูกบล็อกโดยเบราว์เซอร์"
-                      : "ยังไม่เปิด"}
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-gray-300"
-                    onClick={enablePushNotifications}
-                    disabled={pushBusy}
-                  >
-                    {pushBusy && !pushSubscribed ? "กำลังเปิด..." : "เปิดการแจ้งเตือน"}
-                  </button>
-
-                  <button
-                    type="button"
-                    className="rounded-xl border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:bg-gray-100"
-                    onClick={disablePushNotifications}
-                    disabled={pushBusy}
-                  >
-                    {pushBusy && pushSubscribed ? "กำลังปิด..." : "ปิดการแจ้งเตือน"}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
           {isSuperAdmin ? (
             <>
               <div className="rounded-2xl border bg-white p-4 shadow-sm">
                 <div className="mb-3">
-                  <h2 className="text-base font-semibold">
-                    สมาชิกในกลุ่ม (Current Members)
-                  </h2>
+                  <h2 className="text-base font-semibold">สมาชิกในกลุ่ม (Current Members)</h2>
                   <p className="mt-1 text-sm text-gray-500">
                     Active: {groupMembers.length} / ทั้งหมด {groupMembers.length}
                   </p>
@@ -866,9 +667,7 @@ function ContactPageInner() {
                         className="w-full rounded-xl border px-3 py-2 text-sm hover:bg-gray-50"
                         onClick={() => setShowAllMembers((v) => !v)}
                       >
-                        {showAllMembers
-                          ? "แสดงน้อยลง"
-                          : `แสดงทั้งหมด (${filteredMembers.length})`}
+                        {showAllMembers ? "แสดงน้อยลง" : `แสดงทั้งหมด (${filteredMembers.length})`}
                       </button>
                     ) : null}
                   </div>
@@ -877,12 +676,8 @@ function ContactPageInner() {
 
               <div className="rounded-2xl border bg-white p-4 shadow-sm">
                 <div className="mb-3">
-                  <h2 className="text-base font-semibold">
-                    เพิ่มผู้เข้าร่วมกลุ่ม (Add Members)
-                  </h2>
-                  <p className="mt-1 text-sm text-gray-500">
-                    แสดงเฉพาะคนที่ยังไม่เป็นสมาชิก
-                  </p>
+                  <h2 className="text-base font-semibold">เพิ่มผู้เข้าร่วมกลุ่ม (Add Members)</h2>
+                  <p className="mt-1 text-sm text-gray-500">แสดงเฉพาะคนที่ยังไม่เป็นสมาชิก</p>
                 </div>
 
                 <button
@@ -966,57 +761,48 @@ function ContactPageInner() {
             ) : (
               <div className="space-y-3">
                 {messages.map((msg) => {
-                  const mine = !!meId && msg.author.id === meId;
-                  const authorLabel = msg.author.name?.trim()
-                    ? msg.author.name
-                    : msg.author.email;
+                  const mine = msg.author.id === meId;
+                  const label = msg.author.name?.trim() ? msg.author.name : msg.author.email;
 
                   return (
                     <div
                       key={msg.id}
-                      className={cn(
-                        "max-w-[92%] rounded-2xl border px-3 py-3 md:max-w-[78%]",
-                        mine ? "ml-auto bg-black text-white" : "bg-white"
-                      )}
+                      className={cn("flex", mine ? "justify-end" : "justify-start")}
                     >
                       <div
                         className={cn(
-                          "mb-1 flex items-center justify-between gap-3 text-xs",
-                          mine ? "text-gray-200" : "text-gray-500"
+                          "max-w-[90%] rounded-2xl border px-3 py-2 shadow-sm md:max-w-[75%]",
+                          mine ? "bg-black text-white" : "bg-white"
                         )}
                       >
-                        <span className="font-semibold">{authorLabel}</span>
-                        <span>{fmtDateTime(msg.createdAt)}</span>
-                      </div>
-
-                      {msg.reportId ? (
                         <div
                           className={cn(
-                            "mb-2 rounded-xl px-3 py-2 text-sm",
-                            mine ? "bg-white/10" : "bg-gray-50"
+                            "mb-1 text-xs",
+                            mine ? "text-gray-200" : "text-gray-500"
                           )}
                         >
-                          <div className="mb-2 font-medium">แนบ Daily Report</div>
+                          {label} • {fmtDateTime(msg.createdAt)}
+                        </div>
+
+                        {msg.text ? (
+                          <div className="whitespace-pre-wrap break-words text-sm">{msg.text}</div>
+                        ) : null}
+
+                        {msg.reportId ? (
                           <button
                             type="button"
                             className={cn(
-                              "rounded-lg px-3 py-1.5 text-xs font-medium",
+                              "mt-2 inline-flex rounded-lg border px-3 py-1.5 text-xs font-medium",
                               mine
-                                ? "border border-white/30 text-white"
-                                : "border bg-white text-black"
+                                ? "border-white/30 bg-white/10 text-white hover:bg-white/20"
+                                : "hover:bg-gray-50"
                             )}
                             onClick={() => openReport(msg.reportId!)}
                           >
-                            เปิดดูรายงาน (Read-only)
+                            เปิด Daily Report Preview
                           </button>
-                        </div>
-                      ) : null}
-
-                      {msg.text ? (
-                        <div className="whitespace-pre-wrap break-words text-sm">
-                          {msg.text}
-                        </div>
-                      ) : null}
+                        ) : null}
+                      </div>
                     </div>
                   );
                 })}
@@ -1024,118 +810,74 @@ function ContactPageInner() {
             )}
           </div>
 
-          <div className="border-t p-3 md:p-4">
+          <div className="border-t px-3 py-3 md:px-4">
             <div className="relative">
-              {mentionOpen && mentionCandidates.length > 0 ? (
-                <div className="absolute bottom-full left-0 z-20 mb-2 w-full rounded-2xl border bg-white p-2 shadow-xl">
-                  <div className="mb-2 px-2 text-xs font-semibold text-gray-500">
-                    Mention
-                  </div>
-
-                  <div className="space-y-1">
-                    {mentionCandidates.map((u) => {
-                      const label = u.name?.trim() ? u.name : u.email;
-
-                      return (
-                        <button
-                          key={u.id}
-                          type="button"
-                          className="flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2 text-left hover:bg-gray-50"
-                          onClick={() => insertMention(u)}
-                        >
-                          <span className="min-w-0">
-                            <span className="block truncate text-sm font-medium">
-                              {label}
-                            </span>
-                            <span className="block truncate text-xs text-gray-500">
-                              {u.email}
-                            </span>
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
-
               <textarea
                 ref={inputRef}
-                className="min-h-[110px] w-full rounded-2xl border p-3 text-sm outline-none focus:border-black"
-                placeholder="พิมพ์ข้อความ... ใช้ @ เพื่อ mention"
+                className="min-h-[96px] w-full rounded-2xl border px-4 py-3 text-sm outline-none ring-0 placeholder:text-gray-400 focus:border-black"
+                placeholder="พิมพ์ข้อความ... ใช้ @ เพื่อ mention สมาชิก"
                 value={text}
                 onChange={(e) => handleTextChange(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    void sendMessage();
-                  }
-                }}
               />
+
+              {mentionOpen && mentionCandidates.length > 0 ? (
+                <div className="absolute bottom-[calc(100%+8px)] left-0 z-20 w-full max-w-sm overflow-hidden rounded-2xl border bg-white shadow-xl">
+                  {mentionCandidates.map((u) => {
+                    const label = u.name?.trim() ? u.name : u.email;
+
+                    return (
+                      <button
+                        key={u.id}
+                        type="button"
+                        className="block w-full border-b px-3 py-2 text-left text-sm hover:bg-gray-50"
+                        onClick={() => insertMention(u)}
+                      >
+                        <div className="font-medium">{label}</div>
+                        <div className="text-xs text-gray-500">{u.email}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
             </div>
 
-            <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className="h-10 w-10 rounded-xl border text-lg hover:bg-gray-50"
+                  className="rounded-xl border px-4 py-2 text-sm hover:bg-gray-50"
                   onClick={() => setPickerOpen((v) => !v)}
-                  title="แนบ Daily Report"
                 >
-                  +
+                  {pickerOpen ? "ซ่อนรายการ Daily Report" : "แนบ Daily Report"}
                 </button>
 
                 {pickerOpen ? (
-                  <div className="flex flex-1 flex-wrap items-center gap-2">
-                    <select
-                      className="h-10 min-w-[180px] rounded-xl border px-3 text-sm"
-                      value={reportIdToSend}
-                      onChange={(e) => setReportIdToSend(e.target.value)}
-                    >
-                      {reports.map((r) => (
+                  <select
+                    className="h-11 rounded-xl border px-3 text-sm"
+                    value={reportIdToSend}
+                    onChange={(e) => setReportIdToSend(e.target.value)}
+                  >
+                    {reports.length === 0 ? (
+                      <option value="">ไม่มีรายการ</option>
+                    ) : (
+                      reports.map((r) => (
                         <option key={r.id} value={r.id}>
                           {r.date}
                         </option>
-                      ))}
-                    </select>
-
-                    <button
-                      type="button"
-                      className={cn(
-                        "h-10 rounded-xl px-3 text-sm font-medium",
-                        !reportIdToSend || sending
-                          ? "cursor-not-allowed bg-gray-200 text-gray-500"
-                          : "bg-black text-white"
-                      )}
-                      disabled={!reportIdToSend || sending}
-                      onClick={() => sendMessage({ reportId: reportIdToSend })}
-                    >
-                      ส่งรายงาน
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-xs text-gray-500">
-                    กด <span className="font-semibold">+</span> เพื่อแนบ Daily Report
-                  </div>
-                )}
+                      ))
+                    )}
+                  </select>
+                ) : null}
               </div>
 
               <button
                 type="button"
-                className={cn(
-                  "h-10 rounded-xl px-4 text-sm font-medium",
-                  sendDisabled
-                    ? "cursor-not-allowed bg-gray-200 text-gray-500"
-                    : "bg-black text-white"
-                )}
+                className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-gray-300"
+                onClick={() => sendMessage({ reportId: pickerOpen ? reportIdToSend : null })}
                 disabled={sendDisabled}
-                onClick={() => sendMessage()}
               >
-                {sending ? "กำลังส่ง..." : "Send"}
+                {sending ? "กำลังส่ง..." : "ส่งข้อความ"}
               </button>
-            </div>
-
-            <div className="mt-2 text-[11px] text-gray-500">
-              ส่งเร็ว: กด <span className="font-medium">Ctrl/⌘ + Enter</span>
             </div>
           </div>
         </div>

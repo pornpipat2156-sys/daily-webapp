@@ -37,7 +37,7 @@ type GroupedNotificationItem = NotificationItem & {
   groupedIds: string[];
 };
 
-const PUSH_PROMPT_DISMISSED_KEY = "daily-webapp-push-prompt-dismissed-v1";
+const PUSH_PROMPT_SESSION_KEY = "daily-webapp-push-prompt-dismissed-session-v1";
 
 function fmtDateTime(iso: string) {
   const d = new Date(iso);
@@ -156,8 +156,12 @@ function urlBase64ToUint8Array(base64String: string) {
 
 function isIosDevice() {
   if (typeof window === "undefined") return false;
+
   const ua = window.navigator.userAgent || "";
-  return /iPad|iPhone|iPod/.test(ua);
+  const platform = window.navigator.platform || "";
+  const touchPoints = window.navigator.maxTouchPoints || 0;
+
+  return /iPad|iPhone|iPod/.test(ua) || (platform === "MacIntel" && touchPoints > 1);
 }
 
 function isStandaloneDisplayMode() {
@@ -173,11 +177,13 @@ function isStandaloneDisplayMode() {
 
 function supportsPushPrompt() {
   if (typeof window === "undefined") return false;
-  return (
-    "Notification" in window &&
-    "serviceWorker" in navigator &&
-    "PushManager" in window
-  );
+
+  return "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
+}
+
+function getBrowserPermissionState(): NotificationPermission | "unsupported" {
+  if (!supportsPushPrompt()) return "unsupported";
+  return Notification.permission;
 }
 
 export default function NotificationBell({ onSummaryChange }: Props) {
@@ -197,6 +203,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
   const [permissionState, setPermissionState] = useState<NotificationPermission | "unsupported">(
     "unsupported"
   );
+  const [pushSubscribed, setPushSubscribed] = useState(false);
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -265,65 +272,117 @@ export default function NotificationBell({ onSummaryChange }: Props) {
     }
   }
 
+  async function getServiceWorkerRegistration() {
+    if (typeof window === "undefined") return null;
+    if (!("serviceWorker" in navigator)) return null;
+
+    const direct = await navigator.serviceWorker.getRegistration("/sw.js");
+    if (direct) return direct;
+
+    const anyReg = await navigator.serviceWorker.getRegistration();
+    if (anyReg) return anyReg;
+
+    return navigator.serviceWorker.ready;
+  }
+
+  async function syncPushStatus() {
+    const nextPermission = getBrowserPermissionState();
+    setPermissionState(nextPermission);
+
+    if (!supportsPushPrompt()) {
+      setPushSubscribed(false);
+      return;
+    }
+
+    try {
+      const reg = await getServiceWorkerRegistration();
+      const sub = await reg?.pushManager.getSubscription();
+      setPushSubscribed(Boolean(sub));
+    } catch (error) {
+      console.error("syncPushStatus error:", error);
+      setPushSubscribed(false);
+    }
+  }
+
   async function subscribeCurrentBrowser() {
-    if (!supportsPushPrompt()) return false;
+    if (!supportsPushPrompt()) {
+      throw new Error("unsupported");
+    }
 
     const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+
     if (!vapidPublicKey) {
-      setPushMessage("ยังไม่ได้ตั้งค่า VAPID public key");
-      return false;
+      throw new Error("ยังไม่ได้ตั้งค่า NEXT_PUBLIC_VAPID_PUBLIC_KEY");
     }
 
-    const registration = await navigator.serviceWorker.register("/sw.js");
-    const existingSub = await registration.pushManager.getSubscription();
+    const registration =
+      (await getServiceWorkerRegistration()) || (await navigator.serviceWorker.register("/sw.js"));
 
-    if (existingSub) {
-      await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ subscription: existingSub.toJSON() }),
+    let sub = await registration.pushManager.getSubscription();
+
+    if (!sub) {
+      sub = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
       });
-
-      return true;
     }
-
-    const newSub = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-    });
 
     const res = await fetch("/api/push/subscribe", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ subscription: newSub.toJSON() }),
+      body: JSON.stringify({ subscription: sub.toJSON() }),
     });
 
     if (!res.ok) {
-      throw new Error("subscribe failed");
+      throw new Error(await res.text());
     }
 
-    return true;
+    setPushSubscribed(true);
   }
 
-  async function syncExistingGrantedPermission() {
+  async function disableCurrentBrowserPush() {
     if (!supportsPushPrompt()) {
-      setPermissionState("unsupported");
+      setPushMessage("อุปกรณ์นี้ยังไม่รองรับการแจ้งเตือนผ่านเว็บ");
       return;
     }
 
-    const currentPermission = Notification.permission;
-    setPermissionState(currentPermission);
-
-    if (currentPermission !== "granted") return;
+    setPushBusy(true);
+    setPushMessage(null);
 
     try {
-      await subscribeCurrentBrowser();
+      const reg = await getServiceWorkerRegistration();
+      const sub = await reg?.pushManager.getSubscription();
+
+      if (!sub) {
+        setPushSubscribed(false);
+        setPushMessage("อุปกรณ์นี้ยังไม่ได้เปิดการแจ้งเตือน");
+        return;
+      }
+
+      await fetch("/api/push/unsubscribe", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ endpoint: sub.endpoint }),
+      });
+
+      await sub.unsubscribe();
+
+      setPushSubscribed(false);
+      setPushMessage(
+        permissionState === "granted"
+          ? "ปิดการแจ้งเตือนสำหรับอุปกรณ์นี้แล้ว"
+          : "ปิดการแจ้งเตือนแล้ว"
+      );
     } catch (error) {
-      console.error("syncExistingGrantedPermission error:", error);
+      console.error("disableCurrentBrowserPush error:", error);
+      setPushMessage("ปิดการแจ้งเตือนไม่สำเร็จ");
+    } finally {
+      setPushBusy(false);
+      await syncPushStatus();
     }
   }
 
@@ -347,14 +406,18 @@ export default function NotificationBell({ onSummaryChange }: Props) {
       setPermissionState(permission);
 
       if (permission !== "granted") {
-        setPushMessage("ยังไม่ได้อนุญาตการแจ้งเตือน");
+        setPushMessage(
+          permission === "denied"
+            ? "เบราว์เซอร์บล็อกการแจ้งเตือนแล้ว ต้องไปเปิดใหม่ใน Site Settings"
+            : "ยังไม่ได้อนุญาตการแจ้งเตือน"
+        );
         return;
       }
 
       await subscribeCurrentBrowser();
 
       try {
-        localStorage.setItem(PUSH_PROMPT_DISMISSED_KEY, "1");
+        sessionStorage.setItem(PUSH_PROMPT_SESSION_KEY, "1");
       } catch {
         // ignore
       }
@@ -363,20 +426,26 @@ export default function NotificationBell({ onSummaryChange }: Props) {
       setPushMessage("เปิดการแจ้งเตือนสำเร็จ");
     } catch (error) {
       console.error("handleEnablePush error:", error);
-      setPushMessage("ไม่สามารถเปิดการแจ้งเตือนได้");
+      setPushMessage(
+        error instanceof Error && error.message ? error.message : "ไม่สามารถเปิดการแจ้งเตือนได้"
+      );
     } finally {
       setPushBusy(false);
+      await syncPushStatus();
     }
   }
 
-  function handleDismissPushPrompt() {
+  function dismissPromptForSession() {
     setShowPushPrompt(false);
-
     try {
-      localStorage.setItem(PUSH_PROMPT_DISMISSED_KEY, "1");
+      sessionStorage.setItem(PUSH_PROMPT_SESSION_KEY, "1");
     } catch {
       // ignore
     }
+  }
+
+  function handleBellClick() {
+    setOpen((prev) => !prev);
   }
 
   useEffect(() => {
@@ -390,16 +459,50 @@ export default function NotificationBell({ onSummaryChange }: Props) {
       load().catch(console.error);
     }
 
+    function onVisibilityChange() {
+      if (!document.hidden) {
+        syncPushStatus().catch(console.error);
+      }
+    }
+
     window.addEventListener("notifications:refresh", onRefresh);
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       window.clearInterval(id);
       window.removeEventListener("notifications:refresh", onRefresh);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, []);
 
   useEffect(() => {
-    syncExistingGrantedPermission().catch(console.error);
+    syncPushStatus().catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    if (!supportsPushPrompt()) return;
+
+    const permission = getBrowserPermissionState();
+    setPermissionState(permission);
+
+    if (permission !== "default") return;
+
+    let dismissed = false;
+    try {
+      dismissed = sessionStorage.getItem(PUSH_PROMPT_SESSION_KEY) === "1";
+    } catch {
+      dismissed = false;
+    }
+
+    if (dismissed) return;
+
+    const timer = window.setTimeout(() => {
+      setShowPushPrompt(true);
+    }, 900);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -427,45 +530,15 @@ export default function NotificationBell({ onSummaryChange }: Props) {
     };
   }, [open]);
 
-  useEffect(() => {
-    if (!supportsPushPrompt()) {
-      setPermissionState("unsupported");
-      return;
-    }
-
-    setPermissionState(Notification.permission);
-
-    if (Notification.permission !== "default") return;
-
-    let dismissed = false;
-    try {
-      dismissed = localStorage.getItem(PUSH_PROMPT_DISMISSED_KEY) === "1";
-    } catch {
-      dismissed = false;
-    }
-
-    if (dismissed) return;
-
-    const timer = window.setTimeout(() => {
-      setShowPushPrompt(true);
-    }, 900);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, []);
-
   const grouped = useMemo(() => groupNotifications(summary.items || []), [summary.items]);
-
-  const canShowNativePrompt =
-    supportsPushPrompt() && (!isIosDevice() || isStandaloneDisplayMode());
+  const isIosWithoutStandalone = isIosDevice() && !isStandaloneDisplayMode();
 
   return (
     <>
       <div ref={wrapRef} className="relative">
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={handleBellClick}
           className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-700 shadow-sm transition hover:bg-neutral-50"
           aria-label="Notifications"
           title="Notifications"
@@ -484,11 +557,11 @@ export default function NotificationBell({ onSummaryChange }: Props) {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="fixed inset-0 z-40 bg-black/10 sm:bg-transparent"
+              className="fixed inset-0 z-40 bg-black/20"
               aria-label="Close notifications"
             />
 
-            <div className="absolute right-0 z-50 mt-3 w-[min(92vw,24rem)] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl">
+            <div className="fixed inset-x-3 bottom-3 top-[88px] z-50 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:top-full sm:right-0 sm:mt-3 sm:h-auto sm:max-h-[min(78vh,40rem)] sm:w-[min(92vw,24rem)]">
               <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
                 <div>
                   <div className="text-sm font-semibold text-neutral-900">Notifications</div>
@@ -504,54 +577,98 @@ export default function NotificationBell({ onSummaryChange }: Props) {
                       onClick={() => markAllAsRead()}
                       className="shrink-0 text-xs font-semibold text-rose-500 transition hover:text-rose-600 sm:text-sm"
                     >
-                      Mark All As Read
+                      Mark All
                     </button>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 sm:hidden"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
 
-              {permissionState === "default" && (
-                <div className="border-b border-neutral-100 bg-blue-50 px-4 py-3">
-                  <div className="text-sm font-semibold text-neutral-900">
-                    เปิด Push Notification
-                  </div>
+              <div className="border-b border-neutral-100 bg-neutral-50 px-4 py-3">
+                <div className="text-sm font-semibold text-neutral-900">Push notification</div>
+
+                {permissionState === "unsupported" ? (
                   <div className="mt-1 text-xs leading-5 text-neutral-600">
-                    กด Allow เพื่อให้ระบบแจ้งเตือน mention, approval และข้อความใหม่
+                    อุปกรณ์/เบราว์เซอร์นี้ยังไม่รองรับการแจ้งเตือนผ่านเว็บ
                   </div>
-
-                  {!canShowNativePrompt && isIosDevice() && (
-                    <div className="mt-2 text-xs leading-5 text-amber-700">
-                      บน iPhone/iPad ให้ Add to Home Screen ก่อน แล้วเปิดแอปจากไอคอนจึงจะกด
-                      Allow ได้
+                ) : permissionState === "denied" ? (
+                  <div className="mt-1 space-y-2">
+                    <div className="text-xs leading-5 text-neutral-600">
+                      เบราว์เซอร์บล็อกการแจ้งเตือนอยู่ ต้องไปเปิดใหม่ใน Site Settings ของเว็บนี้
                     </div>
-                  )}
-
-                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => disableCurrentBrowserPush()}
+                      disabled={pushBusy}
+                      className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {pushBusy ? "กำลังปิด..." : "ล้าง subscription ของอุปกรณ์นี้"}
+                    </button>
+                  </div>
+                ) : permissionState === "granted" && pushSubscribed ? (
+                  <div className="mt-1 space-y-2">
+                    <div className="text-xs leading-5 text-neutral-600">
+                      เปิดการแจ้งเตือนอยู่สำหรับอุปกรณ์นี้แล้ว
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => disableCurrentBrowserPush()}
+                      disabled={pushBusy}
+                      className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {pushBusy ? "กำลังปิด..." : "ปิดการแจ้งเตือนอุปกรณ์นี้"}
+                    </button>
+                  </div>
+                ) : permissionState === "granted" ? (
+                  <div className="mt-1 space-y-2">
+                    <div className="text-xs leading-5 text-neutral-600">
+                      เบราว์เซอร์อนุญาตแล้ว แต่เครื่องนี้ยังไม่ได้ subscribe push
+                    </div>
                     <button
                       type="button"
                       onClick={() => handleEnablePush()}
                       disabled={pushBusy}
                       className="rounded-lg bg-neutral-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {pushBusy ? "กำลังเปิด..." : "Allow notifications"}
+                      {pushBusy ? "กำลังเปิด..." : "เปิดการแจ้งเตือนอุปกรณ์นี้"}
                     </button>
+                  </div>
+                ) : (
+                  <div className="mt-1 space-y-2">
+                    <div className="text-xs leading-5 text-neutral-600">
+                      ระบบจะเด้ง popup ขอสิทธิ์อัตโนมัติเมื่อยังไม่ได้ตอบรับ
+                    </div>
+
+                    {isIosWithoutStandalone && (
+                      <div className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                        iPhone/iPad ต้อง Add to Home Screen ก่อน แล้วเปิดแอปจากไอคอนจึงจะขอ
+                        push ได้
+                      </div>
+                    )}
 
                     <button
                       type="button"
-                      onClick={handleDismissPushPrompt}
-                      className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+                      onClick={() => setShowPushPrompt(true)}
+                      className="rounded-lg bg-neutral-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-neutral-800"
                     >
-                      Not now
+                      Open permission popup
                     </button>
                   </div>
+                )}
 
-                  {pushMessage && (
-                    <div className="mt-2 text-xs text-neutral-600">{pushMessage}</div>
-                  )}
-                </div>
-              )}
+                {pushMessage && (
+                  <div className="mt-2 text-xs leading-5 text-neutral-600">{pushMessage}</div>
+                )}
+              </div>
 
-              <div className="max-h-[70vh] overflow-y-auto">
+              <div className="h-[calc(100%-132px)] overflow-y-auto sm:h-auto sm:max-h-[calc(min(78vh,40rem)-132px)]">
                 {loading && grouped.length === 0 ? (
                   <div className="px-4 py-8 text-center text-sm text-neutral-500">กำลังโหลด...</div>
                 ) : grouped.length === 0 ? (
@@ -616,7 +733,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
                   {summary.unreadApprovals}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="hidden items-center gap-2 sm:flex">
                   <button
                     type="button"
                     onClick={() => load()}
@@ -640,7 +757,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
       </div>
 
       {showPushPrompt && (
-        <div className="fixed inset-0 z-[80] flex items-start justify-center bg-black/35 p-4 sm:items-start sm:pt-20">
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40 p-3 sm:items-center sm:p-4">
           <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-5 shadow-2xl">
             <div className="text-lg font-semibold text-neutral-900">Allow notifications?</div>
 
@@ -648,9 +765,15 @@ export default function NotificationBell({ onSummaryChange }: Props) {
               เปิดการแจ้งเตือนเพื่อรับข้อความใหม่, mention และการอัปเดตการอนุมัติ
             </div>
 
-            {isIosDevice() && !isStandaloneDisplayMode() && (
+            {isIosWithoutStandalone && (
               <div className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-800">
                 สำหรับ iPhone/iPad ให้กด Share → Add to Home Screen แล้วเปิดแอปจากไอคอนก่อน
+              </div>
+            )}
+
+            {permissionState === "denied" && (
+              <div className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-800">
+                ตอนนี้ browser บล็อกการแจ้งเตือนอยู่ ต้องไปเปิดใหม่ใน Site Settings ของเว็บนี้
               </div>
             )}
 
@@ -663,7 +786,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={handleDismissPushPrompt}
+                onClick={dismissPromptForSession}
                 className="rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
               >
                 Not now
@@ -672,7 +795,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
               <button
                 type="button"
                 onClick={() => handleEnablePush()}
-                disabled={pushBusy}
+                disabled={pushBusy || permissionState === "denied"}
                 className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {pushBusy ? "Loading..." : "Allow"}
