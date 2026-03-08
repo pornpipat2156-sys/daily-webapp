@@ -860,17 +860,32 @@ export default function ContactPage() {
             messages.map((msg) => {
               const mine = !!meId && msg.author.id === meId;
               const authorLabel = msg.author.name?.trim() ? msg.author.name : msg.author.email;
+              const mentionedMe =
+                !mine &&
+                !!meId &&
+                Array.isArray(msg.mentionUserIds) &&
+                msg.mentionUserIds.includes(meId);
 
               return (
                 <div
                   key={msg.id}
                   className={cn(
-                    "rounded-2xl border bg-white p-3",
-                    mine ? "ml-8" : "mr-8"
+                    "rounded-2xl border p-3",
+                    mine ? "ml-8 bg-white" : "mr-8 bg-white",
+                    mentionedMe && "border-amber-300 bg-amber-50 shadow-sm"
                   )}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div className="font-medium">{authorLabel}</div>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="truncate font-medium">{authorLabel}</div>
+
+                      {mentionedMe && (
+                        <span className="shrink-0 rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
+                          @คุณ
+                        </span>
+                      )}
+                    </div>
+
                     <div className="text-xs text-gray-500">{fmtDateTime(msg.createdAt)}</div>
                   </div>
 
@@ -888,7 +903,14 @@ export default function ContactPage() {
                   ) : null}
 
                   {msg.text ? (
-                    <div className="mt-2 whitespace-pre-wrap text-sm">{msg.text}</div>
+                    <div
+                      className={cn(
+                        "mt-2 whitespace-pre-wrap text-sm",
+                        mentionedMe && "font-medium text-amber-950"
+                      )}
+                    >
+                      {msg.text}
+                    </div>
                   ) : null}
                 </div>
               );
