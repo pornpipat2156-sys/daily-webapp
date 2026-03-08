@@ -8,11 +8,11 @@ import TopRightAuth from "./TopRightAuth";
 import NotificationBell from "./NotificationBell";
 
 const nav = [
-  { href: "/daily-report", label: "รายงานประจำวัน" },
-  { href: "/commentator", label: "แสดงความคิดเห็น" },
-  { href: "/summation", label: "การตรวจสอบและการอนุมัติ" },
-  { href: "/input", label: "การสรุปผลข้อมูล" },
-  { href: "/contact", label: "ติดต่อ" },
+  { href: "/daily-report", label: "รายงานประจำวัน", shortLabel: "ร" },
+  { href: "/commentator", label: "แสดงความคิดเห็น", shortLabel: "ส" },
+  { href: "/summation", label: "การตรวจสอบและการอนุมัติ", shortLabel: "อ" },
+  { href: "/input", label: "การสรุปผลข้อมูล", shortLabel: "ป" },
+  { href: "/contact", label: "ติดต่อ", shortLabel: "ต" },
 ];
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -61,28 +61,31 @@ export default function AppShell({
     <div
       className={cn(
         "flex h-full flex-col border-r border-neutral-200 bg-neutral-50 transition-all duration-300",
-        collapsed ? "w-20" : "w-72"
+        collapsed ? "w-18" : "w-72"
       )}
+      style={{ width: collapsed ? 72 : 288 }}
     >
-      <div className="flex h-20 items-center justify-between border-b border-neutral-200 px-4">
-        <div
-          className={cn(
-            "min-w-0 transition-all duration-300",
-            collapsed ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100"
-          )}
-        >
-          <div className="truncate text-2xl font-bold tracking-tight text-neutral-900">
-            DAILY-WEBAPP
+      <div
+        className={cn(
+          "flex h-20 items-center border-b border-neutral-200",
+          collapsed ? "justify-center px-2" : "justify-between px-4"
+        )}
+      >
+        {!collapsed && (
+          <div className="min-w-0">
+            <div className="truncate text-2xl font-bold tracking-tight text-neutral-900">
+              DAILY-WEBAPP
+            </div>
+            <div className="truncate text-sm text-neutral-500">
+              Construction Collaboration
+            </div>
           </div>
-          <div className="truncate text-sm text-neutral-500">
-            Construction Collaboration
-          </div>
-        </div>
+        )}
 
         <button
           type="button"
           onClick={() => setCollapsed((v) => !v)}
-          className="ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-sm text-neutral-600 shadow-sm hover:bg-neutral-100"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-sm text-neutral-600 shadow-sm hover:bg-neutral-100"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
@@ -90,7 +93,7 @@ export default function AppShell({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-4">
+      <div className="flex-1 overflow-y-auto px-2 py-4">
         <nav className="space-y-2">
           {nav.map((item) => {
             const enabled = isTabEnabled(item.href);
@@ -108,29 +111,32 @@ export default function AppShell({
                   setMobileOpen(false);
                 }}
                 className={cn(
-                  "relative flex h-11 items-center rounded-xl transition",
-                  collapsed ? "justify-center px-0" : "justify-between px-3",
+                  "relative flex rounded-xl transition",
+                  collapsed
+                    ? "h-11 w-full items-center justify-center px-0"
+                    : "h-11 items-center justify-between px-3",
                   active
                     ? "bg-neutral-900 text-white"
                     : enabled
                     ? "text-neutral-700 hover:bg-neutral-100"
                     : "cursor-not-allowed text-neutral-300"
                 )}
-                title={collapsed ? item.label : undefined}
+                title={item.label}
               >
-                <span
-                  className={cn(
-                    "block text-sm",
-                    collapsed ? "max-w-[42px] truncate text-center" : "truncate"
-                  )}
-                >
-                  {collapsed ? item.label.slice(0, 2) : item.label}
-                </span>
-
-                {!collapsed && hasUnreadMentions && (
-                  <span className="ml-3 inline-flex min-w-[22px] items-center justify-center rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                    {contactBadge}
+                {collapsed ? (
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-sm font-semibold">
+                    {item.shortLabel}
                   </span>
+                ) : (
+                  <>
+                    <span className="block truncate text-sm">{item.label}</span>
+
+                    {hasUnreadMentions && (
+                      <span className="ml-3 inline-flex min-w-[22px] items-center justify-center rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                        {contactBadge}
+                      </span>
+                    )}
+                  </>
                 )}
 
                 {collapsed && hasUnreadMentions && (
@@ -170,6 +176,7 @@ export default function AppShell({
     <div className="min-h-screen bg-white text-neutral-900">
       <div className="hidden lg:flex">
         {sidebar}
+
         <div className="min-w-0 flex-1">
           <header className="sticky top-0 z-30 flex h-20 items-center justify-between gap-3 border-b border-neutral-200 bg-white/95 px-6 backdrop-blur">
             <div className="min-w-0">
