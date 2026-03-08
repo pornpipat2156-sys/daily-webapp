@@ -1,15 +1,24 @@
+// app/api/chat/messages/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { sendChatMessagePush } from "@/lib/webpush";
 import { createNotifications } from "@/lib/notifications";
-import { sendChatMessagePush, sendDedupedPushes } from "@/lib/webpush";
 
-type MemberLite = {
-  userId: string;
-  email: string;
-  name: string | null;
-};
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function hasMentionToken(text: string, rawToken: string) {
+  const token = String(rawToken || "").trim();
+  if (!token) return false;
+
+  const escaped = escapeRegExp(`@${token}`);
+  const pattern = new RegExp(`(^|\\s)${escaped}(?=$|\\s|[.,!?;:()\\[\\]{}"'])`, "i");
+
+  return pattern.test(text);
+}
 
 async function requireAuth() {
   const session = await getServerSession(authOptions);
@@ -34,7 +43,11 @@ async function requireAuth() {
   return { ok: true as const, session, meId, role };
 }
 
-async function requireMemberOrSuperAdmin(projectId: string, meId: string, role?: string) {
+async function requireMemberOrSuperAdmin(
+  projectId: string,
+  meId: string,
+  role?: string
+) {
   const isMember = await prisma.chatGroupMember.findUnique({
     where: { projectId_userId: { projectId, userId: meId } },
     select: { id: true, isActive: true },
@@ -57,60 +70,6 @@ async function requireMemberOrSuperAdmin(projectId: string, meId: string, role?:
   }
 
   return { ok: true as const };
-}
-
-function normalizeText(s: string) {
-  return String(s || "").toLowerCase();
-}
-
-function hasMentionToken(text: string, token: string) {
-  const hay = normalizeText(text);
-  const needle = normalizeText(token).trim();
-  if (!needle) return false;
-
-  let start = 0;
-
-  while (true) {
-    const idx = hay.indexOf(needle, start);
-    if (idx === -1) return false;
-
-    const prev = idx === 0 ? " " : hay[idx - 1];
-    const next = hay[idx + needle.length] ?? " ";
-
-    const prevOk = /\s|[([{"'`>]/.test(prev);
-    const nextOk = /\s|[)\]}",.!?:;'"`<]/.test(next);
-
-    if (prevOk && nextOk) return true;
-    start = idx + needle.length;
-  }
-}
-
-function extractMentionUserIds(text: string | null, members: MemberLite[], authorId: string) {
-  if (!text?.trim()) return [];
-
-  const matches = new Set<string>();
-
-  const candidates = members
-    .map((m) => {
-      const display = m.name?.trim() ? m.name.trim() : m.email.trim();
-      return {
-        userId: m.userId,
-        tokens: [`@${display}`, `@${m.email.trim()}`],
-      };
-    })
-    .sort((a, b) => {
-      const aLen = Math.max(...a.tokens.map((t) => t.length));
-      const bLen = Math.max(...b.tokens.map((t) => t.length));
-      return bLen - aLen;
-    });
-
-  for (const c of candidates) {
-    if (c.userId === authorId) continue;
-    const hit = c.tokens.some((token) => hasMentionToken(text, token));
-    if (hit) matches.add(c.userId);
-  }
-
-  return Array.from(matches);
 }
 
 export async function GET(req: Request) {
@@ -172,30 +131,54 @@ export async function POST(req: Request) {
   const perm = await requireMemberOrSuperAdmin(projectId, auth.meId, auth.role);
   if (!perm.ok) return perm.res;
 
-  const members = await prisma.chatGroupMember.findMany({
-    where: {
-      projectId,
-      isActive: true,
-    },
-    select: {
-      userId: true,
-      user: {
-        select: {
-          email: true,
-          name: true,
+  const [project, members, authorUser] = await Promise.all([
+    prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, name: true },
+    }),
+    prisma.chatGroupMember.findMany({
+      where: {
+        projectId,
+        isActive: true,
+      },
+      select: {
+        userId: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.user.findUnique({
+      where: { id: auth.meId },
+      select: { id: true, email: true, name: true, role: true },
+    }),
+  ]);
 
-  const mentionUserIds = extractMentionUserIds(
-    text,
-    members.map((m) => ({
-      userId: m.userId,
-      email: m.user.email,
-      name: m.user.name,
-    })),
-    auth.meId
+  const cleanText = (text || "").trim();
+
+  const mentionUserIds = Array.from(
+    new Set(
+      members
+        .filter((m) => m.userId !== auth.meId)
+        .filter((m) => {
+          if (!cleanText) return false;
+
+          const displayName = (m.user.name || "").trim();
+          const email = (m.user.email || "").trim();
+
+          return (
+            (displayName && hasMentionToken(cleanText, displayName)) ||
+            (email && hasMentionToken(cleanText, email))
+          );
+        })
+        .map((m) => m.userId)
+        .filter(Boolean)
+    )
   );
 
   const created = await prisma.chatMessage.create({
@@ -210,81 +193,63 @@ export async function POST(req: Request) {
       author: {
         select: { id: true, email: true, name: true, role: true },
       },
-      project: {
-        select: { id: true, name: true },
-      },
     },
   });
 
   try {
-    const activeMembers = await prisma.chatGroupMember.findMany({
-      where: {
-        projectId,
-        isActive: true,
-        userId: { not: auth.meId },
-      },
-      select: { userId: true },
-    });
+    if (mentionUserIds.length > 0) {
+      const authorName =
+        created.author.name?.trim() ||
+        created.author.email ||
+        authorUser?.name?.trim() ||
+        authorUser?.email ||
+        "มีคน";
 
-    const allRecipientIds = activeMembers.map((m) => m.userId).filter(Boolean);
-    const mentionRecipientIds = mentionUserIds;
-    const generalRecipientIds = allRecipientIds.filter((id) => !mentionRecipientIds.includes(id));
+      const projectName = project?.name || "โครงการ";
+      const previewText =
+        cleanText || "มีการกล่าวถึงคุณในห้องแชทโครงการ";
 
-    const authorName = created.author.name?.trim() || created.author.email;
-    const projectName = created.project?.name || "โครงการ";
-    const preview = String(created.text || "").trim() || "คุณมีข้อความใหม่ในแชตโครงการ";
-
-    if (mentionRecipientIds.length > 0) {
       await createNotifications(
-        mentionRecipientIds.map((userId) => ({
+        mentionUserIds.map((userId) => ({
           userId,
           type: "MENTION",
-          title: `มีคน mention คุณใน ${projectName}`,
-          body: `${authorName}: ${preview}`,
+          title: `${authorName} mentioned you`,
+          body: `${projectName} • ${previewText}`,
           url: `/contact?projectId=${encodeURIComponent(projectId)}`,
-          sourceKey: `mention:${created.id}:${userId}`,
-          groupKey: `mention:${projectId}`,
+          sourceKey: `chat-mention:${created.id}:${userId}`,
+          groupKey: `chat-mention:${projectId}`,
           projectId,
           meta: {
-            projectId,
             messageId: created.id,
-            authorId: created.author.id,
-            kind: "mention",
-          },
-        }))
-      );
-
-      await sendDedupedPushes(
-        mentionRecipientIds.map((userId) => ({
-          userId,
-          dedupeKey: `mention:${created.id}:${userId}`,
-          channel: "mention",
-          payload: {
-            title: `มีคน mention คุณใน ${projectName}`,
-            body: `${authorName}: ${preview}`,
-            url: `/contact?projectId=${encodeURIComponent(projectId)}`,
-            tag: `mention:${created.id}`,
-            data: {
-              projectId,
-              messageId: created.id,
-              kind: "mention",
-            },
+            authorId: auth.meId,
+            authorName,
+            projectId,
+            projectName,
+            reportId: created.reportId,
           },
         }))
       );
     }
+  } catch (err) {
+    console.error("create mention notifications failed:", err);
+  }
 
-    if (generalRecipientIds.length > 0) {
+  try {
+    const recipientUserIds = members
+      .map((m) => m.userId)
+      .filter((userId) => Boolean(userId) && userId !== auth.meId);
+
+    if (recipientUserIds.length > 0) {
       await sendChatMessagePush({
-        recipientUserIds: generalRecipientIds,
-        projectName,
-        authorName,
+        recipientUserIds,
+        projectName: project?.name || "โครงการ",
+        authorName: created.author.name?.trim() || created.author.email,
         messageText: created.text,
         projectId,
       });
     }
   } catch (err) {
-    console.error("chat notify failed:", err);
+    console.error("chat push notify failed:", err);
   }
 
   return NextResponse.json({
