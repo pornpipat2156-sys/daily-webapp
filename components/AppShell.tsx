@@ -34,7 +34,7 @@ export default function AppShell({
     unreadApprovals: 0,
   });
 
-  const role = (((session?.user as any)?.role || "USER") as string).trim();
+  const role = ((((session?.user as any)?.role || "USER") as string) || "USER").trim();
   const displayName =
     ((((session?.user as any)?.name &&
       String((session?.user as any).name).trim()) ||
@@ -51,20 +51,15 @@ export default function AppShell({
   }
 
   const contactBadge = useMemo(() => {
-    return summary.unreadMentions > 99
-      ? "99+"
-      : String(summary.unreadMentions || "");
+    return summary.unreadMentions > 99 ? "99+" : String(summary.unreadMentions || "");
   }, [summary.unreadMentions]);
 
   function renderNavItem(
     item: (typeof nav)[number],
-    options?: {
-      onNavigate?: () => void;
-    }
+    options?: { onNavigate?: () => void; mobile?: boolean }
   ) {
     const enabled = isTabEnabled(item.href);
-    const active =
-      pathname === item.href || pathname?.startsWith(`${item.href}/`);
+    const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
     const isContact = item.href === "/contact";
     const hasUnreadMentions = isContact && summary.unreadMentions > 0;
 
@@ -77,19 +72,20 @@ export default function AppShell({
           options?.onNavigate?.();
         }}
         className={cn(
-          "relative flex h-11 items-center justify-between rounded-xl px-3 transition",
+          "soft-btn relative flex items-center justify-between gap-3 overflow-hidden border px-4 text-sm font-semibold",
+          options?.mobile ? "min-h-12 rounded-2xl" : "min-h-12 rounded-2xl",
           active
-            ? "bg-neutral-900 text-white"
+            ? "border-primary/30 bg-[linear-gradient(135deg,rgba(124,156,245,0.18),rgba(121,217,199,0.16))] text-slate-900 shadow-[0_12px_30px_rgba(124,156,245,0.16)] dark:text-white"
             : enabled
-            ? "text-neutral-700 hover:bg-neutral-100"
-            : "cursor-not-allowed text-neutral-300"
+            ? "border-border/80 bg-white/80 text-slate-700 hover:border-primary/30 hover:bg-white dark:bg-slate-900/60 dark:text-slate-200"
+            : "cursor-not-allowed border-border/70 bg-slate-100/70 text-slate-300 dark:bg-slate-900/50 dark:text-slate-500"
         )}
         title={item.label}
       >
-        <span className="block truncate text-sm">{item.label}</span>
+        <span className="truncate">{item.label}</span>
 
         {hasUnreadMentions && (
-          <span className="ml-3 inline-flex min-w-[22px] items-center justify-center rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-bold text-white">
+          <span className="status-mention inline-flex min-w-7 items-center justify-center rounded-full px-2 py-1 text-[11px] font-bold leading-none shadow-sm">
             {contactBadge}
           </span>
         )}
@@ -98,154 +94,138 @@ export default function AppShell({
   }
 
   const desktopSidebar = (
-    <div className="flex h-full w-72 flex-col border-r border-neutral-200 bg-neutral-50">
-      <div className="flex h-20 items-center border-b border-neutral-200 px-4">
-        <div className="min-w-0">
-          <div className="truncate text-2xl font-bold tracking-tight text-neutral-900">
+    <aside className="sticky top-5 hidden h-[calc(100dvh-2.5rem)] w-[290px] shrink-0 xl:block">
+      <div className="soft-card soft-scroll flex h-full flex-col overflow-hidden p-4">
+        <div className="rounded-[22px] bg-[linear-gradient(135deg,rgba(124,156,245,0.18),rgba(121,217,199,0.16),rgba(247,199,217,0.14))] p-5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-300">
+            Daily Webapp
+          </div>
+          <div className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
             DAILY-WEBAPP
           </div>
-          <div className="truncate text-sm text-neutral-500">
-            Construction Collaboration
+          <div className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+            Construction collaboration dashboard with a softer modern interface.
           </div>
         </div>
-      </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-4">
-        <nav className="space-y-2">
+        <div className="mt-5 flex-1 space-y-2 overflow-y-auto pr-1">
           {nav.map((item) => renderNavItem(item))}
-        </nav>
-      </div>
+        </div>
 
-      <div className="border-t border-neutral-200 p-3">
-        <div className="rounded-2xl border border-neutral-200 bg-white px-3 py-3">
-          <div className="truncate text-sm font-semibold text-neutral-900">
+        <div className="mt-5 rounded-[22px] border border-border/80 bg-card-soft/90 p-4 dark:bg-slate-900/50">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-400">
+            Signed in as
+          </div>
+          <div className="mt-2 truncate text-sm font-bold text-slate-800 dark:text-slate-100">
             {displayName}
           </div>
-          <div className="truncate text-xs text-neutral-500">
+          <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {role} • {position}
           </div>
         </div>
       </div>
-    </div>
+    </aside>
   );
 
   const mobileSidebar = (
-    <div className="flex h-full w-[86vw] max-w-[320px] flex-col border-r border-neutral-200 bg-neutral-50">
-      <div className="flex h-20 items-center justify-between border-b border-neutral-200 px-4">
+    <div className="soft-card-strong soft-scroll fixed inset-y-3 left-3 z-50 flex w-[min(86vw,22rem)] max-w-full flex-col overflow-hidden p-4 xl:hidden">
+      <div className="flex items-start justify-between gap-3 rounded-[22px] bg-[linear-gradient(135deg,rgba(124,156,245,0.18),rgba(121,217,199,0.16),rgba(247,199,217,0.14))] p-4">
         <div className="min-w-0">
-          <div className="truncate text-2xl font-bold tracking-tight text-neutral-900">
+          <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-300">
+            Daily Webapp
+          </div>
+          <div className="mt-2 text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
             DAILY-WEBAPP
           </div>
-          <div className="truncate text-sm text-neutral-500">
+          <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             Construction Collaboration
           </div>
         </div>
 
         <button
-          type="button"
           onClick={() => setMobileOpen(false)}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-sm text-neutral-600 shadow-sm hover:bg-neutral-100"
+          className="soft-btn inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-border/80 bg-white/90 text-base text-slate-600 shadow-sm hover:bg-white dark:bg-slate-900/70 dark:text-slate-200"
           aria-label="Close sidebar"
           title="Close sidebar"
+          type="button"
         >
-          ‹
+          ✕
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-4">
-        <nav className="space-y-2">
-          {nav.map((item) =>
-            renderNavItem(item, {
-              onNavigate: () => setMobileOpen(false),
-            })
-          )}
-        </nav>
+      <div className="mt-5 flex-1 space-y-2 overflow-y-auto pr-1">
+        {nav.map((item) =>
+          renderNavItem(item, {
+            onNavigate: () => setMobileOpen(false),
+            mobile: true,
+          })
+        )}
       </div>
 
-      <div className="border-t border-neutral-200 p-3">
-        <div className="rounded-2xl border border-neutral-200 bg-white px-3 py-3">
-          <div className="truncate text-sm font-semibold text-neutral-900">
-            {displayName}
-          </div>
-          <div className="truncate text-xs text-neutral-500">
-            {role} • {position}
-          </div>
+      <div className="mt-5 rounded-[22px] border border-border/80 bg-card-soft/90 p-4 dark:bg-slate-900/50">
+        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-400">
+          Signed in as
+        </div>
+        <div className="mt-2 truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+          {displayName}
+        </div>
+        <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {role} • {position}
         </div>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-white text-neutral-900">
-      <div className="hidden lg:flex">
+    <div className="min-h-dvh bg-background text-foreground">
+      <div className="mx-auto flex w-full max-w-[1680px] gap-5 px-3 py-3 sm:px-4 sm:py-4 lg:px-5 xl:px-6">
         {desktopSidebar}
 
         <div className="min-w-0 flex-1">
-          <header className="sticky top-0 z-30 flex h-20 items-center justify-between gap-3 border-b border-neutral-200 bg-white/95 px-6 backdrop-blur">
-            <div className="min-w-0">
-              <div className="truncate text-lg font-semibold text-neutral-900">
-                {displayName}
-              </div>
-              <div className="truncate text-sm text-neutral-500">
-                {role} • {position}
-              </div>
-            </div>
+          <header className="soft-shell sticky top-3 z-30 rounded-[26px] border border-white/60 px-3 py-3 shadow-[0_10px_30px_rgba(148,163,184,0.14)] sm:px-4 lg:px-5">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setMobileOpen(true)}
+                className="soft-btn inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-border/80 bg-white/90 text-lg text-slate-700 shadow-sm hover:bg-white xl:hidden"
+                aria-label="Open sidebar"
+                type="button"
+              >
+                ☰
+              </button>
 
-            <div className="flex shrink-0 items-center gap-3">
-              <NotificationBell onSummaryChange={setSummary} />
-              <TopRightAuth />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-bold text-slate-800 dark:text-slate-100 sm:text-base">
+                  {displayName}
+                </div>
+                <div className="truncate text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
+                  {role} • {position}
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                <NotificationBell onSummaryChange={setSummary} />
+                <TopRightAuth />
+              </div>
             </div>
           </header>
 
-          <main className="min-w-0">{children}</main>
+          <main className="pt-4 sm:pt-5">
+            <div className="min-w-0">{children}</div>
+          </main>
         </div>
       </div>
 
-      <div className="lg:hidden">
-        <header className="sticky top-0 z-30 flex h-20 items-center justify-between gap-3 border-b border-neutral-200 bg-white/95 px-4 backdrop-blur">
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setMobileOpen(true)}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-lg text-neutral-700 shadow-sm hover:bg-neutral-50"
-              aria-label="Open sidebar"
-            >
-              ☰
-            </button>
-
-            <div className="min-w-0">
-              <div className="truncate text-base font-semibold text-neutral-900">
-                {displayName}
-              </div>
-              <div className="truncate text-sm text-neutral-500">
-                {role} • {position}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-3">
-            <NotificationBell onSummaryChange={setSummary} />
-            <TopRightAuth />
-          </div>
-        </header>
-
-        {mobileOpen && (
-          <>
-            <button
-              type="button"
-              onClick={() => setMobileOpen(false)}
-              className="fixed inset-0 z-40 bg-black/30"
-              aria-label="Close sidebar overlay"
-            />
-
-            <div className="fixed inset-y-0 left-0 z-50 shadow-2xl">
-              {mobileSidebar}
-            </div>
-          </>
-        )}
-
-        <main className="min-w-0">{children}</main>
-      </div>
+      {mobileOpen && (
+        <>
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="fixed inset-0 z-40 bg-slate-900/28 backdrop-blur-[2px] xl:hidden"
+            aria-label="Close sidebar overlay"
+            type="button"
+          />
+          {mobileSidebar}
+        </>
+      )}
     </div>
   );
 }

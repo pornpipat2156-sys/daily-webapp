@@ -1,69 +1,124 @@
 @import "tailwindcss";
 
-/* ===== Base theme tokens ===== */
+/* ===== Soft Modern Theme Tokens ===== */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f8fc;
+  --foreground: #1f2937;
 
-  /* เพิ่มเพื่อ UI */
   --card: #ffffff;
-  --muted: #f5f5f5;
-  --border: #dcdcdc;
+  --card-soft: #fbfcff;
+  --muted: #eef2f8;
+  --muted-strong: #e6ebf5;
+  --border: #dbe4f0;
+
+  --primary: #7c9cf5;
+  --primary-strong: #6788eb;
+  --primary-soft: #edf2ff;
+
+  --secondary: #79d9c7;
+  --secondary-soft: #ebfbf7;
+
+  --accent: #f7c7d9;
+  --accent-soft: #fff1f6;
+
+  --info: #68a7ff;
+  --info-soft: #edf4ff;
+
+  --success: #63c7a1;
+  --success-soft: #ecfbf4;
+
+  --warning: #f3be72;
+  --warning-soft: #fff7ea;
+
+  --danger: #ef7f96;
+  --danger-soft: #fff0f4;
+
+  --mention: #9a87f5;
+  --mention-soft: #f3efff;
+
+  --shadow-soft: 0 12px 40px rgba(120, 144, 182, 0.12);
+  --shadow-soft-lg: 0 20px 50px rgba(120, 144, 182, 0.18);
+
+  --radius-card: 24px;
+  --radius-button: 18px;
+  --radius-input: 16px;
 }
 
-/* Tailwind v4 theme mapping (ของเดิมคุณ) */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
-  /* เพิ่ม mapping สำหรับสีที่เราใช้ */
   --color-card: var(--card);
+  --color-card-soft: var(--card-soft);
   --color-muted: var(--muted);
+  --color-muted-strong: var(--muted-strong);
   --color-border: var(--border);
+
+  --color-primary: var(--primary);
+  --color-primary-strong: var(--primary-strong);
+  --color-primary-soft: var(--primary-soft);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-soft: var(--secondary-soft);
+
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --color-mention: var(--mention);
+  --color-mention-soft: var(--mention-soft);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-/* ===== Auto Dark Mode ตามเครื่อง ===== */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-
-    --card: #121212;
-    --muted: #1a1a1a;
-    --border: #3c3c3c;
-  }
-}
-
-/* กันล้นแนวนอนบนมือถือ */
 html,
 body {
-  height: 100%;
+  min-height: 100%;
   width: 100%;
   max-width: 100%;
-
-  /* สำคัญ: ห้าม hidden ไม่งั้น preview ที่ใช้ scale/transform จะโดนตัด */
   overflow-x: visible;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
-
 body {
-  background: var(--background);
+  background:
+    radial-gradient(circle at top left, rgba(121, 217, 199, 0.14), transparent 28%),
+    radial-gradient(circle at top right, rgba(124, 156, 245, 0.12), transparent 30%),
+    linear-gradient(180deg, #f9fbff 0%, #f6f8fc 100%);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* ช่วยกันข้อความยาวดัน layout */
 * {
+  box-sizing: border-box;
   word-break: break-word;
 }
 
-/* ===== Helper classes (ใช้กับ AppShell ที่จะทำให้ responsive+dark) ===== */
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
 .bg-background {
   background: var(--background);
 }
+
 .text-foreground {
   color: var(--foreground);
 }
@@ -71,28 +126,31 @@ body {
 .bg-card {
   background: var(--card);
 }
+
 .bg-muted {
   background: var(--muted);
 }
 
-/* บังคับเส้น border ให้ตามธีม */
 .border {
   border-color: var(--border);
 }
+
 .border-b {
   border-bottom-color: var(--border);
 }
+
 .border-r {
   border-right-color: var(--border);
 }
 
-/* ให้ปุ่ม active ใช้สีตามธีม */
 .bg-foreground {
   background: var(--foreground);
 }
+
 .text-background {
   color: var(--background);
 }
+
 .border-foreground {
   border-color: var(--foreground);
 }
@@ -101,14 +159,176 @@ body {
   overflow-x: hidden;
 }
 
-/* ✅ กัน iOS Safari ปรับขนาดตัวอักษรเองจนเพี้ยน */
-html {
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
+/* ===== Soft utility classes ===== */
+.soft-shell {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.72));
+  backdrop-filter: blur(18px);
 }
 
-/* กันบางกรณีที่ Safari ปรับเฉพาะ body */
-body {
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
+.soft-card {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(219, 228, 240, 0.92);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(14px);
+}
+
+.soft-card-strong {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(219, 228, 240, 0.98);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft-lg);
+  backdrop-filter: blur(16px);
+}
+
+.soft-input {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: var(--radius-input);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.soft-input:focus-visible {
+  outline: none;
+  border-color: rgba(124, 156, 245, 0.7);
+  box-shadow:
+    0 0 0 4px rgba(124, 156, 245, 0.16),
+    0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.soft-btn {
+  border-radius: var(--radius-button);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease;
+}
+
+.soft-btn:hover {
+  transform: translateY(-1px);
+}
+
+.soft-btn:active {
+  transform: translateY(0);
+}
+
+.soft-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cfd9e6 transparent;
+}
+
+.soft-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.soft-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.soft-scroll::-webkit-scrollbar-thumb {
+  background: #d7e0eb;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.status-info {
+  background: var(--info-soft);
+  color: #356ec4;
+}
+
+.status-success {
+  background: var(--success-soft);
+  color: #2f8e6b;
+}
+
+.status-warning {
+  background: var(--warning-soft);
+  color: #b57d24;
+}
+
+.status-danger {
+  background: var(--danger-soft);
+  color: #ca4c67;
+}
+
+.status-mention {
+  background: var(--mention-soft);
+  color: #7058d8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f1724;
+    --foreground: #eef4ff;
+    --card: #162131;
+    --card-soft: #1a2638;
+    --muted: #111c2c;
+    --muted-strong: #1c2a3f;
+    --border: #2a3a54;
+
+    --primary: #8fa8ff;
+    --primary-strong: #7695fb;
+    --primary-soft: rgba(143, 168, 255, 0.14);
+
+    --secondary: #76d7c5;
+    --secondary-soft: rgba(118, 215, 197, 0.13);
+
+    --accent: #f0aeca;
+    --accent-soft: rgba(240, 174, 202, 0.14);
+
+    --info: #8dbbff;
+    --info-soft: rgba(141, 187, 255, 0.14);
+
+    --success: #7ad0ae;
+    --success-soft: rgba(122, 208, 174, 0.14);
+
+    --warning: #f2c57e;
+    --warning-soft: rgba(242, 197, 126, 0.14);
+
+    --danger: #f39bad;
+    --danger-soft: rgba(243, 155, 173, 0.14);
+
+    --mention: #b1a2ff;
+    --mention-soft: rgba(177, 162, 255, 0.14);
+
+    --shadow-soft: 0 14px 38px rgba(0, 0, 0, 0.28);
+    --shadow-soft-lg: 0 20px 56px rgba(0, 0, 0, 0.34);
+  }
+
+  body {
+    background:
+      radial-gradient(circle at top left, rgba(118, 215, 197, 0.12), transparent 26%),
+      radial-gradient(circle at top right, rgba(143, 168, 255, 0.12), transparent 28%),
+      linear-gradient(180deg, #0d1522 0%, #0f1724 100%);
+  }
+
+  .soft-shell {
+    background:
+      linear-gradient(180deg, rgba(22, 33, 49, 0.78), rgba(22, 33, 49, 0.68));
+  }
+
+  .soft-card {
+    background: rgba(22, 33, 49, 0.9);
+    border-color: rgba(42, 58, 84, 0.9);
+  }
+
+  .soft-card-strong {
+    background: rgba(22, 33, 49, 0.96);
+    border-color: rgba(42, 58, 84, 0.98);
+  }
+
+  .soft-input {
+    background: rgba(17, 28, 44, 0.92);
+    border-color: rgba(42, 58, 84, 0.95);
+    color: var(--foreground);
+  }
+
+  .soft-scroll::-webkit-scrollbar-thumb {
+    background: #31445f;
+  }
 }

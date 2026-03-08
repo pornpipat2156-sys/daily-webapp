@@ -55,7 +55,6 @@ function getProjectName(item: NotificationItem) {
     item?.meta && typeof item.meta === "object"
       ? String((item.meta as Record<string, unknown>).projectName || "").trim()
       : "";
-
   return projectName || null;
 }
 
@@ -141,6 +140,12 @@ function getGroupedBody(item: GroupedNotificationItem) {
   return item.body;
 }
 
+function getTypePillClass(type: NotificationItem["type"]) {
+  if (type === "MENTION") return "status-mention";
+  if (type === "APPROVAL") return "status-success";
+  return "status-info";
+}
+
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -156,7 +161,6 @@ function urlBase64ToUint8Array(base64String: string) {
 
 function isIosDevice() {
   if (typeof window === "undefined") return false;
-
   const ua = window.navigator.userAgent || "";
   const platform = window.navigator.platform || "";
   const touchPoints = window.navigator.maxTouchPoints || 0;
@@ -166,7 +170,6 @@ function isIosDevice() {
 
 function isStandaloneDisplayMode() {
   if (typeof window === "undefined") return false;
-
   const nav = window.navigator as Navigator & { standalone?: boolean };
 
   return (
@@ -177,7 +180,6 @@ function isStandaloneDisplayMode() {
 
 function supportsPushPrompt() {
   if (typeof window === "undefined") return false;
-
   return "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
 }
 
@@ -196,13 +198,12 @@ export default function NotificationBell({ onSummaryChange }: Props) {
     unreadApprovals: 0,
     items: [],
   });
-
   const [showPushPrompt, setShowPushPrompt] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState<string | null>(null);
-  const [permissionState, setPermissionState] = useState<NotificationPermission | "unsupported">(
-    "unsupported"
-  );
+  const [permissionState, setPermissionState] = useState<
+    NotificationPermission | "unsupported"
+  >("unsupported");
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -220,7 +221,6 @@ export default function NotificationBell({ onSummaryChange }: Props) {
 
       const json = (await res.json()) as NotificationResponse;
       setSummary(json);
-
       onSummaryChange?.({
         unreadCount: json.unreadCount || 0,
         unreadMentions: json.unreadMentions || 0,
@@ -275,6 +275,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
     if (!supportsPushPrompt()) return false;
 
     const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+
     if (!vapidPublicKey) {
       setPushMessage("ยังไม่ได้ตั้งค่า VAPID public key");
       return false;
@@ -384,6 +385,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
 
   function dismissPromptForSession() {
     setShowPushPrompt(false);
+
     try {
       sessionStorage.setItem(PUSH_PROMPT_SESSION_KEY, "1");
     } catch {
@@ -475,16 +477,16 @@ export default function NotificationBell({ onSummaryChange }: Props) {
     <>
       <div ref={wrapRef} className="relative">
         <button
-          type="button"
           onClick={() => setOpen((v) => !v)}
-          className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-700 shadow-sm transition hover:bg-neutral-50"
+          className="soft-btn relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-border/80 bg-white/90 text-neutral-700 shadow-sm hover:bg-white dark:bg-slate-900/60 dark:text-slate-200"
           aria-label="Notifications"
           title="Notifications"
+          type="button"
         >
           <span className="text-lg">🔔</span>
 
           {summary.unreadCount > 0 && (
-            <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white shadow">
+            <span className="status-danger absolute -right-1 -top-1 inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-1 text-[11px] font-extrabold leading-none shadow-sm">
               {summary.unreadCount > 99 ? "99+" : summary.unreadCount}
             </span>
           )}
@@ -493,27 +495,29 @@ export default function NotificationBell({ onSummaryChange }: Props) {
         {open && (
           <>
             <button
-              type="button"
               onClick={() => setOpen(false)}
               className="fixed inset-0 z-40 bg-black/10 sm:bg-transparent"
               aria-label="Close notifications"
+              type="button"
             />
 
-            <div className="fixed left-3 right-3 top-[88px] z-50 max-h-[calc(100dvh-104px)] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-3 sm:max-h-[70vh] sm:w-[min(92vw,24rem)]">
-              <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
-                <div>
-                  <div className="text-sm font-semibold text-neutral-900">Notifications</div>
-                  <div className="text-xs text-neutral-500">
-                    {summary.unreadCount > 99 ? "99+" : summary.unreadCount} unread
+            <div className="soft-card-strong fixed inset-x-3 top-[72px] z-50 max-h-[min(72dvh,38rem)] overflow-hidden sm:absolute sm:right-0 sm:top-[calc(100%+0.75rem)] sm:left-auto sm:w-[min(92vw,26rem)]">
+              <div className="border-b border-border/80 px-4 py-4 sm:px-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-base font-extrabold text-slate-900 dark:text-white">
+                      Notifications
+                    </div>
+                    <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      {summary.unreadCount > 99 ? "99+" : summary.unreadCount} unread
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2">
                   {summary.unreadCount > 0 && (
                     <button
-                      type="button"
                       onClick={() => markAllAsRead()}
-                      className="shrink-0 text-xs font-semibold text-rose-500 transition hover:text-rose-600 sm:text-sm"
+                      className="soft-btn status-danger rounded-full px-3 py-2 text-xs font-bold sm:text-sm"
+                      type="button"
                     >
                       Mark All As Read
                     </button>
@@ -521,11 +525,13 @@ export default function NotificationBell({ onSummaryChange }: Props) {
                 </div>
               </div>
 
-              <div className="max-h-[calc(100dvh-180px)] overflow-y-auto sm:max-h-[70vh]">
+              <div className="soft-scroll max-h-[calc(min(72dvh,38rem)-5.5rem)] overflow-y-auto">
                 {loading && grouped.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-neutral-500">กำลังโหลด...</div>
+                  <div className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                    กำลังโหลด...
+                  </div>
                 ) : grouped.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-neutral-500">
+                  <div className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
                     ยังไม่มีการแจ้งเตือน
                   </div>
                 ) : (
@@ -537,40 +543,39 @@ export default function NotificationBell({ onSummaryChange }: Props) {
 
                     return (
                       <button
-                        key={`${item.id}-${item.count}`}
-                        type="button"
+                        key={`${item.id}-${item.groupedIds.join("-")}`}
                         onClick={() => markAsRead(item.groupedIds, item.url)}
-                        className={`relative block w-full border-b border-neutral-100 px-3 py-3 text-left transition hover:bg-neutral-50 sm:px-4 sm:py-4 ${
-                          unread ? "bg-rose-50/30" : "bg-white"
+                        className={`relative block w-full border-b border-border/70 px-4 py-4 text-left transition hover:bg-white/80 sm:px-5 ${
+                          unread
+                            ? "bg-[linear-gradient(135deg,rgba(124,156,245,0.08),rgba(121,217,199,0.06))]"
+                            : "bg-transparent"
                         }`}
+                        type="button"
                       >
-                        {unread && (
-                          <span className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-rose-500" />
-                        )}
-
-                        <div className="flex items-start gap-3 pr-5">
-                          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-base">
+                        <div className="flex items-start gap-3">
+                          <div className={getTypePillClass(item.type) + " inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-base font-bold"}>
                             {icon}
                           </div>
 
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <div className="truncate text-sm font-semibold text-neutral-900">
+                              <div className="truncate text-sm font-bold text-slate-800 dark:text-slate-100 sm:text-[15px]">
                                 {title}
                               </div>
 
                               {unread && (
-                                <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-600">
+                                <span className="status-info rounded-full px-2 py-1 text-[11px] font-bold leading-none">
                                   New
                                 </span>
                               )}
                             </div>
 
-                            <div className="mt-1 text-sm leading-5 text-neutral-600">{body}</div>
+                            <div className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                              {body}
+                            </div>
 
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-neutral-400">
-                              <span>{fmtDateTime(item.createdAt)}</span>
-                              {item.count > 1 && unread && <span>{item.count} items</span>}
+                            <div className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+                              {fmtDateTime(item.createdAt)}
                             </div>
                           </div>
                         </div>
@@ -579,83 +584,79 @@ export default function NotificationBell({ onSummaryChange }: Props) {
                   })
                 )}
               </div>
-
-              <div className="flex items-center justify-between gap-2 bg-neutral-50 px-4 py-3">
-                <div className="text-xs text-neutral-500">
-                  unread {summary.unreadCount} • mention {summary.unreadMentions} • approval{" "}
-                  {summary.unreadApprovals}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => load()}
-                    className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-                  >
-                    Refresh
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setOpen(false)}
-                    className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
             </div>
           </>
         )}
       </div>
 
       {showPushPrompt && (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40 p-3 sm:items-center sm:p-4">
-          <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-5 shadow-2xl">
-            <div className="text-lg font-semibold text-neutral-900">Allow notifications?</div>
+        <>
+          <button
+            onClick={dismissPromptForSession}
+            className="fixed inset-0 z-[70] bg-slate-900/30 backdrop-blur-[2px]"
+            aria-label="Close push prompt overlay"
+            type="button"
+          />
 
-            <div className="mt-2 text-sm leading-6 text-neutral-600">
-              เปิดการแจ้งเตือนเพื่อรับข้อความใหม่, mention และการอัปเดตการอนุมัติ
+          <div className="soft-card-strong fixed inset-x-4 bottom-4 z-[80] mx-auto w-auto max-w-[30rem] p-5 sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[28rem]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-lg font-extrabold text-slate-900 dark:text-white">
+                  Allow notifications?
+                </div>
+                <div className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  เปิดการแจ้งเตือนเพื่อรับข้อความใหม่, mention และการอัปเดตการอนุมัติ
+                </div>
+              </div>
+
+              <button
+                onClick={dismissPromptForSession}
+                className="soft-btn inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-border/80 bg-white/90 text-slate-500 shadow-sm hover:bg-white dark:bg-slate-900/60 dark:text-slate-300"
+                type="button"
+                aria-label="Dismiss push prompt"
+              >
+                ✕
+              </button>
             </div>
 
             {isIosWithoutStandalone && (
-              <div className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-800">
+              <div className="status-warning mt-4 rounded-2xl px-4 py-3 text-sm leading-6">
                 สำหรับ iPhone/iPad ให้กด Share → Add to Home Screen แล้วเปิดแอปจากไอคอนก่อน
               </div>
             )}
 
             {permissionState === "denied" && (
-              <div className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-800">
+              <div className="status-danger mt-4 rounded-2xl px-4 py-3 text-sm leading-6">
                 ตอนนี้ browser บล็อกการแจ้งเตือนอยู่ ต้องไปเปิดใหม่ใน Site Settings ของเว็บนี้
               </div>
             )}
 
             {pushMessage && (
-              <div className="mt-3 rounded-xl bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+              <div className="status-info mt-4 rounded-2xl px-4 py-3 text-sm leading-6">
                 {pushMessage}
               </div>
             )}
 
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
-                type="button"
                 onClick={dismissPromptForSession}
-                className="rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+                className="soft-btn inline-flex min-h-11 items-center justify-center rounded-2xl border border-border/80 bg-white/90 px-4 text-sm font-semibold text-slate-600 shadow-sm hover:bg-white dark:bg-slate-900/60 dark:text-slate-200"
+                type="button"
               >
                 Not now
               </button>
 
               <button
-                type="button"
                 onClick={() => handleEnablePush()}
-                disabled={pushBusy || permissionState === "denied"}
-                className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={pushBusy}
+                className="soft-btn inline-flex min-h-11 items-center justify-center rounded-2xl border border-primary/25 bg-[linear-gradient(135deg,rgba(124,156,245,0.92),rgba(121,217,199,0.92))] px-5 text-sm font-bold text-white shadow-[0_14px_30px_rgba(124,156,245,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
+                type="button"
               >
-                {pushBusy ? "Loading..." : "Allow"}
+                {pushBusy ? "กำลังเปิด..." : "Enable notifications"}
               </button>
             </div>
           </div>
-        </div>
+        </>
       )}
     </>
   );
