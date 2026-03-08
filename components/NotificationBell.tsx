@@ -37,7 +37,7 @@ type GroupedNotificationItem = NotificationItem & {
   groupedIds: string[];
 };
 
-const PUSH_PROMPT_SESSION_KEY = "daily-webapp-push-prompt-dismissed-session-v2";
+const PUSH_PROMPT_SESSION_KEY = "daily-webapp-push-prompt-dismissed-session-v3";
 
 function fmtDateTime(iso: string) {
   const d = new Date(iso);
@@ -295,6 +295,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
         },
         body: JSON.stringify({ subscription: existingSub.toJSON() }),
       });
+
       return true;
     }
 
@@ -384,6 +385,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
 
   function dismissPromptForSession() {
     setShowPushPrompt(false);
+
     try {
       sessionStorage.setItem(PUSH_PROMPT_SESSION_KEY, "1");
     } catch {
@@ -495,13 +497,20 @@ export default function NotificationBell({ onSummaryChange }: Props) {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="fixed inset-0 z-40 bg-black/10 sm:bg-transparent"
+              className="fixed inset-0 z-40 bg-black/20 sm:bg-transparent"
               aria-label="Close notifications"
             />
 
-            <div className="absolute right-0 z-50 mt-3 w-[min(92vw,24rem)] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl">
+            <div
+              className="
+                fixed inset-x-2 top-[76px] bottom-2 z-50
+                overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl
+                sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:bottom-auto sm:mt-3
+                sm:w-[min(92vw,24rem)] sm:max-h-[70vh]
+              "
+            >
               <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
-                <div>
+                <div className="min-w-0">
                   <div className="text-sm font-semibold text-neutral-900">Notifications</div>
                   <div className="text-xs text-neutral-500">
                     {summary.unreadCount > 99 ? "99+" : summary.unreadCount} unread
@@ -513,15 +522,23 @@ export default function NotificationBell({ onSummaryChange }: Props) {
                     <button
                       type="button"
                       onClick={() => markAllAsRead()}
-                      className="shrink-0 text-xs font-semibold text-rose-500 transition hover:text-rose-600 sm:text-sm"
+                      className="shrink-0 text-xs font-semibold text-rose-500 transition hover:text-rose-600"
                     >
-                      Mark All As Read
+                      Mark all
                     </button>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 sm:hidden"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
 
-              <div className="max-h-[70vh] overflow-y-auto">
+              <div className="h-[calc(100%-104px)] overflow-y-auto sm:h-auto sm:max-h-[calc(70vh-56px)]">
                 {loading && grouped.length === 0 ? (
                   <div className="px-4 py-8 text-center text-sm text-neutral-500">กำลังโหลด...</div>
                 ) : grouped.length === 0 ? (
@@ -566,7 +583,9 @@ export default function NotificationBell({ onSummaryChange }: Props) {
                               )}
                             </div>
 
-                            <div className="mt-1 text-sm leading-5 text-neutral-600">{body}</div>
+                            <div className="mt-1 break-words text-sm leading-5 text-neutral-600">
+                              {body}
+                            </div>
 
                             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-neutral-400">
                               <span>{fmtDateTime(item.createdAt)}</span>
@@ -580,13 +599,13 @@ export default function NotificationBell({ onSummaryChange }: Props) {
                 )}
               </div>
 
-              <div className="flex items-center justify-between gap-2 bg-neutral-50 px-4 py-3">
-                <div className="text-xs text-neutral-500">
+              <div className="flex items-center justify-between gap-2 border-t border-neutral-100 bg-neutral-50 px-4 py-3">
+                <div className="min-w-0 text-xs text-neutral-500">
                   unread {summary.unreadCount} • mention {summary.unreadMentions} • approval{" "}
                   {summary.unreadApprovals}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="hidden items-center gap-2 sm:flex">
                   <button
                     type="button"
                     onClick={() => load()}
