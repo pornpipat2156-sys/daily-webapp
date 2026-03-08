@@ -7,12 +7,12 @@ datasource db {
 }
 
 model Project {
-  id        String        @id @default(dbgenerated("gen_random_uuid()"))
-  name      String        @unique
-  createdAt DateTime      @default(now())
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
+  name      String   @unique
+  createdAt DateTime @default(now())
   meta      Json?
-  reports   DailyReport[]
 
+  reports       DailyReport[]
   projectAdmins ProjectAdmin[]
 
   // ✅ Chat (Project Group Chat) - opposite relation fields
@@ -50,13 +50,13 @@ model DailyReport {
 }
 
 model Issue {
-  id        String      @id @default(uuid())
+  id        String   @id @default(uuid())
   reportId  String
   detail    String
   imageUrl  String?
-  createdAt DateTime    @default(now())
-  report    DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 
+  report   DailyReport   @relation(fields: [reportId], references: [id], onDelete: Cascade)
   comments IssueComment[]
 
   @@index([reportId])
@@ -67,7 +67,6 @@ model Issue {
  * Weekly / Monthly Reports
  * =========================
  */
-
 model WeeklyReport {
   id              String   @id @default(cuid())
   projectId       String
@@ -117,7 +116,6 @@ model MonthlyReport {
  * Auth (Invite-only)
  * =========================
  */
-
 enum Role {
   USER
   ADMIN
@@ -145,9 +143,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  projectAdminOf  ProjectAdmin[]
-  issueComments   IssueComment[]
-  reportApprovals ReportApproval[] @relation("UserApprovals")
+  projectAdminOf    ProjectAdmin[]
+  issueComments     IssueComment[]
+  reportApprovals   ReportApproval[] @relation("UserApprovals")
+  pushSubscriptions PushSubscription[]
 
   // ✅ Chat (Project Group Chat) - opposite relation fields
   chatGroups   ChatGroupMember[]
@@ -155,13 +154,13 @@ model User {
 }
 
 model PasswordToken {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   userEmail String
-  tokenHash String    @unique
+  tokenHash String   @unique
   purpose   String // "reset"
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userEmail])
   @@index([expiresAt])
@@ -242,4 +241,21 @@ model ChatMessage {
 
   @@index([projectId, createdAt])
   @@index([authorId])
+}
+
+model PushSubscription {
+  id         String   @id @default(cuid())
+  userId      String
+  endpoint    String   @unique
+  p256dh      String
+  auth        String
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+  lastUsedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
 }

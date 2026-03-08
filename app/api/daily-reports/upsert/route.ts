@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendReportPendingCommentPush } from "@/lib/webpush";
 
 function bangkokStart(dateYmd: string) {
   return new Date(`${dateYmd}T00:00:00.000+07:00`);
 }
 
+function toDateText(dateYmd: string) {
+  const [y, m, d] = dateYmd.split("-").map(Number);
+  if (!y || !m || !d) return dateYmd;
+  const be = y + 543;
+  const dd = String(d).padStart(2, "0");
+  const mm = String(m).padStart(2, "0");
+  return `${dd}/${mm}/${be}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-
     const projectId = String(body?.projectId || "");
     const dateYmd = String(body?.date || ""); // expect YYYY-MM-DD
 
@@ -55,6 +64,7 @@ export async function POST(req: NextRequest) {
         },
         select: { id: true },
       });
+
       reportId = created.id;
     } else {
       reportId = existingReport.id;
@@ -114,16 +124,56 @@ export async function POST(req: NextRequest) {
     for (const ex of existingIssues) {
       if (!incomingIds.has(ex.id)) {
         const hasComments = (ex.comments || []).length > 0;
+
         if (!hasComments) {
           await prisma.issue.delete({ where: { id: ex.id } });
         } else {
           // ถ้ามีคอมเมนต์แล้ว ไม่ลบทิ้ง — เคลียร์ข้อความ/รูปแทน เพื่อเก็บประวัติ
           await prisma.issue.update({
             where: { id: ex.id },
-            data: { detail: "(รายการนี้ถูกลบ/แก้ไขโดยผู้กรอก)", imageUrl: null },
+            data: {
+              detail: "(รายการนี้ถูกลบ/แก้ไขโดยผู้กรอก)",
+              imageUrl: null,
+            },
           });
         }
       }
+    }
+
+    // ---- push notify: มีรายงานรอ comment ----
+    try {
+      const [project, superAdmins] = await Promise.all([
+        prisma.project.findUnique({
+          where: { id: projectId },
+          select: { id: true, name: true },
+        }),
+        prisma.projectAdmin.findMany({
+          where: {
+            projectId,
+            isActive: true,
+            user: {
+              isActive: true,
+              role: "SUPERADMIN",
+            },
+          },
+          select: {
+            userId: true,
+          },
+        }),
+      ]);
+
+      const recipientUserIds = superAdmins.map((x) => x.userId).filter(Boolean);
+
+      if (recipientUserIds.length > 0) {
+        await sendReportPendingCommentPush({
+          recipientUserIds,
+          projectName: project?.name || "โครงการ",
+          reportDateText: toDateText(dateYmd),
+          projectId,
+        });
+      }
+    } catch (err) {
+      console.error("report pending comment push failed:", err);
     }
 
     return NextResponse.json({ ok: true, reportId });
