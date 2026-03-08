@@ -8,11 +8,11 @@ import TopRightAuth from "./TopRightAuth";
 import NotificationBell from "./NotificationBell";
 
 const nav = [
-  { href: "/daily-report", label: "รายงานประจำวัน", shortLabel: "ร" },
-  { href: "/commentator", label: "แสดงความคิดเห็น", shortLabel: "ส" },
-  { href: "/summation", label: "การตรวจสอบและการอนุมัติ", shortLabel: "อ" },
-  { href: "/input", label: "การสรุปผลข้อมูล", shortLabel: "ป" },
-  { href: "/contact", label: "ติดต่อ", shortLabel: "ต" },
+  { href: "/daily-report", label: "รายงานประจำวัน" },
+  { href: "/commentator", label: "แสดงความคิดเห็น" },
+  { href: "/summation", label: "การตรวจสอบและการอนุมัติ" },
+  { href: "/input", label: "การสรุปผลข้อมูล" },
+  { href: "/contact", label: "ติดต่อ" },
 ];
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -61,9 +61,8 @@ export default function AppShell({
     <div
       className={cn(
         "flex h-full flex-col border-r border-neutral-200 bg-neutral-50 transition-all duration-300",
-        collapsed ? "w-18" : "w-72"
+        collapsed ? "w-14" : "w-72"
       )}
-      style={{ width: collapsed ? 72 : 288 }}
     >
       <div
         className={cn(
@@ -93,7 +92,12 @@ export default function AppShell({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 py-4">
+      <div
+        className={cn(
+          "flex-1 overflow-y-auto py-4",
+          collapsed ? "px-1.5" : "px-3"
+        )}
+      >
         <nav className="space-y-2">
           {nav.map((item) => {
             const enabled = isTabEnabled(item.href);
@@ -124,9 +128,16 @@ export default function AppShell({
                 title={item.label}
               >
                 {collapsed ? (
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-sm font-semibold">
-                    {item.shortLabel}
-                  </span>
+                  <span
+                    className={cn(
+                      "block h-2.5 w-2.5 rounded-full transition",
+                      active
+                        ? "bg-white"
+                        : enabled
+                        ? "bg-neutral-400"
+                        : "bg-neutral-200"
+                    )}
+                  />
                 ) : (
                   <>
                     <span className="block truncate text-sm">{item.label}</span>
@@ -140,7 +151,7 @@ export default function AppShell({
                 )}
 
                 {collapsed && hasUnreadMentions && (
-                  <span className="absolute right-2 top-1.5 h-2.5 w-2.5 rounded-full bg-rose-500" />
+                  <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-rose-500" />
                 )}
               </Link>
             );
@@ -152,7 +163,7 @@ export default function AppShell({
         {collapsed ? (
           <div className="flex justify-center">
             <div
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-900 text-sm font-semibold text-white"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-900 text-xs font-semibold text-white"
               title={displayName}
             >
               {displayName.slice(0, 1).toUpperCase()}
