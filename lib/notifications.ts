@@ -16,7 +16,9 @@ export type CreateNotificationInput = {
 };
 
 function asJson(value: Record<string, unknown> | null | undefined) {
-  return (value ?? null) as Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
+  return (value ?? null) as
+    | Prisma.InputJsonValue
+    | Prisma.NullableJsonNullValueInput;
 }
 
 export async function createNotifications(inputs: CreateNotificationInput[]) {
@@ -45,35 +47,36 @@ export async function createNotifications(inputs: CreateNotificationInput[]) {
 export async function getNotificationSummary(userId: string, limit = 20) {
   const safeLimit = Math.max(1, Math.min(100, Number(limit || 20)));
 
-  const [items, unreadCount, unreadMentions, unreadApprovals] = await Promise.all([
-    prisma.notification.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: safeLimit,
-      select: {
-        id: true,
-        type: true,
-        title: true,
-        body: true,
-        url: true,
-        sourceKey: true,
-        groupKey: true,
-        projectId: true,
-        readAt: true,
-        meta: true,
-        createdAt: true,
-      },
-    }),
-    prisma.notification.count({
-      where: { userId, readAt: null },
-    }),
-    prisma.notification.count({
-      where: { userId, readAt: null, type: "MENTION" },
-    }),
-    prisma.notification.count({
-      where: { userId, readAt: null, type: "APPROVAL" },
-    }),
-  ]);
+  const [items, unreadCount, unreadMentions, unreadApprovals] =
+    await Promise.all([
+      prisma.notification.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: safeLimit,
+        select: {
+          id: true,
+          type: true,
+          title: true,
+          body: true,
+          url: true,
+          sourceKey: true,
+          groupKey: true,
+          projectId: true,
+          readAt: true,
+          meta: true,
+          createdAt: true,
+        },
+      }),
+      prisma.notification.count({
+        where: { userId, readAt: null },
+      }),
+      prisma.notification.count({
+        where: { userId, readAt: null, type: "MENTION" },
+      }),
+      prisma.notification.count({
+        where: { userId, readAt: null, type: "APPROVAL" },
+      }),
+    ]);
 
   return {
     unreadCount,
@@ -91,8 +94,16 @@ export async function markNotificationsRead(params: {
   userId: string;
   ids?: string[];
   all?: boolean;
+  type?: AppNotificationType;
+  projectId?: string;
 }) {
-  const { userId, ids = [], all = false } = params;
+  const {
+    userId,
+    ids = [],
+    all = false,
+    type,
+    projectId,
+  } = params;
 
   if (all) {
     const result = await prisma.notification.updateMany({
@@ -108,20 +119,40 @@ export async function markNotificationsRead(params: {
     return { count: result.count };
   }
 
-  const cleanIds = ids.map((x) => String(x || "").trim()).filter(Boolean);
+  const cleanIds = ids
+    .map((x) => String(x || "").trim())
+    .filter(Boolean);
 
-  if (!cleanIds.length) return { count: 0 };
+  if (cleanIds.length > 0) {
+    const result = await prisma.notification.updateMany({
+      where: {
+        userId,
+        id: { in: cleanIds },
+        readAt: null,
+      },
+      data: {
+        readAt: new Date(),
+      },
+    });
 
-  const result = await prisma.notification.updateMany({
-    where: {
-      userId,
-      id: { in: cleanIds },
-      readAt: null,
-    },
-    data: {
-      readAt: new Date(),
-    },
-  });
+    return { count: result.count };
+  }
 
-  return { count: result.count };
+  if (type || projectId) {
+    const result = await prisma.notification.updateMany({
+      where: {
+        userId,
+        readAt: null,
+        ...(type ? { type } : {}),
+        ...(projectId ? { projectId } : {}),
+      },
+      data: {
+        readAt: new Date(),
+      },
+    });
+
+    return { count: result.count };
+  }
+
+  return { count: 0 };
 }

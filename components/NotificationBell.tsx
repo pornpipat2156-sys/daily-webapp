@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 
 type NotificationItem = {
   id: string;
@@ -34,6 +35,7 @@ type Props = {
 
 function fmtDateTime(iso: string) {
   const d = new Date(iso);
+
   return d.toLocaleString("th-TH", {
     year: "numeric",
     month: "short",
@@ -45,12 +47,8 @@ function fmtDateTime(iso: string) {
 
 function groupNotifications(items: NotificationItem[]) {
   const grouped: Array<
-    NotificationItem & {
-      count: number;
-      groupedIds: string[];
-    }
+    NotificationItem & { count: number; groupedIds: string[] }
   > = [];
-
   const map = new Map<string, number>();
 
   for (const item of items) {
@@ -76,9 +74,9 @@ function groupNotifications(items: NotificationItem[]) {
 }
 
 function getTypeIcon(type: NotificationItem["type"]) {
-  if (type === "MENTION") return "💬";
+  if (type === "MENTION") return "@";
   if (type === "APPROVAL") return "✅";
-  return "🔔";
+  return "•";
 }
 
 function getGroupedTitle(
@@ -91,6 +89,9 @@ function getGroupedTitle(
 }
 
 export default function NotificationBell({ onSummaryChange }: Props) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<NotificationResponse>({
@@ -102,16 +103,23 @@ export default function NotificationBell({ onSummaryChange }: Props) {
   });
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const lastAutoReadKeyRef = useRef<string>("");
 
   async function load() {
     setLoading(true);
+
     try {
-      const res = await fetch("/api/notifications?limit=50", { cache: "no-store" });
-      if (!res.ok) throw new Error(await res.text());
+      const res = await fetch("/api/notifications?limit=50", {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
 
       const json = (await res.json()) as NotificationResponse;
-
       setSummary(json);
+
       onSummaryChange?.({
         unreadCount: json.unreadCount || 0,
         unreadMentions: json.unreadMentions || 0,
@@ -128,9 +136,12 @@ export default function NotificationBell({ onSummaryChange }: Props) {
     try {
       await fetch("/api/notifications/read", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ ids }),
       });
+
       await load();
       setOpen(false);
 
@@ -147,9 +158,12 @@ export default function NotificationBell({ onSummaryChange }: Props) {
     try {
       await fetch("/api/notifications/read", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ all: true }),
       });
+
       await load();
     } catch (e) {
       console.error(e);
@@ -188,10 +202,51 @@ export default function NotificationBell({ onSummaryChange }: Props) {
     };
   }, [open]);
 
-  const grouped = useMemo(() => groupNotifications(summary.items || []), [summary.items]);
+  useEffect(() => {
+    const projectId = searchParams.get("projectId") || "";
+    const isContactPage = pathname === "/contact";
+
+    if (!isContactPage || !projectId) return;
+
+    const hasUnreadMentionInProject = (summary.items || []).some(
+      (item) =>
+        item.type === "MENTION" &&
+        !item.readAt &&
+        item.projectId === projectId
+    );
+
+    if (!hasUnreadMentionInProject) return;
+
+    const autoReadKey = `${pathname}?projectId=${projectId}`;
+
+    if (lastAutoReadKeyRef.current === autoReadKey) return;
+    lastAutoReadKeyRef.current = autoReadKey;
+
+    fetch("/api/notifications/read", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        type: "MENTION",
+        projectId,
+      }),
+    })
+      .then(async () => {
+        await load();
+      })
+      .catch((err) => {
+        console.error("auto mark mention read failed:", err);
+      });
+  }, [pathname, searchParams, summary.items]);
+
+  const grouped = useMemo(
+    () => groupNotifications(summary.items || []),
+    [summary.items]
+  );
 
   return (
-    <div ref={wrapRef} className="relative">
+    <div className="relative" ref={wrapRef}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -199,9 +254,10 @@ export default function NotificationBell({ onSummaryChange }: Props) {
         aria-label="Notifications"
         title="Notifications"
       >
-        <span className="text-lg">🔔</span>
+        <span className="text-base">🔔</span>
+
         {summary.unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 min-w-[20px] rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none text-white">
+          <span className="absolute -right-1 -top-1 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
             {summary.unreadCount > 99 ? "99+" : summary.unreadCount}
           </span>
         )}
@@ -212,32 +268,20 @@ export default function NotificationBell({ onSummaryChange }: Props) {
           <button
             type="button"
             aria-label="Close notifications"
-            className="fixed inset-0 z-[79] bg-black/10 sm:bg-transparent"
+            className="fixed inset-0 z-30 cursor-default"
             onClick={() => setOpen(false)}
           />
 
-          <div
-            className="
-              fixed right-2 top-[60px] z-[80]
-              w-[calc(100vw-16px)]
-              max-w-[420px]
-              overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl
-              sm:absolute sm:right-0 sm:top-[calc(100%+12px)] sm:w-[420px]
-            "
-            style={{
-              maxHeight: "min(78dvh, 680px)",
-            }}
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-3 py-3 sm:px-4 sm:py-4">
-              <div className="flex min-w-0 items-center gap-2">
-                <div className="truncate text-xl font-semibold leading-none text-neutral-800 sm:text-[26px]">
+          <div className="absolute right-0 top-12 z-40 w-[min(92vw,26rem)] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
+              <div>
+                <div className="text-sm font-semibold text-neutral-900">
                   Notifications
                 </div>
-                {summary.unreadCount > 0 && (
-                  <span className="inline-flex min-w-[22px] items-center justify-center rounded-md bg-rose-500 px-1.5 py-1 text-[11px] font-semibold leading-none text-white sm:min-w-[24px] sm:px-2 sm:text-xs">
-                    {summary.unreadCount > 99 ? "99+" : summary.unreadCount}
-                  </span>
-                )}
+                <div className="mt-0.5 text-xs text-neutral-500">
+                  unread {summary.unreadCount} • mention{" "}
+                  {summary.unreadMentions} • approval {summary.unreadApprovals}
+                </div>
               </div>
 
               <button
@@ -249,99 +293,83 @@ export default function NotificationBell({ onSummaryChange }: Props) {
               </button>
             </div>
 
-            <div
-              className="overflow-y-auto"
-              style={{
-                maxHeight: "min(calc(78dvh - 118px), 520px)",
-              }}
-            >
+            <div className="max-h-[28rem] overflow-y-auto">
               {loading && grouped.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-neutral-500 sm:px-4 sm:py-5">
+                <div className="px-4 py-6 text-sm text-neutral-500">
                   กำลังโหลด...
                 </div>
               ) : grouped.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-neutral-500 sm:px-4 sm:py-5">
+                <div className="px-4 py-6 text-sm text-neutral-500">
                   ยังไม่มีการแจ้งเตือน
                 </div>
               ) : (
-                <div>
-                  {grouped.map((item) => {
-                    const unread = !item.readAt;
-                    const title = getGroupedTitle(item);
-                    const icon = getTypeIcon(item.type);
+                grouped.map((item) => {
+                  const unread = !item.readAt;
+                  const title = getGroupedTitle(item);
+                  const icon = getTypeIcon(item.type);
 
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => markAsRead(item.groupedIds, item.url)}
-                        className={`relative block w-full border-b border-neutral-100 px-3 py-3 text-left transition hover:bg-neutral-50 sm:px-4 sm:py-4 ${
-                          unread ? "bg-rose-50/30" : "bg-white"
-                        }`}
-                      >
-                        {unread && <span className="absolute left-0 top-0 h-full w-1 bg-rose-500" />}
+                  return (
+                    <button
+                      key={`${item.id}-${item.count}`}
+                      type="button"
+                      onClick={() => markAsRead(item.groupedIds, item.url)}
+                      className={`relative block w-full border-b border-neutral-100 px-3 py-3 text-left transition hover:bg-neutral-50 sm:px-4 sm:py-4 ${
+                        unread ? "bg-rose-50/30" : "bg-white"
+                      }`}
+                    >
+                      {unread && (
+                        <span className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-rose-500" />
+                      )}
 
-                        <div className="flex items-start gap-3 pl-1">
-                          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-base sm:h-10 sm:w-10 sm:text-lg">
-                            {icon}
+                      <div className="flex items-start gap-3 pr-5">
+                        <div className="mt-0.5 text-base">{icon}</div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <div className="truncate text-sm font-semibold text-neutral-900">
+                              {title}
+                            </div>
+
+                            {unread && (
+                              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-600">
+                                NEW
+                              </span>
+                            )}
                           </div>
 
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="line-clamp-2 text-sm font-semibold text-neutral-800 sm:line-clamp-1 sm:text-[15px]">
-                                {title}
-                              </div>
+                          <div className="mt-1 line-clamp-2 text-xs text-neutral-600 sm:text-sm">
+                            {item.body}
+                          </div>
 
-                              <div className="flex shrink-0 items-center gap-2">
-                                {unread && (
-                                  <span className="mt-0.5 h-3.5 w-3.5 rounded-full border-2 border-neutral-400 bg-white sm:h-4 sm:w-4" />
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="mt-1.5 line-clamp-3 text-xs leading-5 text-neutral-600 sm:mt-2 sm:text-sm sm:leading-6">
-                              {item.body}
-                            </div>
-
-                            <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-neutral-400 sm:mt-3 sm:text-xs">
-                              <span className="truncate">{fmtDateTime(item.createdAt)}</span>
-                              {item.count > 1 && unread && (
-                                <span className="shrink-0 font-medium text-rose-500">
-                                  {item.count} items
-                                </span>
-                              )}
-                            </div>
+                          <div className="mt-2 text-[11px] text-neutral-400 sm:text-xs">
+                            {fmtDateTime(item.createdAt)}
+                            {item.count > 1 && unread && (
+                              <span> • {item.count} items</span>
+                            )}
                           </div>
                         </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </div>
 
-            <div className="flex flex-col gap-2 border-t border-neutral-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-              <div className="text-[11px] text-neutral-500 sm:text-xs">
-                unread {summary.unreadCount} • mention {summary.unreadMentions} • approval{" "}
-                {summary.unreadApprovals}
-              </div>
-
-              <div className="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => load()}
-                  className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-                >
-                  Refresh
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-                >
-                  Close
-                </button>
-              </div>
+            <div className="flex items-center justify-end gap-2 border-t border-neutral-200 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => load()}
+                className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Close
+              </button>
             </div>
           </div>
         </>
