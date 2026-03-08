@@ -1,4 +1,3 @@
-// app/api/chat/messages/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
@@ -15,8 +14,10 @@ function hasMentionToken(text: string, rawToken: string) {
   if (!token) return false;
 
   const escaped = escapeRegExp(`@${token}`);
-  const pattern = new RegExp(`(^|\\s)${escaped}(?=$|\\s|[.,!?;:()\\[\\]{}"'])`, "i");
-
+  const pattern = new RegExp(
+    `(^|\\s)${escaped}(?=$|\\s|[.,!?;:()\\[\\]{}"'])`,
+    "i"
+  );
   return pattern.test(text);
 }
 
@@ -206,13 +207,12 @@ export async function POST(req: Request) {
         "มีคน";
 
       const projectName = project?.name || "โครงการ";
-      const previewText =
-        cleanText || "มีการกล่าวถึงคุณในห้องแชทโครงการ";
+      const previewText = cleanText || "มีการกล่าวถึงคุณในห้องแชทโครงการ";
 
       await createNotifications(
         mentionUserIds.map((userId) => ({
           userId,
-          type: "MENTION",
+          type: "MENTION" as const,
           title: `${authorName} mentioned you`,
           body: `${projectName} • ${previewText}`,
           url: `/contact?projectId=${encodeURIComponent(projectId)}`,
@@ -246,6 +246,7 @@ export async function POST(req: Request) {
         authorName: created.author.name?.trim() || created.author.email,
         messageText: created.text,
         projectId,
+        messageId: created.id,
       });
     }
   } catch (err) {

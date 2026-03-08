@@ -13,7 +13,7 @@ type NotificationItem = {
   projectId: string | null;
   readAt: string | null;
   createdAt: string;
-  meta: Record<string, unknown> | null;
+  meta: Record<string, any> | null;
 };
 
 type NotificationResponse = {
@@ -32,9 +32,13 @@ type Props = {
   }) => void;
 };
 
+type GroupedNotificationItem = NotificationItem & {
+  count: number;
+  groupedIds: string[];
+};
+
 function fmtDateTime(iso: string) {
   const d = new Date(iso);
-
   return d.toLocaleString("th-TH", {
     year: "numeric",
     month: "short",
@@ -44,10 +48,17 @@ function fmtDateTime(iso: string) {
   });
 }
 
+function getProjectName(item: NotificationItem) {
+  const projectName =
+    item?.meta && typeof item.meta === "object"
+      ? String(item.meta.projectName || "").trim()
+      : "";
+
+  return projectName || null;
+}
+
 function groupNotifications(items: NotificationItem[]) {
-  const grouped: Array<
-    NotificationItem & { count: number; groupedIds: string[] }
-  > = [];
+  const grouped: GroupedNotificationItem[] = [];
   const map = new Map<string, number>();
 
   for (const item of items) {
@@ -67,24 +78,65 @@ function groupNotifications(items: NotificationItem[]) {
     const target = grouped[existingIndex];
     target.count += 1;
     target.groupedIds.push(item.id);
+
+    const currentCreated = new Date(item.createdAt).getTime();
+    const targetCreated = new Date(target.createdAt).getTime();
+
+    if (currentCreated > targetCreated) {
+      grouped[existingIndex] = {
+        ...target,
+        ...item,
+        count: target.count,
+        groupedIds: target.groupedIds,
+      };
+    }
   }
 
   return grouped;
 }
 
 function getTypeIcon(type: NotificationItem["type"]) {
-  if (type === "MENTION") return "@";
+  if (type === "MENTION") return "💬";
   if (type === "APPROVAL") return "✅";
-  return "•";
+  return "🔔";
 }
 
-function getGroupedTitle(
-  item: NotificationItem & { count: number; groupedIds: string[] }
-) {
+function getGroupedTitle(item: GroupedNotificationItem) {
   if (item.count <= 1 || item.readAt) return item.title;
-  if (item.type === "MENTION") return `${item.count} new mentions`;
-  if (item.type === "APPROVAL") return `${item.count} new approvals`;
+
+  const projectName = getProjectName(item);
+
+  if (item.type === "MENTION") {
+    if (projectName) return `${item.count} new mentions in ${projectName}`;
+    return `${item.count} new mentions`;
+  }
+
+  if (item.type === "APPROVAL") {
+    if (projectName) return `${item.count} approval updates in ${projectName}`;
+    return `${item.count} new approvals`;
+  }
+
   return `${item.count} new notifications`;
+}
+
+function getGroupedBody(item: GroupedNotificationItem) {
+  if (item.count <= 1 || item.readAt) return item.body;
+
+  const projectName = getProjectName(item);
+
+  if (item.type === "MENTION") {
+    return projectName
+      ? `มี mention ใหม่สะสมใน ${projectName} กดเพื่อเปิดแชตโครงการ`
+      : "มี mention ใหม่หลายรายการ กดเพื่อเปิดดูรายละเอียด";
+  }
+
+  if (item.type === "APPROVAL") {
+    return projectName
+      ? `มีการอัปเดตสถานะอนุมัติใน ${projectName}`
+      : "มีการอัปเดตสถานะอนุมัติหลายรายการ";
+  }
+
+  return item.body;
 }
 
 export default function NotificationBell({ onSummaryChange }: Props) {
@@ -97,7 +149,6 @@ export default function NotificationBell({ onSummaryChange }: Props) {
     unreadApprovals: 0,
     items: [],
   });
-
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
   async function load() {
@@ -107,10 +158,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
       const res = await fetch("/api/notifications?limit=50", {
         cache: "no-store",
       });
-
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
+      if (!res.ok) throw new Error(await res.text());
 
       const json = (await res.json()) as NotificationResponse;
       setSummary(json);
@@ -172,22 +220,14 @@ export default function NotificationBell({ onSummaryChange }: Props) {
       load().catch(console.error);
     }, 15000);
 
-    function onRefresh() {
-      load().catch(console.error);
-    }
-
-    window.addEventListener("notifications:refresh", onRefresh);
-
-    return () => {
-      window.clearInterval(id);
-      window.removeEventListener("notifications:refresh", onRefresh);
-    };
+    return () => window.clearInterval(id);
   }, []);
 
   useEffect(() => {
     function onPointerDown(e: MouseEvent) {
       if (!open) return;
       if (!wrapRef.current) return;
+
       if (!wrapRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
@@ -214,44 +254,41 @@ export default function NotificationBell({ onSummaryChange }: Props) {
   return (
     <div className="relative" ref={wrapRef}>
       <button
-        type="button"
         onClick={() => setOpen((v) => !v)}
         className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-700 shadow-sm transition hover:bg-neutral-50"
         aria-label="Notifications"
         title="Notifications"
       >
-        <span className="text-base">🔔</span>
-
         {summary.unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+          <span className="absolute -right-1.5 -top-1.5 min-w-[22px] rounded-full bg-rose-500 px-1.5 py-0.5 text-center text-[11px] font-bold text-white shadow">
             {summary.unreadCount > 99 ? "99+" : summary.unreadCount}
           </span>
         )}
+        <span className="text-lg">🔔</span>
       </button>
 
       {open && (
         <>
           <button
-            type="button"
-            aria-label="Close notifications"
-            className="fixed inset-0 z-30 cursor-default"
             onClick={() => setOpen(false)}
+            className="fixed inset-0 z-30 cursor-default bg-transparent"
+            aria-label="Close notifications"
           />
 
-          <div className="absolute right-0 top-12 z-40 w-[min(92vw,26rem)] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
-              <div>
-                <div className="text-sm font-semibold text-neutral-900">
+          <div className="absolute right-0 top-12 z-40 w-[92vw] max-w-md overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <div className="text-base font-semibold text-neutral-900">
                   Notifications
                 </div>
-                <div className="mt-0.5 text-xs text-neutral-500">
-                  unread {summary.unreadCount} • mention{" "}
-                  {summary.unreadMentions} • approval {summary.unreadApprovals}
-                </div>
+                {summary.unreadCount > 0 && (
+                  <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-600">
+                    {summary.unreadCount > 99 ? "99+" : summary.unreadCount}
+                  </span>
+                )}
               </div>
 
               <button
-                type="button"
                 onClick={() => markAllAsRead()}
                 className="shrink-0 text-xs font-semibold text-rose-500 transition hover:text-rose-600 sm:text-sm"
               >
@@ -259,7 +296,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
               </button>
             </div>
 
-            <div className="max-h-[28rem] overflow-y-auto">
+            <div className="max-h-[70vh] overflow-y-auto">
               {loading && grouped.length === 0 ? (
                 <div className="px-4 py-6 text-sm text-neutral-500">
                   กำลังโหลด...
@@ -272,12 +309,12 @@ export default function NotificationBell({ onSummaryChange }: Props) {
                 grouped.map((item) => {
                   const unread = !item.readAt;
                   const title = getGroupedTitle(item);
+                  const body = getGroupedBody(item);
                   const icon = getTypeIcon(item.type);
 
                   return (
                     <button
-                      key={`${item.id}-${item.count}`}
-                      type="button"
+                      key={`${item.groupKey || item.id}-${item.groupedIds.join(",")}`}
                       onClick={() => markAsRead(item.groupedIds, item.url)}
                       className={`relative block w-full border-b border-neutral-100 px-3 py-3 text-left transition hover:bg-neutral-50 sm:px-4 sm:py-4 ${
                         unread ? "bg-rose-50/30" : "bg-white"
@@ -287,30 +324,32 @@ export default function NotificationBell({ onSummaryChange }: Props) {
                         <span className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-rose-500" />
                       )}
 
-                      <div className="flex items-start gap-3 pr-5">
-                        <div className="mt-0.5 text-base">{icon}</div>
+                      <div className="mb-1 flex items-start gap-2 pr-6">
+                        <span className="text-base leading-none">{icon}</span>
 
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <div className="truncate text-sm font-semibold text-neutral-900">
+                          <div className="flex items-start gap-2">
+                            <div className="truncate text-sm font-semibold text-neutral-900 sm:text-[15px]">
                               {title}
                             </div>
 
                             {unread && (
-                              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-600">
-                                NEW
+                              <span className="mt-0.5 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-600">
+                                New
                               </span>
                             )}
                           </div>
 
                           <div className="mt-1 line-clamp-2 text-xs text-neutral-600 sm:text-sm">
-                            {item.body}
+                            {body}
                           </div>
 
-                          <div className="mt-2 text-[11px] text-neutral-400 sm:text-xs">
-                            {fmtDateTime(item.createdAt)}
+                          <div className="mt-2 flex items-center gap-2 text-[11px] text-neutral-400 sm:text-xs">
+                            <span>{fmtDateTime(item.createdAt)}</span>
                             {item.count > 1 && unread && (
-                              <span> • {item.count} items</span>
+                              <span className="rounded-full bg-neutral-100 px-2 py-0.5 font-medium text-neutral-500">
+                                {item.count} items
+                              </span>
                             )}
                           </div>
                         </div>
@@ -321,21 +360,26 @@ export default function NotificationBell({ onSummaryChange }: Props) {
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-neutral-200 px-4 py-3">
-              <button
-                type="button"
-                onClick={() => load()}
-                className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-              >
-                Refresh
-              </button>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-              >
-                Close
-              </button>
+            <div className="flex items-center justify-between gap-2 border-t border-neutral-100 px-4 py-3 text-[11px] text-neutral-500 sm:text-xs">
+              <div>
+                unread {summary.unreadCount} • mention {summary.unreadMentions} •
+                approval {summary.unreadApprovals}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => load()}
+                  className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                >
+                  Refresh
+                </button>
+                <button
+                  onClick={() => setOpen(false)}
+                  className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </>

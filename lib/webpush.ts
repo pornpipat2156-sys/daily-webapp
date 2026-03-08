@@ -2,6 +2,8 @@ import { Prisma } from "@prisma/client";
 import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
 
+export const runtime = "nodejs";
+
 type DbPushSubscription = {
   id: string;
   userId: string;
@@ -25,6 +27,15 @@ export type DedupePushInput = {
   payload: PushPayload;
 };
 
+type SendChatMessagePushInput = {
+  recipientUserIds: string[];
+  projectName: string;
+  authorName?: string | null;
+  messageText?: string | null;
+  projectId: string;
+  messageId?: string | null;
+};
+
 function getVapidConfig() {
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
   const privateKey = process.env.VAPID_PRIVATE_KEY || "";
@@ -42,8 +53,10 @@ let configured = false;
 
 function ensureWebPushConfigured() {
   if (configured) return;
+
   const vapid = getVapidConfig();
   if (!vapid.enabled) return;
+
   webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
   configured = true;
 }
@@ -72,6 +85,15 @@ function toPayloadString(payload: PushPayload) {
   });
 }
 
+function cleanText(value?: string | null) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function truncate(value: string, max = 120) {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 1)}…`;
+}
+
 async function removeBrokenSubscription(endpoint: string) {
   try {
     await prisma.pushSubscription.delete({
@@ -95,6 +117,7 @@ async function touchSubscription(endpoint: string) {
 
 export async function sendPushToUser(userId: string, payload: PushPayload) {
   if (!isWebPushEnabled()) return;
+
   ensureWebPushConfigured();
 
   const subs = await prisma.pushSubscription.findMany({
@@ -129,7 +152,11 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
 
 export async function sendPushToUsers(userIds: string[], payload: PushPayload) {
   const uniqueUserIds = Array.from(
-    new Set((userIds || []).map((x) => String(x || "").trim()).filter(Boolean))
+    new Set(
+      (userIds || [])
+        .map((x) => String(x || "").trim())
+        .filter(Boolean)
+    )
   );
 
   if (!uniqueUserIds.length) return;
@@ -150,7 +177,7 @@ export async function sendDedupedPushes(inputs: DedupePushInput[]) {
           payload: x.payload,
         }))
         .filter((x) => x.userId && x.dedupeKey)
-        .map((x) => [`${x.userId}::${x.dedupeKey}`, x])
+        .map((x) => [`${x.userId}::${x.dedupeKey}`, x] as const)
     ).values()
   );
 
@@ -176,26 +203,110 @@ export async function sendDedupedPushes(inputs: DedupePushInput[]) {
     });
 
     if (result.count === 0) continue;
-
     await sendPushToUser(input.userId, input.payload);
   }
 }
 
-export async function sendChatMessagePush(params: {
-  recipientUserIds: string[];
-  projectName: string;
-  authorName: string;
-  messageText?: string | null;
+function buildMentionPushPayload(params: {
+  unreadMentionCountInProject: number;
   projectId: string;
-}) {
-  const preview = String(params.messageText || "").trim() || "คุณมีข้อความใหม่ในแชตโครงการ";
+  projectName: string;
+  authorName?: string | null;
+  messageText?: string | null;
+}): PushPayload {
+  const unreadCount = Math.max(1, Number(params.unreadMentionCountInProject || 1));
+  const projectName = cleanText(params.projectName) || "Project";
+  const authorName = cleanText(params.authorName) || "Someone";
+  const messageText = cleanText(params.messageText);
+  const url = `/contact?projectId=${encodeURIComponent(params.projectId)}`;
 
-  await sendPushToUsers(params.recipientUserIds, {
-    title: `ข้อความใหม่: ${params.projectName}`,
-    body: `${params.authorName}: ${preview}`,
-    url: `/contact?projectId=${encodeURIComponent(params.projectId)}`,
-    tag: `chat-${params.projectId}`,
-  });
+  if (unreadCount > 1) {
+    return {
+      title: `${unreadCount} new mentions in ${projectName}`,
+      body: "Open project chat to review the latest mentions.",
+      url,
+      tag: `mention-group:${params.projectId}`,
+      data: {
+        type: "MENTION",
+        projectId: params.projectId,
+        projectName,
+        unreadMentionCountInProject: unreadCount,
+      },
+    };
+  }
+
+  return {
+    title: `${authorName} mentioned you`,
+    body: messageText
+      ? `${projectName} • ${truncate(messageText, 120)}`
+      : `${projectName} • You were mentioned in project chat.`,
+    url,
+    tag: `mention-group:${params.projectId}`,
+    data: {
+      type: "MENTION",
+      projectId: params.projectId,
+      projectName,
+      unreadMentionCountInProject: unreadCount,
+    },
+  };
+}
+
+export async function sendChatMessagePush({
+  recipientUserIds,
+  projectName,
+  authorName,
+  messageText,
+  projectId,
+  messageId,
+}: SendChatMessagePushInput) {
+  const uniqueUserIds = Array.from(
+    new Set(
+      (recipientUserIds || [])
+        .map((x) => String(x || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (!uniqueUserIds.length) return;
+
+  if (!projectId) return;
+
+  const unreadCounts = await Promise.all(
+    uniqueUserIds.map(async (userId) => {
+      const count = await prisma.notification.count({
+        where: {
+          userId,
+          type: "MENTION",
+          projectId,
+          readAt: null,
+        },
+      });
+
+      return {
+        userId,
+        unreadMentionCountInProject: Math.max(1, count || 1),
+      };
+    })
+  );
+
+  const inputs: DedupePushInput[] = unreadCounts.map(
+    ({ userId, unreadMentionCountInProject }) => ({
+      userId,
+      dedupeKey: messageId
+        ? `chat-mention-push:${messageId}:${userId}`
+        : `chat-mention-push:${projectId}:${userId}:${Date.now()}`,
+      channel: "webpush",
+      payload: buildMentionPushPayload({
+        unreadMentionCountInProject,
+        projectId,
+        projectName,
+        authorName,
+        messageText,
+      }),
+    })
+  );
+
+  await sendDedupedPushes(inputs);
 }
 
 export async function sendReportPendingCommentPush(params: {
@@ -209,5 +320,11 @@ export async function sendReportPendingCommentPush(params: {
     body: `${params.projectName} • วันที่ ${params.reportDateText}`,
     url: `/commentator?projectId=${encodeURIComponent(params.projectId)}`,
     tag: `report-comment-${params.projectId}`,
+    data: {
+      type: "REPORT_PENDING_COMMENT",
+      projectId: params.projectId,
+      projectName: params.projectName,
+      reportDateText: params.reportDateText,
+    },
   });
 }
