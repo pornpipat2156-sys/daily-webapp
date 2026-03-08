@@ -25,15 +25,15 @@ export default function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { data: session } = useSession();
+
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [desktopCollapsed, setDesktopCollapsed] = useState(false);
   const [summary, setSummary] = useState({
     unreadCount: 0,
     unreadMentions: 0,
     unreadApprovals: 0,
   });
-
-  const { data: session } = useSession();
 
   const role = (((session?.user as any)?.role || "USER") as string).trim();
   const displayName =
@@ -57,20 +57,84 @@ export default function AppShell({
       : String(summary.unreadMentions || "");
   }, [summary.unreadMentions]);
 
-  const sidebar = (
+  function renderNavItem(
+    item: (typeof nav)[number],
+    options: {
+      compact: boolean;
+      onNavigate?: () => void;
+    }
+  ) {
+    const enabled = isTabEnabled(item.href);
+    const active =
+      pathname === item.href || pathname?.startsWith(`${item.href}/`);
+    const isContact = item.href === "/contact";
+    const hasUnreadMentions = isContact && summary.unreadMentions > 0;
+
+    return (
+      <Link
+        key={item.href}
+        href={enabled ? item.href : "#"}
+        onClick={(e) => {
+          if (!enabled) e.preventDefault();
+          options.onNavigate?.();
+        }}
+        className={cn(
+          "relative flex rounded-xl transition",
+          options.compact
+            ? "h-11 w-full items-center justify-center px-0"
+            : "h-11 items-center justify-between px-3",
+          active
+            ? "bg-neutral-900 text-white"
+            : enabled
+            ? "text-neutral-700 hover:bg-neutral-100"
+            : "cursor-not-allowed text-neutral-300"
+        )}
+        title={item.label}
+      >
+        {options.compact ? (
+          <span
+            className={cn(
+              "block h-2.5 w-2.5 rounded-full transition",
+              active
+                ? "bg-white"
+                : enabled
+                ? "bg-neutral-400"
+                : "bg-neutral-200"
+            )}
+          />
+        ) : (
+          <>
+            <span className="block truncate text-sm">{item.label}</span>
+
+            {hasUnreadMentions && (
+              <span className="ml-3 inline-flex min-w-[22px] items-center justify-center rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                {contactBadge}
+              </span>
+            )}
+          </>
+        )}
+
+        {options.compact && hasUnreadMentions && (
+          <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-rose-500" />
+        )}
+      </Link>
+    );
+  }
+
+  const desktopSidebar = (
     <div
       className={cn(
         "flex h-full flex-col border-r border-neutral-200 bg-neutral-50 transition-all duration-300",
-        collapsed ? "w-14" : "w-72"
+        desktopCollapsed ? "w-14" : "w-72"
       )}
     >
       <div
         className={cn(
           "flex h-20 items-center border-b border-neutral-200",
-          collapsed ? "justify-center px-2" : "justify-between px-4"
+          desktopCollapsed ? "justify-center px-2" : "justify-between px-4"
         )}
       >
-        {!collapsed && (
+        {!desktopCollapsed && (
           <div className="min-w-0">
             <div className="truncate text-2xl font-bold tracking-tight text-neutral-900">
               DAILY-WEBAPP
@@ -83,84 +147,32 @@ export default function AppShell({
 
         <button
           type="button"
-          onClick={() => setCollapsed((v) => !v)}
+          onClick={() => setDesktopCollapsed((v) => !v)}
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-sm text-neutral-600 shadow-sm hover:bg-neutral-100"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={desktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={desktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          {collapsed ? "›" : "‹"}
+          {desktopCollapsed ? "›" : "‹"}
         </button>
       </div>
 
       <div
         className={cn(
           "flex-1 overflow-y-auto py-4",
-          collapsed ? "px-1.5" : "px-3"
+          desktopCollapsed ? "px-1.5" : "px-3"
         )}
       >
         <nav className="space-y-2">
-          {nav.map((item) => {
-            const enabled = isTabEnabled(item.href);
-            const active =
-              pathname === item.href || pathname?.startsWith(`${item.href}/`);
-            const isContact = item.href === "/contact";
-            const hasUnreadMentions = isContact && summary.unreadMentions > 0;
-
-            return (
-              <Link
-                key={item.href}
-                href={enabled ? item.href : "#"}
-                onClick={(e) => {
-                  if (!enabled) e.preventDefault();
-                  setMobileOpen(false);
-                }}
-                className={cn(
-                  "relative flex rounded-xl transition",
-                  collapsed
-                    ? "h-11 w-full items-center justify-center px-0"
-                    : "h-11 items-center justify-between px-3",
-                  active
-                    ? "bg-neutral-900 text-white"
-                    : enabled
-                    ? "text-neutral-700 hover:bg-neutral-100"
-                    : "cursor-not-allowed text-neutral-300"
-                )}
-                title={item.label}
-              >
-                {collapsed ? (
-                  <span
-                    className={cn(
-                      "block h-2.5 w-2.5 rounded-full transition",
-                      active
-                        ? "bg-white"
-                        : enabled
-                        ? "bg-neutral-400"
-                        : "bg-neutral-200"
-                    )}
-                  />
-                ) : (
-                  <>
-                    <span className="block truncate text-sm">{item.label}</span>
-
-                    {hasUnreadMentions && (
-                      <span className="ml-3 inline-flex min-w-[22px] items-center justify-center rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                        {contactBadge}
-                      </span>
-                    )}
-                  </>
-                )}
-
-                {collapsed && hasUnreadMentions && (
-                  <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-rose-500" />
-                )}
-              </Link>
-            );
-          })}
+          {nav.map((item) =>
+            renderNavItem(item, {
+              compact: desktopCollapsed,
+            })
+          )}
         </nav>
       </div>
 
       <div className="border-t border-neutral-200 p-3">
-        {collapsed ? (
+        {desktopCollapsed ? (
           <div className="flex justify-center">
             <div
               className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-900 text-xs font-semibold text-white"
@@ -183,10 +195,57 @@ export default function AppShell({
     </div>
   );
 
+  const mobileSidebar = (
+    <div className="flex h-full w-[86vw] max-w-[320px] flex-col border-r border-neutral-200 bg-neutral-50">
+      <div className="flex h-20 items-center justify-between border-b border-neutral-200 px-4">
+        <div className="min-w-0">
+          <div className="truncate text-2xl font-bold tracking-tight text-neutral-900">
+            DAILY-WEBAPP
+          </div>
+          <div className="truncate text-sm text-neutral-500">
+            Construction Collaboration
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setMobileOpen(false)}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-sm text-neutral-600 shadow-sm hover:bg-neutral-100"
+          aria-label="Close sidebar"
+          title="Close sidebar"
+        >
+          ‹
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-3 py-4">
+        <nav className="space-y-2">
+          {nav.map((item) =>
+            renderNavItem(item, {
+              compact: false,
+              onNavigate: () => setMobileOpen(false),
+            })
+          )}
+        </nav>
+      </div>
+
+      <div className="border-t border-neutral-200 p-3">
+        <div className="rounded-2xl border border-neutral-200 bg-white px-3 py-3">
+          <div className="truncate text-sm font-semibold text-neutral-900">
+            {displayName}
+          </div>
+          <div className="truncate text-xs text-neutral-500">
+            {role} • {position}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-white text-neutral-900">
       <div className="hidden lg:flex">
-        {sidebar}
+        {desktopSidebar}
 
         <div className="min-w-0 flex-1">
           <header className="sticky top-0 z-30 flex h-20 items-center justify-between gap-3 border-b border-neutral-200 bg-white/95 px-6 backdrop-blur">
@@ -243,11 +302,11 @@ export default function AppShell({
               type="button"
               onClick={() => setMobileOpen(false)}
               className="fixed inset-0 z-40 bg-black/30"
-              aria-label="Close sidebar"
+              aria-label="Close sidebar overlay"
             />
 
-            <div className="fixed inset-y-0 left-0 z-50 max-w-[86vw]">
-              <div className="h-full shadow-2xl">{sidebar}</div>
+            <div className="fixed inset-y-0 left-0 z-50 shadow-2xl">
+              {mobileSidebar}
             </div>
           </>
         )}
