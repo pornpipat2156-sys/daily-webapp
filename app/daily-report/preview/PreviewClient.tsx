@@ -208,7 +208,7 @@ function representativeWeather(
   return weatherTextFromCode(bestCode);
 }
 
-// ===== ✅ Issue filter =====
+// ===== ✅ Issue filter (แก้ให้แสดงแบบรูปที่ 1) =====
 function normStr(s: any) {
   return String(s ?? "")
     .trim()
@@ -218,56 +218,6 @@ function normStr(s: any) {
 function isHistoryDeletedIssue(it: Issue) {
   const d = normStr(it?.detail);
   return d.includes("รายการนี้ถูกลบ") || d.includes("ถูกลบ/แก้ไข") || d.includes("deleted/edited") || d.includes("deleted");
-}
-
-/** ✅ แก้ปัญหา “หน้า review อ่านข้อมูลผิด path”
- *  - รองรับทั้งกรณี API คืน contractors เป็น top-level
- *  - และกรณี API เก็บไว้ใต้ report.payload (jsonb)
- */
-function normalizeReport(raw: any): ReportDetail {
-  const payload = raw?.payload && typeof raw.payload === "object" ? raw.payload : {};
-
-  const projectMeta: ProjectMeta | null =
-    (raw?.projectMeta && typeof raw.projectMeta === "object" ? raw.projectMeta : null) ??
-    (payload?.projectMeta && typeof payload.projectMeta === "object" ? payload.projectMeta : null) ??
-    null;
-
-  const out: ReportDetail = {
-    id: String(raw?.id || ""),
-    projectId: String(raw?.projectId || payload?.projectId || ""),
-    date: String(raw?.date || payload?.date || ""),
-    projectName: String(raw?.projectName || payload?.projectName || raw?.project?.projectName || ""),
-
-    projectMeta,
-    issues: Array.isArray(raw?.issues) ? raw.issues : Array.isArray(payload?.issues) ? payload.issues : [],
-
-    contractors: Array.isArray(raw?.contractors)
-      ? raw.contractors
-      : Array.isArray(payload?.contractors)
-      ? payload.contractors
-      : [],
-    subContractors: Array.isArray(raw?.subContractors)
-      ? raw.subContractors
-      : Array.isArray(payload?.subContractors)
-      ? payload.subContractors
-      : [],
-    majorEquipment: Array.isArray(raw?.majorEquipment)
-      ? raw.majorEquipment
-      : Array.isArray(payload?.majorEquipment)
-      ? payload.majorEquipment
-      : [],
-    workPerformed: Array.isArray(raw?.workPerformed)
-      ? raw.workPerformed
-      : Array.isArray(payload?.workPerformed)
-      ? payload.workPerformed
-      : [],
-    safetyNote: typeof raw?.safetyNote === "string" ? raw.safetyNote : typeof payload?.safetyNote === "string" ? payload.safetyNote : "",
-
-    tempMaxC: raw?.tempMaxC ?? payload?.tempMaxC ?? null,
-    tempMinC: raw?.tempMinC ?? payload?.tempMinC ?? null,
-  };
-
-  return out;
 }
 
 export default function ReviewPage() {
@@ -411,9 +361,7 @@ export default function ReviewPage() {
         const res = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.ok) throw new Error(json?.message || "โหลดรายงานไม่สำเร็จ");
-
-        const normalized = normalizeReport(json.report);
-        if (!cancel) setDetail(normalized);
+        if (!cancel) setDetail(json.report as ReportDetail);
       } catch (e: any) {
         if (!cancel) setErr(e?.message ?? "โหลดรายงานไม่สำเร็จ");
       } finally {
@@ -478,7 +426,7 @@ export default function ReviewPage() {
       if (!detail?.date) return;
       setWxLoading(true);
       try {
-        const dateISO = String(detail.date).slice(0, 10);
+        const dateISO = String(detail.date).slice(0, 10); // ✅ บังคับเป็น YYYY-MM-DD
         const hourly = await fetchHourlyWeather(dateISO);
 
         const start = hmToMin("06:00");
@@ -578,6 +526,7 @@ export default function ReviewPage() {
 
   const canShowReport = Boolean(projectId && reportId && detail);
 
+  // ✅ ใช้ issues ที่กรองแล้วเท่านั้น (ไม่ให้มี “รายการนี้ถูกลบ/แก้ไข...” มาเป็นปัญหาใหม่)
   const visibleIssues = useMemo(() => {
     const list = detail?.issues || [];
     return list.filter((it) => {
@@ -588,6 +537,7 @@ export default function ReviewPage() {
     });
   }, [detail?.issues]);
 
+  // ✅ เงื่อนไขการ “ส่ง” ไปแท็บถัดไป (ยึดจาก issues จริง)
   const hasIssues = visibleIssues.length > 0;
   const nextTabPath = hasIssues ? "/commentator" : "/summation";
 
@@ -1006,7 +956,7 @@ export default function ReviewPage() {
                         </table>
                       </div>
 
-                      {/* Issues */}
+                      {/* ✅ Issues (ใช้ visibleIssues แทน detail.issues) */}
                       <div className="box mt-4">
                         <table>
                           <colgroup>
@@ -1084,11 +1034,7 @@ export default function ReviewPage() {
                         <div className="cell">
                           <div className="font-semibold">รายชื่อผู้ควบคุมงาน</div>
                           <div className="mt-3">
-                            {loadingSup ? (
-                              <div className="opacity-70">กำลังโหลดรายชื่อ...</div>
-                            ) : (
-                              <SignatureGrid items={supervisors} />
-                            )}
+                            {loadingSup ? <div className="opacity-70">กำลังโหลดรายชื่อ...</div> : <SignatureGrid items={supervisors} />}
                           </div>
                         </div>
                       </div>
