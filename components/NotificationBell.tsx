@@ -208,114 +208,143 @@ export default function NotificationBell({ onSummaryChange }: Props) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-[calc(100%+12px)] z-[80] w-[92vw] max-w-[420px] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl">
-          <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-4">
-            <div className="flex min-w-0 items-center gap-2">
-              <div className="truncate text-[26px] font-semibold leading-none text-neutral-800">
-                Notifications
+        <>
+          <button
+            type="button"
+            aria-label="Close notifications"
+            className="fixed inset-0 z-[79] bg-black/10 sm:bg-transparent"
+            onClick={() => setOpen(false)}
+          />
+
+          <div
+            className="
+              fixed right-2 top-[60px] z-[80]
+              w-[calc(100vw-16px)]
+              max-w-[420px]
+              overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl
+              sm:absolute sm:right-0 sm:top-[calc(100%+12px)] sm:w-[420px]
+            "
+            style={{
+              maxHeight: "min(78dvh, 680px)",
+            }}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-3 py-3 sm:px-4 sm:py-4">
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="truncate text-xl font-semibold leading-none text-neutral-800 sm:text-[26px]">
+                  Notifications
+                </div>
+                {summary.unreadCount > 0 && (
+                  <span className="inline-flex min-w-[22px] items-center justify-center rounded-md bg-rose-500 px-1.5 py-1 text-[11px] font-semibold leading-none text-white sm:min-w-[24px] sm:px-2 sm:text-xs">
+                    {summary.unreadCount > 99 ? "99+" : summary.unreadCount}
+                  </span>
+                )}
               </div>
-              {summary.unreadCount > 0 && (
-                <span className="inline-flex min-w-[24px] items-center justify-center rounded-md bg-rose-500 px-2 py-1 text-xs font-semibold leading-none text-white">
-                  {summary.unreadCount > 99 ? "99+" : summary.unreadCount}
-                </span>
-              )}
+
+              <button
+                type="button"
+                onClick={() => markAllAsRead()}
+                className="shrink-0 text-xs font-semibold text-rose-500 transition hover:text-rose-600 sm:text-sm"
+              >
+                Mark All As Read
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => markAllAsRead()}
-              className="shrink-0 text-sm font-semibold text-rose-500 transition hover:text-rose-600"
+            <div
+              className="overflow-y-auto"
+              style={{
+                maxHeight: "min(calc(78dvh - 118px), 520px)",
+              }}
             >
-              Mark All As Read
-            </button>
-          </div>
+              {loading && grouped.length === 0 ? (
+                <div className="px-3 py-4 text-sm text-neutral-500 sm:px-4 sm:py-5">
+                  กำลังโหลด...
+                </div>
+              ) : grouped.length === 0 ? (
+                <div className="px-3 py-4 text-sm text-neutral-500 sm:px-4 sm:py-5">
+                  ยังไม่มีการแจ้งเตือน
+                </div>
+              ) : (
+                <div>
+                  {grouped.map((item) => {
+                    const unread = !item.readAt;
+                    const title = getGroupedTitle(item);
+                    const icon = getTypeIcon(item.type);
 
-          <div className="max-h-[70vh] overflow-y-auto">
-            {loading && grouped.length === 0 ? (
-              <div className="px-4 py-5 text-sm text-neutral-500">กำลังโหลด...</div>
-            ) : grouped.length === 0 ? (
-              <div className="px-4 py-5 text-sm text-neutral-500">ยังไม่มีการแจ้งเตือน</div>
-            ) : (
-              <div>
-                {grouped.map((item) => {
-                  const unread = !item.readAt;
-                  const title = getGroupedTitle(item);
-                  const icon = getTypeIcon(item.type);
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => markAsRead(item.groupedIds, item.url)}
+                        className={`relative block w-full border-b border-neutral-100 px-3 py-3 text-left transition hover:bg-neutral-50 sm:px-4 sm:py-4 ${
+                          unread ? "bg-rose-50/30" : "bg-white"
+                        }`}
+                      >
+                        {unread && <span className="absolute left-0 top-0 h-full w-1 bg-rose-500" />}
 
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => markAsRead(item.groupedIds, item.url)}
-                      className={`relative block w-full border-b border-neutral-100 px-4 py-4 text-left transition hover:bg-neutral-50 ${
-                        unread ? "bg-rose-50/30" : "bg-white"
-                      }`}
-                    >
-                      {unread && <span className="absolute left-0 top-0 h-full w-1 bg-rose-500" />}
+                        <div className="flex items-start gap-3 pl-1">
+                          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-base sm:h-10 sm:w-10 sm:text-lg">
+                            {icon}
+                          </div>
 
-                      <div className="flex items-start gap-3 pl-1">
-                        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-lg">
-                          {icon}
-                        </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="line-clamp-2 text-sm font-semibold text-neutral-800 sm:line-clamp-1 sm:text-[15px]">
+                                {title}
+                              </div>
 
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="line-clamp-1 text-[15px] font-semibold text-neutral-800">
-                              {title}
+                              <div className="flex shrink-0 items-center gap-2">
+                                {unread && (
+                                  <span className="mt-0.5 h-3.5 w-3.5 rounded-full border-2 border-neutral-400 bg-white sm:h-4 sm:w-4" />
+                                )}
+                              </div>
                             </div>
 
-                            <div className="flex shrink-0 items-center gap-2">
-                              {unread && (
-                                <span className="h-4 w-4 rounded-full border-2 border-neutral-400 bg-white" />
+                            <div className="mt-1.5 line-clamp-3 text-xs leading-5 text-neutral-600 sm:mt-2 sm:text-sm sm:leading-6">
+                              {item.body}
+                            </div>
+
+                            <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-neutral-400 sm:mt-3 sm:text-xs">
+                              <span className="truncate">{fmtDateTime(item.createdAt)}</span>
+                              {item.count > 1 && unread && (
+                                <span className="shrink-0 font-medium text-rose-500">
+                                  {item.count} items
+                                </span>
                               )}
                             </div>
                           </div>
-
-                          <div className="mt-2 line-clamp-3 text-sm leading-6 text-neutral-600">
-                            {item.body}
-                          </div>
-
-                          <div className="mt-3 flex items-center justify-between gap-3 text-xs text-neutral-400">
-                            <span className="truncate">{fmtDateTime(item.createdAt)}</span>
-                            {item.count > 1 && unread && (
-                              <span className="shrink-0 font-medium text-rose-500">
-                                {item.count} items
-                              </span>
-                            )}
-                          </div>
                         </div>
-                      </div>
-                    </button>
-                  );
-                })}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2 border-t border-neutral-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+              <div className="text-[11px] text-neutral-500 sm:text-xs">
+                unread {summary.unreadCount} • mention {summary.unreadMentions} • approval{" "}
+                {summary.unreadApprovals}
               </div>
-            )}
-          </div>
 
-          <div className="flex items-center justify-between border-t border-neutral-200 px-4 py-3">
-            <div className="text-xs text-neutral-500">
-              unread {summary.unreadCount} • mention {summary.unreadMentions} • approval{" "}
-              {summary.unreadApprovals}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => load()}
-                className="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-              >
-                Refresh
-              </button>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-              >
-                Close
-              </button>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => load()}
+                  className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                >
+                  Refresh
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
