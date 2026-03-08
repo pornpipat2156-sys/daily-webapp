@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { getChatRealtimeClient } from "@/lib/realtime-browser";
@@ -89,7 +89,7 @@ function mergeChatMessages(prev: ChatMessage[], next: ChatMessage[]) {
   );
 }
 
-export default function ContactPage() {
+function ContactPageInner() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
 
@@ -264,8 +264,8 @@ export default function ContactPage() {
         const list = Array.isArray(memberRows)
           ? memberRows
           : Array.isArray(memberRows?.members)
-          ? memberRows.members
-          : [];
+            ? memberRows.members
+            : [];
 
         const normalized: GroupMemberRow[] = list.map((m: any) => ({
           memberId: String(m.memberId ?? m.id ?? ""),
@@ -312,12 +312,12 @@ export default function ContactPage() {
         const list = Array.isArray(raw)
           ? raw
           : Array.isArray(raw?.reports)
-          ? raw.reports
-          : Array.isArray(raw?.rows)
-          ? raw.rows
-          : Array.isArray(raw?.data)
-          ? raw.data
-          : [];
+            ? raw.reports
+            : Array.isArray(raw?.rows)
+              ? raw.rows
+              : Array.isArray(raw?.data)
+                ? raw.data
+                : [];
 
         const cleaned: DailyReportRow[] = list
           .map((x: any) => ({
@@ -448,8 +448,8 @@ export default function ContactPage() {
     const list = Array.isArray(memberRows)
       ? memberRows
       : Array.isArray(memberRows?.members)
-      ? memberRows.members
-      : [];
+        ? memberRows.members
+        : [];
 
     const normalized: GroupMemberRow[] = list.map((m: any) => ({
       memberId: String(m.memberId ?? m.id ?? ""),
@@ -716,10 +716,10 @@ export default function ContactPage() {
     realtimeState === "connected"
       ? "Realtime: Connected"
       : realtimeState === "connecting"
-      ? "Realtime: Connecting..."
-      : realtimeState === "error"
-      ? "Realtime: Reconnecting..."
-      : "Realtime: Disabled";
+        ? "Realtime: Connecting..."
+        : realtimeState === "error"
+          ? "Realtime: Reconnecting..."
+          : "Realtime: Disabled";
 
   const sendDisabled =
     sending || (!text.trim() && !(pickerOpen && reportIdToSend));
@@ -781,8 +781,8 @@ export default function ContactPage() {
                   {pushSubscribed
                     ? "เปิดอยู่"
                     : pushPermission === "denied"
-                    ? "ถูกบล็อกโดยเบราว์เซอร์"
-                    : "ยังไม่เปิด"}
+                      ? "ถูกบล็อกโดยเบราว์เซอร์"
+                      : "ยังไม่เปิด"}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -1141,5 +1141,13 @@ export default function ContactPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ContactPage() {
+  return (
+    <Suspense fallback={<div className="p-4 text-sm text-gray-600">กำลังโหลด...</div>}>
+      <ContactPageInner />
+    </Suspense>
   );
 }
