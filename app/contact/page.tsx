@@ -68,6 +68,34 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
+function renderMessageText(text: string, isMentionedMessage: boolean) {
+  const parts = text.split(/(@[^\s]+)/g);
+
+  return parts.map((part, index) => {
+    if (!part) return null;
+
+    const isMentionToken = /^@[^\s]+$/.test(part);
+
+    if (!isMentionToken) {
+      return <span key={`text-${index}`}>{part}</span>;
+    }
+
+    return (
+      <span
+        key={`mention-${index}`}
+        className={cn(
+          "rounded-md px-1 py-0.5 font-medium",
+          isMentionedMessage
+            ? "bg-amber-200 text-amber-950"
+            : "bg-sky-100 text-sky-800"
+        )}
+      >
+        {part}
+      </span>
+    );
+  });
+}
+
 export default function ContactPage() {
   const { data: session, status } = useSession();
   const role = (session as any)?.user?.role as string | undefined;
@@ -103,7 +131,9 @@ export default function ContactPage() {
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const lastMentionReadProjectRef = useRef<string>("");
+  const lastAutoScrollMentionRef = useRef<string>("");
 
   const [pushSupported, setPushSupported] = useState(false);
   const [pushSubscribed, setPushSubscribed] = useState(false);
@@ -283,6 +313,39 @@ export default function ContactPage() {
         lastMentionReadProjectRef.current = "";
       });
   }, [projectId, loadingMessages, messages.length]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    if (loadingMessages) return;
+    if (!meId) return;
+    if (messages.length === 0) return;
+
+    const latestMention = [...messages]
+      .reverse()
+      .find(
+        (msg) =>
+          msg.author.id !== meId &&
+          Array.isArray(msg.mentionUserIds) &&
+          msg.mentionUserIds.includes(meId)
+      );
+
+    if (!latestMention) return;
+
+    const scrollKey = `${projectId}:${latestMention.id}`;
+    if (lastAutoScrollMentionRef.current === scrollKey) return;
+
+    lastAutoScrollMentionRef.current = scrollKey;
+
+    setTimeout(() => {
+      const el = messageRefs.current[latestMention.id];
+      if (!el) return;
+
+      el.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 120);
+  }, [projectId, loadingMessages, messages, meId]);
 
   useEffect(() => {
     if (!pickerOpen || !projectId) return;
@@ -869,10 +932,13 @@ export default function ContactPage() {
               return (
                 <div
                   key={msg.id}
+                  ref={(el) => {
+                    messageRefs.current[msg.id] = el;
+                  }}
                   className={cn(
-                    "rounded-2xl border p-3",
+                    "rounded-2xl border p-3 transition",
                     mine ? "ml-8 bg-white" : "mr-8 bg-white",
-                    mentionedMe && "border-amber-300 bg-amber-50 shadow-sm"
+                    mentionedMe && "border-amber-300 bg-amber-50 shadow-sm ring-1 ring-amber-200"
                   )}
                 >
                   <div className="flex items-center justify-between gap-3">
@@ -905,11 +971,11 @@ export default function ContactPage() {
                   {msg.text ? (
                     <div
                       className={cn(
-                        "mt-2 whitespace-pre-wrap text-sm",
+                        "mt-2 whitespace-pre-wrap text-sm leading-7",
                         mentionedMe && "font-medium text-amber-950"
                       )}
                     >
-                      {msg.text}
+                      {renderMessageText(msg.text, mentionedMe)}
                     </div>
                   ) : null}
                 </div>
