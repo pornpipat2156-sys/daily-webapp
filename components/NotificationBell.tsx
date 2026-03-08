@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
 
 type NotificationItem = {
   id: string;
@@ -89,9 +88,6 @@ function getGroupedTitle(
 }
 
 export default function NotificationBell({ onSummaryChange }: Props) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<NotificationResponse>({
@@ -103,7 +99,6 @@ export default function NotificationBell({ onSummaryChange }: Props) {
   });
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const lastAutoReadKeyRef = useRef<string>("");
 
   async function load() {
     setLoading(true);
@@ -177,7 +172,16 @@ export default function NotificationBell({ onSummaryChange }: Props) {
       load().catch(console.error);
     }, 15000);
 
-    return () => window.clearInterval(id);
+    function onRefresh() {
+      load().catch(console.error);
+    }
+
+    window.addEventListener("notifications:refresh", onRefresh);
+
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("notifications:refresh", onRefresh);
+    };
   }, []);
 
   useEffect(() => {
@@ -201,44 +205,6 @@ export default function NotificationBell({ onSummaryChange }: Props) {
       document.removeEventListener("keydown", onEscape);
     };
   }, [open]);
-
-  useEffect(() => {
-    const projectId = searchParams.get("projectId") || "";
-    const isContactPage = pathname === "/contact";
-
-    if (!isContactPage || !projectId) return;
-
-    const hasUnreadMentionInProject = (summary.items || []).some(
-      (item) =>
-        item.type === "MENTION" &&
-        !item.readAt &&
-        item.projectId === projectId
-    );
-
-    if (!hasUnreadMentionInProject) return;
-
-    const autoReadKey = `${pathname}?projectId=${projectId}`;
-
-    if (lastAutoReadKeyRef.current === autoReadKey) return;
-    lastAutoReadKeyRef.current = autoReadKey;
-
-    fetch("/api/notifications/read", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        type: "MENTION",
-        projectId,
-      }),
-    })
-      .then(async () => {
-        await load();
-      })
-      .catch((err) => {
-        console.error("auto mark mention read failed:", err);
-      });
-  }, [pathname, searchParams, summary.items]);
 
   const grouped = useMemo(
     () => groupNotifications(summary.items || []),

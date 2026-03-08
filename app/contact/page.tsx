@@ -103,6 +103,7 @@ export default function ContactPage() {
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const lastMentionReadProjectRef = useRef<string>("");
 
   const [pushSupported, setPushSupported] = useState(false);
   const [pushSubscribed, setPushSubscribed] = useState(false);
@@ -141,6 +142,11 @@ export default function ContactPage() {
     if (reg) return reg;
 
     return navigator.serviceWorker.ready;
+  }
+
+  function refreshNotificationSummary() {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("notifications:refresh"));
   }
 
   async function refreshPushStatus() {
@@ -229,7 +235,9 @@ export default function ContactPage() {
 
     setLoadingMessages(true);
     (async () => {
-      const rows = await jget<ChatMessage[]>(`/api/chat/messages?projectId=${encodeURIComponent(projectId)}`);
+      const rows = await jget<ChatMessage[]>(
+        `/api/chat/messages?projectId=${encodeURIComponent(projectId)}`
+      );
       setMessages(rows);
       setTimeout(() => {
         listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "auto" });
@@ -238,6 +246,43 @@ export default function ContactPage() {
       .catch(console.error)
       .finally(() => setLoadingMessages(false));
   }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    if (loadingMessages) return;
+    if (messages.length === 0) return;
+
+    const projectKey = projectId.trim();
+    const lastMessageId = messages[messages.length - 1]?.id || "";
+    const readKey = `${projectKey}:${lastMessageId}`;
+
+    if (!projectKey) return;
+    if (lastMentionReadProjectRef.current === readKey) return;
+
+    lastMentionReadProjectRef.current = readKey;
+
+    fetch("/api/notifications/read", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        type: "MENTION",
+        projectId: projectKey,
+      }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+
+        refreshNotificationSummary();
+      })
+      .catch((err) => {
+        console.error("mark mention read on chat open failed:", err);
+        lastMentionReadProjectRef.current = "";
+      });
+  }, [projectId, loadingMessages, messages.length]);
 
   useEffect(() => {
     if (!pickerOpen || !projectId) return;
@@ -579,7 +624,6 @@ export default function ContactPage() {
 
   return (
     <div className="mx-auto max-w-7xl p-4 md:p-6">
-      {/* Header */}
       <div className="mb-4 rounded-2xl border bg-white p-4">
         <div className="text-xl font-semibold">Contact (Project Group Chat)</div>
         <div className="mt-1 text-sm text-gray-600">
@@ -653,10 +697,8 @@ export default function ContactPage() {
         </div>
       </div>
 
-      {/* Member management */}
       {isSuperAdmin ? (
         <div className="mb-4 grid gap-4 lg:grid-cols-2">
-          {/* Current Members */}
           <div className="rounded-2xl border bg-white p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
@@ -724,7 +766,6 @@ export default function ContactPage() {
             </div>
           </div>
 
-          {/* Add Members */}
           <div className="rounded-2xl border bg-white p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
@@ -799,7 +840,6 @@ export default function ContactPage() {
         </div>
       ) : null}
 
-      {/* Chat */}
       <div className="rounded-2xl border bg-white p-4">
         <div className="mb-3">
           <div className="font-semibold">ห้องแชท</div>
@@ -856,7 +896,6 @@ export default function ContactPage() {
           )}
         </div>
 
-        {/* Composer */}
         <div className="mt-4">
           {mentionOpen && mentionCandidates.length > 0 ? (
             <div className="mb-2 rounded-2xl border bg-white p-2 shadow-sm">
