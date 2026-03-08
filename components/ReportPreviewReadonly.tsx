@@ -1,50 +1,21 @@
+// components/ReportPreviewReadonly.tsx
 "use client";
 
+import Image from "next/image";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 export type Supervisor = { name: string; role: string };
 
-export type ContractorRow = {
-  id: string;
-  name: string;
-  position: string;
-  qty: number;
-};
-
-export type SubContractorRow = {
-  id: string;
-  position: string;
-  morning: number;
-  afternoon: number;
-  overtime: number;
-};
-
-export type MajorEquipmentRow = {
-  id: string;
-  type: string;
-  morning: number;
-  afternoon: number;
-  overtime: number;
-};
-
-export type WorkRow = {
-  id: string;
-  desc: string;
-  location: string;
-  qty: string;
-  unit: string;
-  materialDelivered: string;
-};
+export type ContractorRow = { id: string; name: string; position: string; qty: number };
+export type SubContractorRow = { id: string; position: string; morning: number; afternoon: number; overtime: number };
+export type MajorEquipmentRow = { id: string; type: string; morning: number; afternoon: number; overtime: number };
+export type WorkRow = { id: string; desc: string; location: string; qty: string; unit: string; materialDelivered: string };
 
 export type IssueComment = {
   id: string;
   comment: string;
   createdAt: string;
-  author?: {
-    name?: string | null;
-    email?: string | null;
-    role?: string | null;
-  } | null;
+  author?: { name?: string | null; email?: string | null; role?: string | null } | null;
 };
 
 export type IssueRowUnified = {
@@ -87,21 +58,17 @@ export type ReportRenderModel = {
   supervisors: Supervisor[];
 };
 
-const A4_WIDTH_PX = 794;
-
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 
 export function formatDateBE(isoOrYmd?: string) {
   if (!isoOrYmd) return "-";
-
   if (/^\d{4}-\d{2}-\d{2}$/.test(isoOrYmd)) {
     const [y, m, d] = isoOrYmd.split("-").map(Number);
     if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return isoOrYmd;
     return `${pad2(d)}/${pad2(m)}/${y + 543}`;
   }
-
   const d = new Date(isoOrYmd);
   if (Number.isNaN(d.getTime())) return isoOrYmd;
   return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear() + 543}`;
@@ -130,7 +97,6 @@ function weatherTextFromCode(code: number | null | undefined) {
 async function fetchHourlyWeather(dateISO: string) {
   const lat = 18.7883;
   const lon = 98.9853;
-
   const url =
     `https://api.open-meteo.com/v1/forecast` +
     `?latitude=${lat}&longitude=${lon}` +
@@ -140,8 +106,8 @@ async function fetchHourlyWeather(dateISO: string) {
 
   const res = await fetch(url);
   if (!res.ok) throw new Error("hourly weather fetch failed");
-
   const data = await res.json();
+
   const times: string[] = data?.hourly?.time || [];
   const temps: number[] = data?.hourly?.temperature_2m || [];
   const codes: number[] = data?.hourly?.weathercode || [];
@@ -165,13 +131,13 @@ function calcMaxMinInRange(
     const timePart = r.time.split("T")[1] || "00:00";
     const hm = timePart.slice(0, 5);
     const m = hmToMin(hm);
-    if (m < startMin || m > endMin) continue;
+    if (m < startMin) continue;
+    if (m > endMin) continue;
     if (r.temp == null) continue;
 
     max = max == null ? r.temp : Math.max(max, r.temp);
     min = min == null ? r.temp : Math.min(min, r.temp);
   }
-
   return { max, min };
 }
 
@@ -181,26 +147,24 @@ function representativeWeather(
   endMin: number
 ) {
   const freq = new Map<number, number>();
-
   for (const r of hourly) {
     const timePart = r.time.split("T")[1] || "00:00";
     const hm = timePart.slice(0, 5);
     const m = hmToMin(hm);
-    if (m < startMin || m > endMin) continue;
+    if (m < startMin) continue;
+    if (m > endMin) continue;
     if (r.code == null) continue;
     freq.set(r.code, (freq.get(r.code) || 0) + 1);
   }
 
   let bestCode: number | null = null;
   let bestCount = -1;
-
   for (const [code, count] of freq.entries()) {
     if (count > bestCount) {
       bestCount = count;
       bestCode = code;
     }
   }
-
   return weatherTextFromCode(bestCode);
 }
 
@@ -210,6 +174,7 @@ function padArray<T>(arr: T[], targetLen: number, makeEmpty: (idx: number) => T)
   return out.slice(0, targetLen);
 }
 
+const A4_WIDTH_PX = 794;
 function computeScaleFromWidth(containerWidth: number) {
   const safeW = Math.max(0, containerWidth - 16);
   const s = Math.min(1, safeW / A4_WIDTH_PX);
@@ -224,6 +189,32 @@ function chunk<T>(arr: T[], size: number) {
   return out;
 }
 
+function SignatureGrid({ items }: { items: Supervisor[] }) {
+  const clean = (items || [])
+    .map((x) => ({ name: String(x?.name || "").trim(), role: String(x?.role || "").trim() }))
+    .filter((x) => x.name || x.role);
+
+  if (!clean.length) return <div className="opacity-70">-</div>;
+
+  const rows = chunk(clean, 5);
+
+  return (
+    <div className="space-y-4">
+      {rows.map((row, ri) => (
+        <div key={ri} className="grid gap-4" style={{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }}>
+          {row.map((it, i) => (
+            <div key={`${ri}-${i}`} className="text-center">
+              <div className="text-sm">ลงชื่อ ................................</div>
+              <div className="mt-1 text-sm">({it.name || "-"})</div>
+              <div className="mt-1 text-sm">{it.role || " "}</div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function normStr(s: any) {
   return String(s ?? "")
     .trim()
@@ -231,28 +222,8 @@ function normStr(s: any) {
     .replace(/\s+/g, " ");
 }
 
-function formatDateTimeThai(iso?: string) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-
-  return d.toLocaleString("th-TH", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function getAuthorLabel(author?: IssueComment["author"]) {
-  if (!author) return "-";
-  return author.name?.trim() || author.email?.trim() || "-";
-}
-
 function normalizeModel(raw: any): ReportRenderModel {
   const pmRaw = raw?.projectMeta ?? raw?.project_meta ?? raw?.meta ?? {};
-
   const pm: ProjectMetaUnified = {
     projectName: String(pmRaw?.projectName ?? raw?.projectName ?? "-"),
     contractNo: String(pmRaw?.contractNo ?? "-"),
@@ -276,27 +247,27 @@ function normalizeModel(raw: any): ReportRenderModel {
     date: String(raw?.date ?? raw?.reportDate ?? "-"),
     projectName: String(raw?.projectName ?? pm.projectName ?? "-"),
     projectMeta: pm,
-    contractors: safeArr(raw?.contractors).map((x: any, i) => ({
+    contractors: safeArr<ContractorRow>(raw?.contractors).map((x: any, i) => ({
       id: String(x?.id ?? `C-${i}`),
       name: String(x?.name ?? "-"),
       position: String(x?.position ?? "-"),
       qty: Number(x?.qty ?? 0),
     })),
-    subContractors: safeArr(raw?.subContractors ?? raw?.sub_contractors).map((x: any, i) => ({
+    subContractors: safeArr<SubContractorRow>(raw?.subContractors ?? raw?.sub_contractors).map((x: any, i) => ({
       id: String(x?.id ?? `S-${i}`),
       position: String(x?.position ?? "-"),
       morning: Number(x?.morning ?? 0),
       afternoon: Number(x?.afternoon ?? 0),
       overtime: Number(x?.overtime ?? 0),
     })),
-    majorEquipment: safeArr(raw?.majorEquipment ?? raw?.major_equipment).map((x: any, i) => ({
+    majorEquipment: safeArr<MajorEquipmentRow>(raw?.majorEquipment ?? raw?.major_equipment).map((x: any, i) => ({
       id: String(x?.id ?? `E-${i}`),
       type: String(x?.type ?? "-"),
       morning: Number(x?.morning ?? 0),
       afternoon: Number(x?.afternoon ?? 0),
       overtime: Number(x?.overtime ?? 0),
     })),
-    workPerformed: safeArr(raw?.workPerformed ?? raw?.work_performed).map((x: any, i) => ({
+    workPerformed: safeArr<WorkRow>(raw?.workPerformed ?? raw?.work_performed).map((x: any, i) => ({
       id: String(x?.id ?? `W-${i}`),
       desc: String(x?.desc ?? "-"),
       location: String(x?.location ?? "-"),
@@ -304,20 +275,16 @@ function normalizeModel(raw: any): ReportRenderModel {
       unit: String(x?.unit ?? "-"),
       materialDelivered: String(x?.materialDelivered ?? x?.material ?? "-"),
     })),
-    issues: safeArr(raw?.issues).map((x: any, i) => ({
+    issues: safeArr<IssueRowUnified>(raw?.issues).map((x: any, i) => ({
       id: String(x?.id ?? `I-${i}`),
       detail: String(x?.detail ?? ""),
       imageUrl: String(x?.imageUrl ?? x?.image_url ?? ""),
-      comments: safeArr(x?.comments).map((c: any, ci) => ({
+      comments: safeArr<IssueComment>(x?.comments).map((c: any, ci) => ({
         id: String(c?.id ?? `IC-${i}-${ci}`),
         comment: String(c?.comment ?? ""),
         createdAt: String(c?.createdAt ?? new Date().toISOString()),
         author: c?.author
-          ? {
-              name: c.author?.name ?? null,
-              email: c.author?.email ?? null,
-              role: c.author?.role ?? null,
-            }
+          ? { name: c.author?.name ?? null, email: c.author?.email ?? null, role: c.author?.role ?? null }
           : null,
       })),
     })),
@@ -325,201 +292,11 @@ function normalizeModel(raw: any): ReportRenderModel {
     tempMaxC: raw?.tempMaxC ?? raw?.temp_max_c ?? null,
     tempMinC: raw?.tempMinC ?? raw?.temp_min_c ?? null,
     hasOvertime: raw?.hasOvertime ?? null,
-    supervisors: safeArr(raw?.supervisors).map((s: any) => ({
+    supervisors: safeArr<Supervisor>(raw?.supervisors).map((s: any, i) => ({
       name: String(s?.name ?? "-"),
       role: String(s?.role ?? "-"),
     })),
   };
-}
-
-function SectionTitle({
-  title,
-  subtitle,
-  badge,
-}: {
-  title: string;
-  subtitle?: string;
-  badge?: string;
-}) {
-  return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h3 className="text-[15px] font-extrabold tracking-tight text-slate-900">{title}</h3>
-        {subtitle ? <p className="mt-1 text-xs text-slate-500">{subtitle}</p> : null}
-      </div>
-      {badge ? (
-        <span className="rounded-full bg-[linear-gradient(135deg,rgba(124,156,245,0.18),rgba(121,217,199,0.18))] px-3 py-1 text-[11px] font-bold text-slate-700">
-          {badge}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
-function MetricChip({
-  label,
-  value,
-  tone = "blue",
-}: {
-  label: string;
-  value: ReactNode;
-  tone?: "blue" | "mint" | "pink" | "amber" | "violet";
-}) {
-  const toneClass =
-    tone === "mint"
-      ? "bg-[rgba(121,217,199,0.16)] text-emerald-700"
-      : tone === "pink"
-      ? "bg-[rgba(247,199,217,0.20)] text-rose-700"
-      : tone === "amber"
-      ? "bg-[rgba(243,190,114,0.18)] text-amber-700"
-      : tone === "violet"
-      ? "bg-[rgba(154,135,245,0.18)] text-violet-700"
-      : "bg-[rgba(124,156,245,0.16)] text-blue-700";
-
-  return (
-    <div className={`rounded-2xl px-4 py-3 ${toneClass}`}>
-      <div className="text-[11px] font-bold uppercase tracking-[0.18em] opacity-80">{label}</div>
-      <div className="mt-1 text-sm font-bold">{value}</div>
-    </div>
-  );
-}
-
-function SoftTable({
-  headers,
-  rows,
-  align,
-}: {
-  headers: string[];
-  rows: ReactNode[][];
-  align?: ("left" | "center" | "right")[];
-}) {
-  return (
-    <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white/90">
-      <div className="overflow-x-auto">
-        <table className="min-w-full border-collapse text-sm">
-          <thead>
-            <tr className="bg-slate-50/90">
-              {headers.map((h, i) => (
-                <th
-                  key={`${h}-${i}`}
-                  className={`border-b border-slate-200 px-3 py-3 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500 ${
-                    align?.[i] === "center"
-                      ? "text-center"
-                      : align?.[i] === "right"
-                      ? "text-right"
-                      : "text-left"
-                  }`}
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-
-          <tbody>
-            {rows.map((row, ri) => (
-              <tr key={ri} className="odd:bg-white even:bg-slate-50/40">
-                {row.map((cell, ci) => (
-                  <td
-                    key={ci}
-                    className={`border-t border-slate-100 px-3 py-3 align-top text-slate-700 ${
-                      align?.[ci] === "center"
-                        ? "text-center"
-                        : align?.[ci] === "right"
-                        ? "text-right"
-                        : "text-left"
-                    }`}
-                  >
-                    {cell}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function SignatureGrid({ items }: { items: Supervisor[] }) {
-  const clean = (items || [])
-    .map((x) => ({
-      name: String(x?.name || "").trim(),
-      role: String(x?.role || "").trim(),
-    }))
-    .filter((x) => x.name || x.role);
-
-  if (!clean.length) {
-    return (
-      <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50/80 px-5 py-8 text-center text-sm text-slate-500">
-        ยังไม่มีรายชื่อผู้ควบคุมงาน
-      </div>
-    );
-  }
-
-  const rows = chunk(clean, 2);
-
-  return (
-    <div className="grid gap-4">
-      {rows.map((row, ri) => (
-        <div key={ri} className="grid gap-4 md:grid-cols-2">
-          {row.map((it, i) => (
-            <div
-              key={`${ri}-${i}-${it.name}-${it.role}`}
-              className="rounded-[22px] border border-slate-200 bg-white/90 px-5 py-6 shadow-[0_8px_24px_rgba(148,163,184,0.08)]"
-            >
-              <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-                Signature
-              </div>
-              <div className="mt-6 border-b border-dashed border-slate-300 pb-3 text-center text-sm text-slate-500">
-                ลงชื่อ ................................
-              </div>
-              <div className="mt-3 text-center text-sm font-bold text-slate-800">
-                ({it.name || "-"})
-              </div>
-              <div className="mt-1 text-center text-sm text-slate-500">{it.role || " "}</div>
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DefaultIssueCommentCell({ issue }: { issue: IssueRowUnified }) {
-  const comments = Array.isArray(issue.comments) ? issue.comments : [];
-
-  if (!comments.length) {
-    return (
-      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-4 text-sm text-slate-500">
-        ยังไม่มีความเห็น
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {comments.map((comment) => (
-        <div
-          key={comment.id}
-          className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-4 shadow-[0_4px_18px_rgba(148,163,184,0.08)]"
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-[rgba(154,135,245,0.16)] px-2.5 py-1 text-[11px] font-bold text-violet-700">
-              {comment.author?.role || "COMMENT"}
-            </span>
-            <span className="text-sm font-bold text-slate-800">{getAuthorLabel(comment.author)}</span>
-            <span className="text-xs text-slate-400">{formatDateTimeThai(comment.createdAt)}</span>
-          </div>
-
-          <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-            {comment.comment || "-"}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
 }
 
 export function ReportPreviewForm({
@@ -530,9 +307,7 @@ export function ReportPreviewForm({
   renderIssueCommentCell?: (issue: IssueRowUnified, idx: number) => ReactNode;
 }) {
   const init = useMemo(() => {
-    if (typeof window === "undefined") {
-      return { ss: 1, scaledW: A4_WIDTH_PX };
-    }
+    if (typeof window === "undefined") return { ss: 1, scaledW: A4_WIDTH_PX };
     const w = window.innerWidth || A4_WIDTH_PX;
     return computeScaleFromWidth(w);
   }, []);
@@ -543,14 +318,12 @@ export function ReportPreviewForm({
 
   useLayoutEffect(() => {
     const el = wrapRef.current;
-
     const updateFromEl = () => {
       const w = el?.getBoundingClientRect().width ?? window.innerWidth ?? A4_WIDTH_PX;
       const { ss, scaledW } = computeScaleFromWidth(w);
       setScale(ss);
       setScaledWidth(scaledW);
     };
-
     updateFromEl();
 
     let ro: ResizeObserver | null = null;
@@ -579,9 +352,9 @@ export function ReportPreviewForm({
 
   const [tempMax, setTempMax] = useState<number | null>(model.tempMaxC ?? null);
   const [tempMin, setTempMin] = useState<number | null>(model.tempMinC ?? null);
-  const [wMorning, setWMorning] = useState("-");
-  const [wAfternoon, setWAfternoon] = useState("-");
-  const [wOvertime, setWOvertime] = useState("-");
+  const [wMorning, setWMorning] = useState<string>("-");
+  const [wAfternoon, setWAfternoon] = useState<string>("-");
+  const [wOvertime, setWOvertime] = useState<string>("-");
   const [wxLoading, setWxLoading] = useState(false);
 
   const dateISO = useMemo(() => {
@@ -597,22 +370,20 @@ export function ReportPreviewForm({
 
   useEffect(() => {
     let cancelled = false;
-
     async function run() {
       if (!dateISO) return;
 
       setWxLoading(true);
       try {
         const hourly = await fetchHourlyWeather(dateISO);
+
         const start = hmToMin("06:00");
         const end = hasOvertime ? hmToMin("24:00") : hmToMin("18:00");
-
         const { max, min } = calcMaxMinInRange(hourly, start, end);
+
         const mMorning = representativeWeather(hourly, hmToMin("08:30"), hmToMin("12:00"));
         const mAfternoon = representativeWeather(hourly, hmToMin("13:00"), hmToMin("16:30"));
-        const mOver = hasOvertime
-          ? representativeWeather(hourly, hmToMin("16:30"), hmToMin("24:00"))
-          : "-";
+        const mOver = hasOvertime ? representativeWeather(hourly, hmToMin("16:30"), hmToMin("24:00")) : "-";
 
         if (!cancelled) {
           setTempMax(max);
@@ -633,9 +404,7 @@ export function ReportPreviewForm({
         if (!cancelled) setWxLoading(false);
       }
     }
-
     run();
-
     return () => {
       cancelled = true;
     };
@@ -643,9 +412,8 @@ export function ReportPreviewForm({
 
   const contractorTotal = useMemo(
     () => (model.contractors || []).reduce((s, r) => s + (Number(r.qty) || 0), 0),
-    [model.contractors]
+    [model]
   );
-
   const subTotals = useMemo(() => {
     const list = model.subContractors || [];
     return {
@@ -653,8 +421,7 @@ export function ReportPreviewForm({
       afternoon: list.reduce((s, r) => s + (Number(r.afternoon) || 0), 0),
       overtime: list.reduce((s, r) => s + (Number(r.overtime) || 0), 0),
     };
-  }, [model.subContractors]);
-
+  }, [model]);
   const equipTotals = useMemo(() => {
     const list = model.majorEquipment || [];
     return {
@@ -662,48 +429,43 @@ export function ReportPreviewForm({
       afternoon: list.reduce((s, r) => s + (Number(r.afternoon) || 0), 0),
       overtime: list.reduce((s, r) => s + (Number(r.overtime) || 0), 0),
     };
-  }, [model.majorEquipment]);
+  }, [model]);
 
-  const maxRows = Math.max(
-    model.contractors?.length || 0,
-    model.subContractors?.length || 0,
-    model.majorEquipment?.length || 0,
-    1
-  );
+  const maxRows = Math.max(model.contractors?.length || 0, model.subContractors?.length || 0, model.majorEquipment?.length || 0, 1);
 
   const contractorsPadded = useMemo(
     () =>
-      padArray(model.contractors || [], maxRows, (i) => ({
+      padArray<ContractorRow>(model.contractors || [], maxRows, (i) => ({
         id: `EMPTY-C-${i}`,
         name: "-",
         position: "-",
         qty: 0,
       })),
-    [model.contractors, maxRows]
+    [model, maxRows]
   );
 
   const subPadded = useMemo(
     () =>
-      padArray(model.subContractors || [], maxRows, (i) => ({
+      padArray<SubContractorRow>(model.subContractors || [], maxRows, (i) => ({
         id: `EMPTY-S-${i}`,
         position: "-",
         morning: 0,
         afternoon: 0,
         overtime: 0,
       })),
-    [model.subContractors, maxRows]
+    [model, maxRows]
   );
 
   const equipPadded = useMemo(
     () =>
-      padArray(model.majorEquipment || [], maxRows, (i) => ({
+      padArray<MajorEquipmentRow>(model.majorEquipment || [], maxRows, (i) => ({
         id: `EMPTY-E-${i}`,
         type: "-",
         morning: 0,
         afternoon: 0,
         overtime: 0,
       })),
-    [model.majorEquipment, maxRows]
+    [model, maxRows]
   );
 
   const issuesList = useMemo(() => {
@@ -711,8 +473,8 @@ export function ReportPreviewForm({
     return list.filter((it: any) => {
       const detail = String(it?.detail || "");
       const imageUrl = String(it?.imageUrl || "");
-      const dNorm = normStr(detail);
 
+      const dNorm = normStr(detail);
       const isHistoryDeleted =
         dNorm.includes("รายการนี้ถูกลบ") ||
         dNorm.includes("ถูกลบ/แก้ไข") ||
@@ -724,369 +486,376 @@ export function ReportPreviewForm({
       if (isHistoryDeleted) return false;
       return detail.trim() || imageUrl.trim();
     });
-  }, [model.issues]);
+  }, [model]);
 
+  const hasIssues = issuesList.length > 0;
   const pm = model.projectMeta;
-  const workRows =
-    model.workPerformed?.length > 0
-      ? model.workPerformed
-      : [
-          {
-            id: "EMPTY-W",
-            desc: "-",
-            location: "-",
-            qty: "-",
-            unit: "-",
-            materialDelivered: "-",
-          },
-        ];
-
-  const outerHeight = Math.max(1, Math.ceil(1123 * scale));
 
   return (
-    <div ref={wrapRef} className="w-full overflow-x-hidden">
-      <div
-        className="mx-auto overflow-hidden rounded-[28px] border border-white/70 bg-transparent"
-        style={{ width: `${scaledWidth}px`, height: `${outerHeight}px` }}
-      >
-        <div
-          style={{
-            width: `${A4_WIDTH_PX}px`,
-            transform: `scale(${scale})`,
-            transformOrigin: "top left",
-          }}
-        >
-          <div className="rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(251,252,255,0.96))] p-6 shadow-[0_18px_50px_rgba(120,144,182,0.16)]">
-            <div className="rounded-[26px] bg-[linear-gradient(135deg,rgba(124,156,245,0.16),rgba(121,217,199,0.16),rgba(247,199,217,0.16))] p-6">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[12px] font-bold uppercase tracking-[0.22em] text-slate-500">
-                    Daily Report Preview
-                  </div>
-                  <h1 className="mt-2 text-[28px] font-extrabold tracking-tight text-slate-900">
-                    รายงานประจำวัน
-                  </h1>
-                  <div className="mt-2 text-sm text-slate-600">
-                    โครงการ {pm.projectName || model.projectName || "-"}
-                  </div>
-                  <div className="mt-1 text-sm text-slate-500">วันที่รายงาน {formatDateBE(model.date)}</div>
-                </div>
+    <>
+      <style>{`
+        .previewWrap { width: 100%; display: flex; justify-content: center; }
+        .previewSized { margin: 0; }
+        .previewScaled { transform-origin: top left; will-change: transform; }
+        .a4 { background: #fff; color: #111; border: 2px solid #111; border-radius: 14px; padding: 14px; font-size: 13px; line-height: 1.2; }
+        .box { border: 2px solid #111; border-radius: 12px; overflow: hidden; }
+        .cell { border: 1.5px solid #111; padding: 6px 8px; vertical-align: top; }
+        .cellCenter { border: 1.5px solid #111; padding: 6px 8px; text-align: center; vertical-align: middle; }
+        .titleBar { background: #eadcf6; font-weight: 700; }
+        .sectionBar { background: #dff2df; font-weight: 700; text-align: center; }
+        .subBar { background: #f4e8d4; font-weight: 700; text-align: center; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th, td { overflow-wrap: break-word; word-break: normal; }
+        .hMain { font-weight: 800; font-size: 18px; letter-spacing: 0.2px; }
+        .hSub  { font-weight: 600; font-size: 13px; }
+        .mini th, .mini td { border: 1.5px solid #111; padding: 4px 6px; font-size: 12px; line-height: 1.1; }
+        .mini th { text-align: center; vertical-align: middle; font-weight: 700; }
+        .mini td { vertical-align: top; }
+        .mini .c { text-align: center; vertical-align: middle; }
+        .numTab { font-variant-numeric: tabular-nums; }
+        .nowrap { white-space: nowrap; }
+        .issueImg { width: 100%; max-height: 240px; object-fit: contain; display: block; }
+        .issueRowMin { min-height: 260px; }
+        @media (max-width: 640px) {
+          .a4 { font-size: 11px; padding: 10px; }
+          .hMain { font-size: 15px; }
+          .hSub { font-size: 11px; }
+          .cell, .cellCenter { padding: 5px 6px; }
+          .mini th, .mini td { font-size: 10px; padding: 3px 4px; }
+          .nowrap { white-space: normal; }
+        }
+      `}</style>
 
-                <div className="grid min-w-[230px] gap-3">
-                  <MetricChip label="เลขที่รายงาน" value={pm.dailyReportNo || "-"} tone="blue" />
-                  <div className="grid grid-cols-2 gap-3">
-                    <MetricChip label="งวดงาน" value={pm.periodNo || "-"} tone="mint" />
-                    <MetricChip label="สัปดาห์" value={pm.weekNo || "-"} tone="pink" />
+      <div ref={wrapRef} className="previewWrap">
+        <div className="previewSized" style={{ width: scaledWidth }}>
+          <div className="previewScaled" style={{ width: A4_WIDTH_PX, transform: `scale(${scale}) translateZ(0)` }}>
+            <div className="a4">
+              <div className="box">
+                <table>
+                  <colgroup>
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "82%" }} />
+                  </colgroup>
+                  <tbody>
+                    <tr>
+                      <td className="cellCenter">
+                        <div className="mx-auto w-[110px] h-[110px] rounded-full border-2 border-black overflow-hidden flex items-center justify-center bg-white">
+                          <Image src="/logo.png" alt="Company Logo" width={110} height={110} className="w-full h-full object-contain" priority />
+                        </div>
+                      </td>
+                      <td className="cellCenter titleBar">
+                        <div className="hMain">รายงานการควบคุมงานก่อสร้างประจำวัน (DAILY REPORT)</div>
+                        <div className="mt-1 hSub">ประจำวันที่ {formatDateBE(model.date)}</div>
+                        <div className="mt-1 hSub">โครงการ : {model.projectName}</div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <table>
+                  <colgroup>
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "32%" }} />
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "32%" }} />
+                  </colgroup>
+                  <tbody>
+                    <tr>
+                      <td className="cell">สัญญาจ้าง</td>
+                      <td className="cell">{pm.contractNo}</td>
+                      <td className="cell">สถานที่ก่อสร้าง</td>
+                      <td className="cell">{pm.siteLocation}</td>
+                    </tr>
+                    <tr>
+                      <td className="cell">บันทึกแนบท้ายที่</td>
+                      <td className="cell">{pm.annexNo}</td>
+                      <td className="cell">วงเงินค่าก่อสร้าง</td>
+                      <td className="cell">{pm.contractValue}</td>
+                    </tr>
+                    <tr>
+                      <td className="cell">เริ่มสัญญา</td>
+                      <td className="cell">{formatDateBE(pm.contractStart)}</td>
+                      <td className="cell">ผู้รับจ้าง</td>
+                      <td className="cell">{pm.contractorName}</td>
+                    </tr>
+                    <tr>
+                      <td className="cell">สิ้นสุดสัญญา</td>
+                      <td className="cell">{formatDateBE(pm.contractEnd)}</td>
+                      <td className="cell">จัดจ้างโดยวิธี</td>
+                      <td className="cell">{pm.procurementMethod}</td>
+                    </tr>
+                    <tr>
+                      <td className="cell">จำนวนงวด</td>
+                      <td className="cell">{pm.installmentCount}</td>
+                      <td className="cell">รวมเวลาก่อสร้าง</td>
+                      <td className="cell">{pm.totalDurationDays} วัน</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <div className="grid grid-cols-12">
+                  <div className="col-span-9 border-t-2 border-black p-2">
+                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm">
+                      <div className="font-semibold mb-1">ช่วงเวลาทำงาน</div>
+                      <div className="grid grid-cols-3 gap-x-10 numTab">
+                        <div className="nowrap">ช่วงเช้า 08:30น.-12:00น.</div>
+                        <div className="nowrap text-center">ช่วงบ่าย 13:00น.-17:00น.</div>
+                        <div className="nowrap text-right">ล่วงเวลา 17:00น. ขึ้นไป</div>
+                      </div>
+
+                      <div className="mt-2 font-semibold">สภาพอากาศ (WEATHER)</div>
+
+                      {wxLoading ? (
+                        <div className="opacity-70">กำลังดึงข้อมูลอุณหภูมิ/สภาพอากาศ...</div>
+                      ) : (
+                        <>
+                          <div className="numTab">
+                            <span className="nowrap">อุณหภูมิ สูงสุด: {tempMax ?? "-"}°C</span>
+                            <span className="mx-6"> </span>
+                            <span className="nowrap">อุณหภูมิ ต่ำสุด: {tempMin ?? "-"}°C</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-x-10 numTab mt-1">
+                            <div className="nowrap">เช้า: {wMorning}</div>
+                            <div className="nowrap text-center">บ่าย: {wAfternoon}</div>
+                            <div className="nowrap text-right">ล่วงเวลา: {wOvertime}</div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="col-span-3 border-t-2 border-l-2 border-black p-2">
+                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{pm.dailyReportNo}</div>
+                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{pm.periodNo}</div>
+                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm">{pm.weekNo}</div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="mt-6 grid gap-6">
-              <section className="rounded-[24px] border border-slate-200 bg-white/88 p-5 shadow-[0_10px_30px_rgba(148,163,184,0.10)]">
-                <SectionTitle
-                  title="ข้อมูลโครงการ"
-                  subtitle="Contract information"
-                  badge="Project Overview"
-                />
-
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <MetricChip label="เลขที่สัญญา" value={pm.contractNo || "-"} />
-                  <MetricChip label="บันทึกแนบท้าย" value={pm.annexNo || "-"} tone="mint" />
-                  <MetricChip
-                    label="เริ่มสัญญา"
-                    value={formatDateBE(pm.contractStart)}
-                    tone="violet"
-                  />
-                  <MetricChip
-                    label="สิ้นสุดสัญญา"
-                    value={formatDateBE(pm.contractEnd)}
-                    tone="pink"
-                  />
-                  <MetricChip label="ผู้รับจ้าง" value={pm.contractorName || "-"} tone="mint" />
-                  <MetricChip
-                    label="สถานที่ก่อสร้าง"
-                    value={pm.siteLocation || "-"}
-                    tone="amber"
-                  />
-                  <MetricChip
-                    label="วงเงินค่าก่อสร้าง"
-                    value={pm.contractValue || "-"}
-                    tone="blue"
-                  />
-                  <MetricChip
-                    label="วิธีจัดจ้าง"
-                    value={pm.procurementMethod || "-"}
-                    tone="violet"
-                  />
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-4">
-                  <MetricChip
-                    label="จำนวนงวด"
-                    value={pm.installmentCount || 0}
-                    tone="mint"
-                  />
-                  <MetricChip
-                    label="รวมเวลาก่อสร้าง"
-                    value={`${pm.totalDurationDays || 0} วัน`}
-                    tone="amber"
-                  />
-                </div>
-              </section>
-
-              <section className="rounded-[24px] border border-slate-200 bg-white/88 p-5 shadow-[0_10px_30px_rgba(148,163,184,0.10)]">
-                <SectionTitle
-                  title="ช่วงเวลาทำงานและสภาพอากาศ"
-                  subtitle="Working time & weather"
-                  badge="Weather"
-                />
-
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <div className="rounded-[22px] bg-slate-50/90 p-4">
-                    <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-                      Working Time
-                    </div>
-                    <div className="mt-3 space-y-2 text-sm text-slate-700">
-                      <div>ช่วงเช้า 08:30น.-12:00น.</div>
-                      <div>ช่วงบ่าย 13:00น.-17:00น.</div>
-                      <div>ล่วงเวลา 17:00น. ขึ้นไป</div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[22px] bg-slate-50/90 p-4">
-                    <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-                      Weather
-                    </div>
-
-                    {wxLoading ? (
-                      <div className="mt-3 text-sm text-slate-500">
-                        กำลังดึงข้อมูลอุณหภูมิ/สภาพอากาศ...
-                      </div>
-                    ) : (
-                      <div className="mt-3 grid gap-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <MetricChip
-                            label="อุณหภูมิสูงสุด"
-                            value={`${tempMax ?? "-"}°C`}
-                            tone="pink"
-                          />
-                          <MetricChip
-                            label="อุณหภูมิต่ำสุด"
-                            value={`${tempMin ?? "-"}°C`}
-                            tone="blue"
-                          />
+              <div className="box mt-4">
+                <div className="sectionBar cell">ส่วนโครงการ (PROJECT TEAM)</div>
+                <table>
+                  <colgroup>
+                    <col style={{ width: "33.33%" }} />
+                    <col style={{ width: "33.33%" }} />
+                    <col style={{ width: "33.33%" }} />
+                  </colgroup>
+                  <tbody>
+                    <tr>
+                      <td className="cell">
+                        <div className="font-semibold text-center leading-tight">
+                          ผู้รับเหมา<div className="text-xs font-semibold">(CONTRACTORS)</div>
                         </div>
+                        <table className="mini mt-2">
+                          <colgroup>
+                            <col style={{ width: "12%" }} />
+                            <col style={{ width: "44%" }} />
+                            <col style={{ width: "24%" }} />
+                            <col style={{ width: "20%" }} />
+                          </colgroup>
+                          <thead>
+                            <tr><th>#</th><th>รายชื่อ</th><th>ตำแหน่ง</th><th>จำนวน</th></tr>
+                          </thead>
+                          <tbody>
+                            {contractorsPadded.map((r, i) => (
+                              <tr key={r.id}>
+                                <td className="c">{i + 1}</td>
+                                <td>{r.name?.trim() ? r.name : "-"}</td>
+                                <td>{r.position?.trim() ? r.position : "-"}</td>
+                                <td className="c numTab">{Number(r.qty) || 0}</td>
+                              </tr>
+                            ))}
+                            <tr>
+                              <td className="c" />
+                              <td colSpan={2}><span className="font-semibold">รวม</span></td>
+                              <td className="c numTab"><span className="font-semibold">{contractorTotal}</span></td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
 
-                        <div className="grid gap-3 sm:grid-cols-3">
-                          <MetricChip label="เช้า" value={wMorning} tone="mint" />
-                          <MetricChip label="บ่าย" value={wAfternoon} tone="violet" />
-                          <MetricChip label="ล่วงเวลา" value={wOvertime} tone="amber" />
+                      <td className="cell">
+                        <div className="font-semibold text-center leading-tight">
+                          ผู้รับเหมารายย่อย<div className="text-xs font-semibold">(SUB CONTRACTORS)</div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </section>
+                        <table className="mini mt-2">
+                          <colgroup>
+                            <col style={{ width: "10%" }} />
+                            <col style={{ width: "36%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "18%" }} />
+                          </colgroup>
+                          <thead>
+                            <tr><th>#</th><th>ตำแหน่ง</th><th>เช้า</th><th>บ่าย</th><th>ล่วงเวลา</th></tr>
+                          </thead>
+                          <tbody>
+                            {subPadded.map((r, i) => (
+                              <tr key={r.id}>
+                                <td className="c">{i + 1}</td>
+                                <td>{r.position?.trim() ? r.position : "-"}</td>
+                                <td className="c numTab">{Number(r.morning) || 0}</td>
+                                <td className="c numTab">{Number(r.afternoon) || 0}</td>
+                                <td className="c numTab">{Number(r.overtime) || 0}</td>
+                              </tr>
+                            ))}
+                            <tr>
+                              <td className="c" />
+                              <td><span className="font-semibold">รวม</span></td>
+                              <td className="c numTab"><span className="font-semibold">{subTotals.morning}</span></td>
+                              <td className="c numTab"><span className="font-semibold">{subTotals.afternoon}</span></td>
+                              <td className="c numTab"><span className="font-semibold">{subTotals.overtime}</span></td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
 
-              <section className="rounded-[24px] border border-slate-200 bg-white/88 p-5 shadow-[0_10px_30px_rgba(148,163,184,0.10)]">
-                <SectionTitle
-                  title="ส่วนโครงการ"
-                  subtitle="Project team"
-                  badge="Team Summary"
-                />
-
-                <div className="mt-4 grid gap-5">
-                  <div>
-                    <div className="mb-3 text-sm font-extrabold text-slate-800">
-                      ผู้รับเหมา (CONTRACTORS)
-                    </div>
-                    <SoftTable
-                      headers={["#", "รายชื่อ", "ตำแหน่ง", "จำนวน"]}
-                      align={["center", "left", "left", "center"]}
-                      rows={contractorsPadded.map((r, i) => [
-                        i + 1,
-                        r.name?.trim() ? r.name : "-",
-                        r.position?.trim() ? r.position : "-",
-                        Number(r.qty) || 0,
-                      ])}
-                    />
-                    <div className="mt-3 text-right text-sm font-bold text-slate-700">
-                      รวม {contractorTotal}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-3 text-sm font-extrabold text-slate-800">
-                      ผู้รับเหมารายย่อย (SUB CONTRACTORS)
-                    </div>
-                    <SoftTable
-                      headers={["#", "ตำแหน่ง", "เช้า", "บ่าย", "ล่วงเวลา"]}
-                      align={["center", "left", "center", "center", "center"]}
-                      rows={subPadded.map((r, i) => [
-                        i + 1,
-                        r.position?.trim() ? r.position : "-",
-                        Number(r.morning) || 0,
-                        Number(r.afternoon) || 0,
-                        Number(r.overtime) || 0,
-                      ])}
-                    />
-                    <div className="mt-3 text-right text-sm font-bold text-slate-700">
-                      รวม {subTotals.morning} / {subTotals.afternoon} / {subTotals.overtime}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-3 text-sm font-extrabold text-slate-800">
-                      เครื่องจักรหลัก (MAJOR EQUIPMENT)
-                    </div>
-                    <SoftTable
-                      headers={["#", "ชนิด", "เช้า", "บ่าย", "ล่วงเวลา"]}
-                      align={["center", "left", "center", "center", "center"]}
-                      rows={equipPadded.map((r, i) => [
-                        i + 1,
-                        r.type?.trim() ? r.type : "-",
-                        Number(r.morning) || 0,
-                        Number(r.afternoon) || 0,
-                        Number(r.overtime) || 0,
-                      ])}
-                    />
-                    <div className="mt-3 text-right text-sm font-bold text-slate-700">
-                      รวม {equipTotals.morning} / {equipTotals.afternoon} / {equipTotals.overtime}
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section className="rounded-[24px] border border-slate-200 bg-white/88 p-5 shadow-[0_10px_30px_rgba(148,163,184,0.10)]">
-                <SectionTitle
-                  title="รายละเอียดงานที่ได้ดำเนินการ"
-                  subtitle="Work performed"
-                  badge="Execution"
-                />
-
-                <div className="mt-4">
-                  <SoftTable
-                    headers={["#", "รายการ", "บริเวณ", "จำนวน", "หน่วย", "วัสดุนำเข้า"]}
-                    align={["center", "left", "left", "center", "center", "left"]}
-                    rows={workRows.map((r, i) => [
-                      i + 1,
-                      r.desc || "-",
-                      r.location || "-",
-                      r.qty || "-",
-                      r.unit || "-",
-                      r.materialDelivered || "-",
-                    ])}
-                  />
-                </div>
-              </section>
-
-              {issuesList.length > 0 && (
-                <section className="rounded-[24px] border border-slate-200 bg-white/88 p-5 shadow-[0_10px_30px_rgba(148,163,184,0.10)]">
-                  <SectionTitle
-                    title="ปัญหาและอุปสรรค"
-                    subtitle="Issues / obstacles"
-                    badge={`${issuesList.length} item(s)`}
-                  />
-
-                  <div className="mt-4 space-y-5">
-                    {issuesList.map((it, idx) => (
-                      <div
-                        key={it.id || idx}
-                        className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,255,0.98))] p-4 shadow-[0_8px_24px_rgba(148,163,184,0.08)]"
-                      >
-                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                          <div className="text-sm font-extrabold text-slate-800">
-                            ปัญหาที่ {idx + 1}
-                          </div>
-                          <span className="rounded-full bg-[rgba(239,127,150,0.14)] px-3 py-1 text-[11px] font-bold text-rose-700">
-                            ISSUE
-                          </span>
+                      <td className="cell">
+                        <div className="font-semibold text-center leading-tight">
+                          เครื่องจักรหลัก<div className="text-xs font-semibold">(MAJOR EQUIPMENT)</div>
                         </div>
+                        <table className="mini mt-2">
+                          <colgroup>
+                            <col style={{ width: "10%" }} />
+                            <col style={{ width: "36%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "18%" }} />
+                          </colgroup>
+                          <thead>
+                            <tr><th>#</th><th>ชนิด</th><th>เช้า</th><th>บ่าย</th><th>ล่วงเวลา</th></tr>
+                          </thead>
+                          <tbody>
+                            {equipPadded.map((r, i) => (
+                              <tr key={r.id}>
+                                <td className="c">{i + 1}</td>
+                                <td>{r.type?.trim() ? r.type : "-"}</td>
+                                <td className="c numTab">{Number(r.morning) || 0}</td>
+                                <td className="c numTab">{Number(r.afternoon) || 0}</td>
+                                <td className="c numTab">{Number(r.overtime) || 0}</td>
+                              </tr>
+                            ))}
+                            <tr>
+                              <td className="c" />
+                              <td><span className="font-semibold">รวม</span></td>
+                              <td className="c numTab"><span className="font-semibold">{equipTotals.morning}</span></td>
+                              <td className="c numTab"><span className="font-semibold">{equipTotals.afternoon}</span></td>
+                              <td className="c numTab"><span className="font-semibold">{equipTotals.overtime}</span></td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
-                        <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-                          <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-slate-50/90">
-                            {it.imageUrl ? (
-                              <img
-                                src={it.imageUrl}
-                                alt={`Issue ${idx + 1}`}
-                                className="h-[220px] w-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-[220px] items-center justify-center text-sm text-slate-400">
-                                ไม่มีรูปภาพ
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="grid gap-4">
-                            <div className="rounded-[22px] bg-slate-50/80 p-4">
-                              <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-                                Detail
-                              </div>
-                              <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                                {it.detail || " "}
-                              </div>
-                            </div>
-
-                            <div className="rounded-[22px] bg-slate-50/70 p-4">
-                              <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-                                Supervisor Comment
-                              </div>
-                              <div className="mt-3">
-                                {renderIssueCommentCell ? (
-                                  renderIssueCommentCell(it, idx)
-                                ) : (
-                                  <DefaultIssueCommentCell issue={it} />
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+              <div className="box mt-4">
+                <div className="subBar cell">รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)</div>
+                <table>
+                  <colgroup>
+                    <col style={{ width: "6%" }} />
+                    <col style={{ width: "30%" }} />
+                    <col style={{ width: "22%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "22%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th className="cellCenter">#</th>
+                      <th className="cellCenter">รายการ (DESCRIPTION)</th>
+                      <th className="cellCenter">บริเวณ (LOCATIONS)</th>
+                      <th className="cellCenter">จำนวน</th>
+                      <th className="cellCenter">หน่วย</th>
+                      <th className="cellCenter">วัสดุนำเข้า (MATERIAL)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(model.workPerformed?.length
+                      ? model.workPerformed
+                      : [{ id: "EMPTY-W", desc: "-", location: "-", qty: "-", unit: "-", materialDelivered: "-" }]
+                    ).map((r, i) => (
+                      <tr key={r.id}>
+                        <td className="cellCenter">{i + 1}</td>
+                        <td className="cell">{r.desc || "-"}</td>
+                        <td className="cell">{r.location || "-"}</td>
+                        <td className="cellCenter">{r.qty || "-"}</td>
+                        <td className="cellCenter">{r.unit || "-"}</td>
+                        <td className="cell">{r.materialDelivered || "-"}</td>
+                      </tr>
                     ))}
-                  </div>
-                </section>
+                  </tbody>
+                </table>
+              </div>
+
+              {hasIssues && (
+                <div className="box mt-4">
+                  <table>
+                    <colgroup>
+                      <col style={{ width: "45%" }} />
+                      <col style={{ width: "33%" }} />
+                      <col style={{ width: "22%" }} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th className="cellCenter titleBar">ภาพปัญหาและอุปสรรค</th>
+                        <th className="cellCenter titleBar">รายละเอียด</th>
+                        <th className="cellCenter titleBar">ความเห็นของผู้ควบคุมงาน</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {issuesList.map((it, idx) => (
+                        <tr key={it.id}>
+                          <td className="cell issueRowMin">
+                            <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
+                            {it.imageUrl ? (
+                              <img src={it.imageUrl} alt={`issue-img-${idx + 1}`} className="issueImg border border-black/30 rounded" />
+                            ) : (
+                              <div className="text-sm opacity-60">-</div>
+                            )}
+                          </td>
+                          <td className="cell issueRowMin">
+                            <div className="text-sm font-semibold mb-2">ปัญหาที่ {idx + 1}</div>
+                            <div className="text-sm whitespace-pre-wrap">{it.detail || " "}</div>
+                          </td>
+                          <td className="cell issueRowMin">
+                            {renderIssueCommentCell ? renderIssueCommentCell(it, idx) : <div className="text-sm opacity-60"> </div>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
 
-              <section className="rounded-[24px] border border-slate-200 bg-white/88 p-5 shadow-[0_10px_30px_rgba(148,163,184,0.10)]">
-                <SectionTitle
-                  title="บันทึกด้านความปลอดภัยในการทำงาน"
-                  subtitle="Safety note"
-                  badge="Safety"
-                />
+              <div className="box mt-4">
+                <div className="subBar cell">บันทึกด้านความปลอดภัยในการทำงาน</div>
+                <div className="cell whitespace-pre-wrap min-h-[90px]">{model.safetyNote || " "}</div>
+              </div>
 
-                <div className="mt-4 rounded-[22px] bg-slate-50/90 p-5 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                  {model.safetyNote || " "}
+              <div className="box mt-4">
+                <div className="cell">
+                  <div className="font-semibold">รายชื่อผู้ควบคุมงาน</div>
+                  <div className="mt-3">
+                    <SignatureGrid items={model.supervisors} />
+                  </div>
                 </div>
-              </section>
+              </div>
 
-              <section className="rounded-[24px] border border-slate-200 bg-white/88 p-5 shadow-[0_10px_30px_rgba(148,163,184,0.10)]">
-                <SectionTitle
-                  title="รายชื่อผู้ควบคุมงาน"
-                  subtitle="Supervisor signatures"
-                  badge={`${model.supervisors?.length || 0} person(s)`}
-                />
-
-                <div className="mt-4">
-                  <SignatureGrid items={model.supervisors || []} />
-                </div>
-              </section>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
-/** ===== Readonly wrapper for Contact / Commentator / Summation ===== */
+/** ===== Readonly wrapper for Contact chat ===== */
 async function jgetText(url: string): Promise<any> {
   const res = await fetch(url, { cache: "no-store" });
   const txt = await res.text();
-
   if (!res.ok) throw new Error(txt || `GET ${url} failed`);
-
   try {
     return JSON.parse(txt);
   } catch {
@@ -1106,9 +875,8 @@ export function ReportPreviewReadonly({ reportId }: { reportId: string }) {
         setErr(null);
         setModel(null);
 
-        const raw = await jgetText(
-          `/api/daily-reports/${encodeURIComponent(reportId)}?mode=render`
-        );
+        // ✅ ถ้าโปรเจกต์คุณมี endpoint อื่น สามารถเปลี่ยนแค่ URL นี้
+        const raw = await jgetText(`/api/daily-reports/${encodeURIComponent(reportId)}?mode=render`);
         const normalized = normalizeModel(raw);
 
         if (!cancelled) setModel(normalized);
@@ -1124,19 +892,13 @@ export function ReportPreviewReadonly({ reportId }: { reportId: string }) {
 
   if (err) {
     return (
-      <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+      <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
         Preview โหลดไม่สำเร็จ: {err}
       </div>
     );
   }
-
   if (!model) {
-    return (
-      <div className="rounded-[24px] border border-slate-200 bg-white/90 px-5 py-5 text-sm text-slate-500 shadow-[0_10px_30px_rgba(148,163,184,0.08)]">
-        กำลังโหลด Preview...
-      </div>
-    );
+    return <div className="text-sm text-gray-500">กำลังโหลด Preview...</div>;
   }
-
   return <ReportPreviewForm model={model} />;
 }
