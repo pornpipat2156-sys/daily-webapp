@@ -149,6 +149,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
     unreadApprovals: 0,
     items: [],
   });
+
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
   async function load() {
@@ -158,7 +159,10 @@ export default function NotificationBell({ onSummaryChange }: Props) {
       const res = await fetch("/api/notifications?limit=50", {
         cache: "no-store",
       });
-      if (!res.ok) throw new Error(await res.text());
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
 
       const json = (await res.json()) as NotificationResponse;
       setSummary(json);
@@ -220,7 +224,16 @@ export default function NotificationBell({ onSummaryChange }: Props) {
       load().catch(console.error);
     }, 15000);
 
-    return () => window.clearInterval(id);
+    function onRefresh() {
+      load().catch(console.error);
+    }
+
+    window.addEventListener("notifications:refresh", onRefresh);
+
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("notifications:refresh", onRefresh);
+    };
   }, []);
 
   useEffect(() => {
@@ -254,8 +267,9 @@ export default function NotificationBell({ onSummaryChange }: Props) {
   return (
     <div className="relative" ref={wrapRef}>
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
-        className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-700 shadow-sm transition hover:bg-neutral-50"
+        className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-700 shadow-sm transition hover:bg-neutral-50"
         aria-label="Notifications"
         title="Notifications"
       >
@@ -264,23 +278,25 @@ export default function NotificationBell({ onSummaryChange }: Props) {
             {summary.unreadCount > 99 ? "99+" : summary.unreadCount}
           </span>
         )}
-        <span className="text-lg">🔔</span>
+        <span className="text-xl">🔔</span>
       </button>
 
       {open && (
         <>
           <button
+            type="button"
             onClick={() => setOpen(false)}
-            className="fixed inset-0 z-30 cursor-default bg-transparent"
+            className="fixed inset-0 z-40 bg-black/10 sm:bg-transparent"
             aria-label="Close notifications"
           />
 
-          <div className="absolute right-0 top-12 z-40 w-[92vw] max-w-md overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
-              <div className="flex items-center gap-2">
-                <div className="text-base font-semibold text-neutral-900">
+          <div className="fixed inset-x-2 top-[88px] z-50 max-h-[calc(100dvh-104px)] w-auto overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl sm:absolute sm:right-0 sm:left-auto sm:top-12 sm:w-[92vw] sm:max-w-md sm:max-h-[70vh]">
+            <div className="flex items-center justify-between gap-3 border-b border-neutral-100 px-4 py-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="truncate text-base font-semibold text-neutral-900">
                   Notifications
                 </div>
+
                 {summary.unreadCount > 0 && (
                   <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-600">
                     {summary.unreadCount > 99 ? "99+" : summary.unreadCount}
@@ -289,6 +305,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
               </div>
 
               <button
+                type="button"
                 onClick={() => markAllAsRead()}
                 className="shrink-0 text-xs font-semibold text-rose-500 transition hover:text-rose-600 sm:text-sm"
               >
@@ -296,7 +313,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
               </button>
             </div>
 
-            <div className="max-h-[70vh] overflow-y-auto">
+            <div className="max-h-[calc(100dvh-220px)] overflow-y-auto sm:max-h-[56vh]">
               {loading && grouped.length === 0 ? (
                 <div className="px-4 py-6 text-sm text-neutral-500">
                   กำลังโหลด...
@@ -314,6 +331,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
 
                   return (
                     <button
+                      type="button"
                       key={`${item.groupKey || item.id}-${item.groupedIds.join(",")}`}
                       onClick={() => markAsRead(item.groupedIds, item.url)}
                       className={`relative block w-full border-b border-neutral-100 px-3 py-3 text-left transition hover:bg-neutral-50 sm:px-4 sm:py-4 ${
@@ -325,12 +343,16 @@ export default function NotificationBell({ onSummaryChange }: Props) {
                       )}
 
                       <div className="mb-1 flex items-start gap-2 pr-6">
-                        <span className="text-base leading-none">{icon}</span>
+                        <span className="pt-0.5 text-base leading-none">
+                          {icon}
+                        </span>
 
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-start gap-2">
-                            <div className="truncate text-sm font-semibold text-neutral-900 sm:text-[15px]">
-                              {title}
+                          <div className="flex flex-wrap items-start gap-2">
+                            <div className="min-w-0 flex-1 text-sm font-semibold text-neutral-900 sm:text-[15px]">
+                              <span className="line-clamp-2 break-words">
+                                {title}
+                              </span>
                             </div>
 
                             {unread && (
@@ -340,12 +362,13 @@ export default function NotificationBell({ onSummaryChange }: Props) {
                             )}
                           </div>
 
-                          <div className="mt-1 line-clamp-2 text-xs text-neutral-600 sm:text-sm">
+                          <div className="mt-1 line-clamp-3 break-words text-xs text-neutral-600 sm:text-sm">
                             {body}
                           </div>
 
-                          <div className="mt-2 flex items-center gap-2 text-[11px] text-neutral-400 sm:text-xs">
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-neutral-400 sm:text-xs">
                             <span>{fmtDateTime(item.createdAt)}</span>
+
                             {item.count > 1 && unread && (
                               <span className="rounded-full bg-neutral-100 px-2 py-0.5 font-medium text-neutral-500">
                                 {item.count} items
@@ -360,20 +383,22 @@ export default function NotificationBell({ onSummaryChange }: Props) {
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-2 border-t border-neutral-100 px-4 py-3 text-[11px] text-neutral-500 sm:text-xs">
-              <div>
+            <div className="flex flex-col gap-3 border-t border-neutral-100 px-4 py-3 text-[11px] text-neutral-500 sm:flex-row sm:items-center sm:justify-between sm:text-xs">
+              <div className="min-w-0 break-words">
                 unread {summary.unreadCount} • mention {summary.unreadMentions} •
                 approval {summary.unreadApprovals}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-end gap-2">
                 <button
+                  type="button"
                   onClick={() => load()}
                   className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
                 >
                   Refresh
                 </button>
                 <button
+                  type="button"
                   onClick={() => setOpen(false)}
                   className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
                 >
