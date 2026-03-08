@@ -499,7 +499,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
               aria-label="Close notifications"
             />
 
-            <div className="fixed inset-x-3 top-[88px] bottom-3 z-50 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-3 sm:w-[min(92vw,24rem)]">
+            <div className="fixed left-3 right-3 top-[88px] z-50 max-h-[calc(100dvh-104px)] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-3 sm:max-h-[70vh] sm:w-[min(92vw,24rem)]">
               <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
                 <div>
                   <div className="text-sm font-semibold text-neutral-900">Notifications</div>
@@ -521,7 +521,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
                 </div>
               </div>
 
-              <div className="h-[calc(100%-116px)] overflow-y-auto sm:h-auto sm:max-h-[70vh]">
+              <div className="max-h-[calc(100dvh-180px)] overflow-y-auto sm:max-h-[70vh]">
                 {loading && grouped.length === 0 ? (
                   <div className="px-4 py-8 text-center text-sm text-neutral-500">กำลังโหลด...</div>
                 ) : grouped.length === 0 ? (
