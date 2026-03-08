@@ -15,13 +15,13 @@ model Project {
   reports       DailyReport[]
   projectAdmins ProjectAdmin[]
 
-  // ✅ Chat (Project Group Chat) - opposite relation fields
   chatMembers  ChatGroupMember[]
   chatMessages ChatMessage[]
 
-  // ✅ เพิ่มตามคำสั่ง: weekly / monthly reports
   weeklyReports  WeeklyReport[]
   monthlyReports MonthlyReport[]
+
+  notifications Notification[]
 }
 
 model DailyReport {
@@ -31,10 +31,8 @@ model DailyReport {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  // ✅ เก็บข้อมูลฟอร์ม Daily-report ทั้งก้อน (แก้ไขได้)
   payload Json?
 
-  // ✅ เก็บ "ข้อมูลครั้งแรกของวันนั้น" (ห้ามแก้ แม้กลับมาแก้ไขรายงานภายหลัง)
   initialPayload    Json?
   initialIssues     Json?
   initialCapturedAt DateTime?
@@ -43,7 +41,6 @@ model DailyReport {
   issues    Issue[]
   approvals ReportApproval[] @relation("ReportApprovals")
 
-  // ✅ สำคัญมาก: ทำให้ upsert by project+date ได้
   @@unique([projectId, date])
   @@index([projectId])
   @@index([date])
@@ -56,17 +53,12 @@ model Issue {
   imageUrl  String?
   createdAt DateTime @default(now())
 
-  report   DailyReport   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  report   DailyReport    @relation(fields: [reportId], references: [id], onDelete: Cascade)
   comments IssueComment[]
 
   @@index([reportId])
 }
 
-/**
- * =========================
- * Weekly / Monthly Reports
- * =========================
- */
 model WeeklyReport {
   id              String   @id @default(cuid())
   projectId       String
@@ -111,11 +103,6 @@ model MonthlyReport {
   @@index([endDate])
 }
 
-/**
- * =========================
- * Auth (Invite-only)
- * =========================
- */
 enum Role {
   USER
   ADMIN
@@ -143,21 +130,23 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  projectAdminOf    ProjectAdmin[]
-  issueComments     IssueComment[]
-  reportApprovals   ReportApproval[] @relation("UserApprovals")
-  pushSubscriptions PushSubscription[]
+  projectAdminOf  ProjectAdmin[]
+  issueComments   IssueComment[]
+  reportApprovals ReportApproval[] @relation("UserApprovals")
 
-  // ✅ Chat (Project Group Chat) - opposite relation fields
   chatGroups   ChatGroupMember[]
   chatMessages ChatMessage[]
+
+  pushSubscriptions PushSubscription[]
+  pushDeliveryLogs  PushDeliveryLog[]
+  notifications     Notification[]
 }
 
 model PasswordToken {
   id        String   @id @default(cuid())
   userEmail String
   tokenHash String   @unique
-  purpose   String // "reset"
+  purpose   String
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime @default(now())
@@ -245,17 +234,65 @@ model ChatMessage {
 
 model PushSubscription {
   id         String   @id @default(cuid())
-  userId      String
-  endpoint    String   @unique
-  p256dh      String
-  auth        String
-  userAgent   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
-  lastUsedAt  DateTime?
+  userId     String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+  lastUsedAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([createdAt])
+}
+
+model PushDeliveryLog {
+  id        String   @id @default(cuid())
+  userId    String
+  dedupeKey String
+  channel   String
+  title     String?
+  body      String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId])
+  @@index([dedupeKey])
+  @@index([createdAt])
+}
+
+enum NotificationType {
+  MENTION
+  APPROVAL
+  SYSTEM
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  url       String?
+  sourceKey String?
+  groupKey  String?
+  projectId String?
+  readAt    DateTime?
+  meta      Json?
+  createdAt DateTime         @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, sourceKey])
+  @@index([userId, readAt, createdAt])
+  @@index([type])
+  @@index([projectId])
+  @@index([groupKey])
 }

@@ -1,9 +1,9 @@
-// app/api/daily-reports/[id]/approvals/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
+import { createNotifications } from "@/lib/notifications";
+import { sendDedupedPushes } from "@/lib/webpush";
 
-// Next.js 16: params เป็น Promise
 type Ctx = { params: Promise<{ id: string }> };
 
 function norm(s: string) {
@@ -13,17 +13,14 @@ function norm(s: string) {
     .replace(/\s+/g, " ");
 }
 
-// ตัดคำนำหน้าชื่อไทย/สัญลักษณ์ เพื่อช่วย match
 function normPersonName(s: string) {
   let t = String(s || "").trim();
 
-  // ตัดคำนำหน้าที่พบบ่อย
   t = t.replace(
     /^(นาย|นางสาว|น\.ส\.|นส\.|นาง|ดร\.|ผศ\.|รศ\.|ศ\.|mr\.|mrs\.|ms\.)\s*/i,
     ""
   );
 
-  // ลบวงเล็บ/จุด/ขีด/คอมม่า ที่ชอบทำให้ match ไม่ติด
   t = t.replace(/[().,_-]/g, " ");
 
   return norm(t);
@@ -31,25 +28,25 @@ function normPersonName(s: string) {
 
 function normalizeSupervisors(raw: any): { name: string; role: string }[] {
   const arr = Array.isArray(raw) ? raw : [];
-  const looksLikeRole = (s: string) =>
-    /(ผู้|หัวหน้า|ผอ|วิศวกร|ผู้ตรวจ|ผู้ควบคุม|ผู้แทน)/.test(s);
+  const looksLikeRole = (s: string) => /(ผู้|หัวหน้า|ผอ|วิศวกร|ผู้ตรวจ|ผู้ควบคุม|ผู้แทน)/.test(s);
 
   return arr
     .map((x: any) => {
       if (x && typeof x === "object") {
-        return { name: String(x?.name || "").trim(), role: String(x?.role || "").trim() };
+        return {
+          name: String(x?.name || "").trim(),
+          role: String(x?.role || "").trim(),
+        };
       }
+
       const s = String(x || "").trim();
       if (!s) return { name: "", role: "" };
+
       return looksLikeRole(s) ? { name: "", role: s } : { name: s, role: "" };
     })
-    .filter((x) => x.name); // ต้องมีชื่อเพื่อ match
+    .filter((x) => x.name);
 }
 
-/**
- * GET /api/daily-reports/[id]/approvals
- * ดึงสถานะการอนุมัติทั้งหมดของรายงาน
- */
 export async function GET(_req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
   const reportId = String(id || "").trim();
@@ -79,14 +76,13 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       })),
     });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, message: e?.message ?? "internal error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, message: e?.message ?? "internal error" },
+      { status: 500 }
+    );
   }
 }
 
-/**
- * POST /api/daily-reports/[id]/approvals
- * ผู้ควบคุมงาน "ยืนยันของฉัน" (SUPERADMIN bypass ตาม Webapp11)
- */
 export async function POST(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
   const reportId = String(id || "").trim();
@@ -96,6 +92,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   }
 
   const user = await getAuthUser(req);
+
   if (!user) {
     return NextResponse.json({ ok: false, message: "unauthorized" }, { status: 401 });
   }
@@ -106,7 +103,13 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       select: {
         id: true,
         date: true,
-        project: { select: { name: true, meta: true } },
+        projectId: true,
+        project: {
+          select: {
+            name: true,
+            meta: true,
+          },
+        },
       },
     });
 
@@ -115,14 +118,17 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     }
 
     const supervisors = normalizeSupervisors((report.project?.meta as any)?.supervisors);
+
     if (supervisors.length === 0) {
-      return NextResponse.json({ ok: false, message: "project has no supervisors in DB" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, message: "project has no supervisors in DB" },
+        { status: 400 }
+      );
     }
 
-    // ✅ ดึงชื่อ+role จาก DB เพื่อ match และทำ SUPERADMIN bypass
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },
-      select: { name: true, email: true, role: true },
+      select: { id: true, name: true, email: true, role: true },
     });
 
     const meDisplay = String(dbUser?.name || "").trim();
@@ -142,14 +148,15 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       supervisors.find((s) => normPersonName(s.name) === meKeyA) ||
       supervisors.find((s) => norm(s.name) === meKeyB);
 
-    // ✅ SUPERADMIN bypass (แต่ยังพยายาม match ก่อน) ตาม Webapp11
     const isSuperAdmin = String(dbUser?.role || "").toUpperCase() === "SUPERADMIN";
+
     if (!mySupervisor && !isSuperAdmin) {
-      return NextResponse.json({ ok: false, message: "คุณไม่ใช่ผู้ควบคุมงานของโครงการนี้" }, { status: 403 });
+      return NextResponse.json(
+        { ok: false, message: "คุณไม่ใช่ผู้ควบคุมงานของโครงการนี้" },
+        { status: 403 }
+      );
     }
 
-    // ถ้า match supervisor ได้ -> ใช้ชื่อ supervisor ตาม DB
-    // ถ้า superadmin แต่ไม่ match -> ใช้ชื่อจาก user
     const approverName = mySupervisor?.name || meName;
     const approverRole = mySupervisor?.role || (isSuperAdmin ? "SUPERADMIN" : null);
 
@@ -171,6 +178,74 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       },
     });
 
+    const [projectAdmins, superAdmins] = await Promise.all([
+      prisma.projectAdmin.findMany({
+        where: {
+          projectId: report.projectId,
+          isActive: true,
+          userId: { not: user.id },
+          user: { isActive: true },
+        },
+        select: { userId: true },
+      }),
+      prisma.user.findMany({
+        where: {
+          role: "SUPERADMIN",
+          isActive: true,
+          id: { not: user.id },
+        },
+        select: { id: true },
+      }),
+    ]);
+
+    const recipientIds = Array.from(
+      new Set([...projectAdmins.map((x) => x.userId), ...superAdmins.map((x) => x.id)])
+    );
+
+    if (recipientIds.length > 0) {
+      const projectName = report.project?.name || "โครงการ";
+      const dateLabel = report.date.toISOString().slice(0, 10);
+
+      await createNotifications(
+        recipientIds.map((recipientId) => ({
+          userId: recipientId,
+          type: "APPROVAL",
+          title: `มีการอนุมัติรายงานแล้ว`,
+          body: `${approverName} อนุมัติรายงานของ ${projectName} วันที่ ${dateLabel}`,
+          url: `/summation?projectId=${encodeURIComponent(report.projectId)}&date=${encodeURIComponent(dateLabel)}`,
+          sourceKey: `approval:${approval.id}:${recipientId}`,
+          groupKey: `approval:${report.projectId}`,
+          projectId: report.projectId,
+          meta: {
+            reportId,
+            approvalId: approval.id,
+            projectId: report.projectId,
+            kind: "approval",
+          },
+        }))
+      );
+
+      await sendDedupedPushes(
+        recipientIds.map((recipientId) => ({
+          userId: recipientId,
+          dedupeKey: `approval:${approval.id}:${recipientId}`,
+          channel: "approval",
+          payload: {
+            title: `มีการอนุมัติรายงานแล้ว`,
+            body: `${approverName} อนุมัติรายงานของ ${projectName} วันที่ ${dateLabel}`,
+            url: `/summation?projectId=${encodeURIComponent(report.projectId)}&date=${encodeURIComponent(dateLabel)}`,
+            tag: `approval:${reportId}`,
+            data: {
+              reportId,
+              approvalId: approval.id,
+              projectId: report.projectId,
+              kind: "approval",
+            },
+          },
+        }))
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       approvalId: approval.id,
@@ -178,6 +253,9 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       date: report.date.toISOString(),
     });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, message: e?.message ?? "internal error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, message: e?.message ?? "internal error" },
+      { status: 500 }
+    );
   }
 }

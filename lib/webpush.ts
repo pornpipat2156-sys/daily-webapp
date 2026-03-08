@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
 
@@ -14,6 +15,14 @@ export type PushPayload = {
   body: string;
   url?: string;
   tag?: string;
+  data?: Record<string, unknown>;
+};
+
+export type DedupePushInput = {
+  userId: string;
+  dedupeKey: string;
+  channel: string;
+  payload: PushPayload;
 };
 
 function getVapidConfig() {
@@ -33,10 +42,8 @@ let configured = false;
 
 function ensureWebPushConfigured() {
   if (configured) return;
-
   const vapid = getVapidConfig();
   if (!vapid.enabled) return;
-
   webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
   configured = true;
 }
@@ -61,6 +68,7 @@ function toPayloadString(payload: PushPayload) {
     body: payload.body,
     url: payload.url || "/",
     tag: payload.tag || "daily-webapp",
+    data: payload.data || {},
   });
 }
 
@@ -68,6 +76,17 @@ async function removeBrokenSubscription(endpoint: string) {
   try {
     await prisma.pushSubscription.delete({
       where: { endpoint },
+    });
+  } catch {
+    // ignore
+  }
+}
+
+async function touchSubscription(endpoint: string) {
+  try {
+    await prisma.pushSubscription.update({
+      where: { endpoint },
+      data: { lastUsedAt: new Date() },
     });
   } catch {
     // ignore
@@ -97,14 +116,9 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
     subs.map(async (sub) => {
       try {
         await webpush.sendNotification(toWebPushSubscription(sub), body);
-
-        await prisma.pushSubscription.update({
-          where: { endpoint: sub.endpoint },
-          data: { lastUsedAt: new Date() },
-        });
+        await touchSubscription(sub.endpoint);
       } catch (err: any) {
         const statusCode = Number(err?.statusCode || 0);
-
         if (statusCode === 404 || statusCode === 410) {
           await removeBrokenSubscription(sub.endpoint);
         }
@@ -123,6 +137,50 @@ export async function sendPushToUsers(userIds: string[], payload: PushPayload) {
   await Promise.all(uniqueUserIds.map((userId) => sendPushToUser(userId, payload)));
 }
 
+export async function sendDedupedPushes(inputs: DedupePushInput[]) {
+  if (!inputs.length) return;
+
+  const uniqueInputs = Array.from(
+    new Map(
+      inputs
+        .map((x) => ({
+          userId: String(x.userId || "").trim(),
+          dedupeKey: String(x.dedupeKey || "").trim(),
+          channel: String(x.channel || "").trim() || "general",
+          payload: x.payload,
+        }))
+        .filter((x) => x.userId && x.dedupeKey)
+        .map((x) => [`${x.userId}::${x.dedupeKey}`, x])
+    ).values()
+  );
+
+  for (const input of uniqueInputs) {
+    const result = await prisma.pushDeliveryLog.createMany({
+      data: [
+        {
+          userId: input.userId,
+          dedupeKey: input.dedupeKey,
+          channel: input.channel,
+          title: input.payload.title,
+          body: input.payload.body,
+          payload: {
+            title: input.payload.title,
+            body: input.payload.body,
+            url: input.payload.url || "/",
+            tag: input.payload.tag || "daily-webapp",
+            data: input.payload.data || {},
+          } as Prisma.InputJsonValue,
+        },
+      ],
+      skipDuplicates: true,
+    });
+
+    if (result.count === 0) continue;
+
+    await sendPushToUser(input.userId, input.payload);
+  }
+}
+
 export async function sendChatMessagePush(params: {
   recipientUserIds: string[];
   projectName: string;
@@ -130,8 +188,7 @@ export async function sendChatMessagePush(params: {
   messageText?: string | null;
   projectId: string;
 }) {
-  const preview =
-    String(params.messageText || "").trim() || "คุณมีข้อความใหม่ในแชตโครงการ";
+  const preview = String(params.messageText || "").trim() || "คุณมีข้อความใหม่ในแชตโครงการ";
 
   await sendPushToUsers(params.recipientUserIds, {
     title: `ข้อความใหม่: ${params.projectName}`,
