@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Offline Push • DAILY-WEBAPP</title>
+    <meta name="theme-color" content="#111827" />
+    <style>
+      :root {
+        color-scheme: light;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f5f5f5;
+        color: #111827;
+      }
+
+      .wrap {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+
+      .card {
+        width: 100%;
+        max-width: 640px;
+        border: 1px solid #e5e7eb;
+        background: #ffffff;
+        border-radius: 24px;
+        box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+        padding: 24px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        background: #f3f4f6;
+        color: #374151;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 16px;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 28px;
+        line-height: 1.2;
+      }
+
+      p {
+        margin: 0 0 12px;
+        color: #4b5563;
+        line-height: 1.65;
+      }
+
+      .target {
+        margin-top: 16px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        word-break: break-word;
+        font-size: 14px;
+      }
+
+      .status {
+        margin-top: 16px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        color: #1d4ed8;
+        font-size: 14px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 20px;
+      }
+
+      .btn {
+        appearance: none;
+        border: 1px solid #d1d5db;
+        background: #ffffff;
+        color: #111827;
+        border-radius: 14px;
+        padding: 12px 16px;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      .btn.primary {
+        background: #111827;
+        color: #ffffff;
+        border-color: #111827;
+      }
+
+      .hint {
+        margin-top: 18px;
+        font-size: 13px;
+        color: #6b7280;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="pill">DAILY-WEBAPP • Offline Push Handling</div>
+        <h1>เปิดจากการแจ้งเตือนแล้ว แต่ตอนนี้ยังออฟไลน์อยู่</h1>
+        <p>
+          ระบบรับการกด notification แล้วเรียบร้อย แต่ยังไม่สามารถโหลดหน้าปลายทางได้
+          เพราะอุปกรณ์ยังไม่มีอินเทอร์เน็ต
+        </p>
+        <p>
+          เมื่อกลับมาออนไลน์ หน้านี้จะพยายามพาไปยังปลายทางเดิมให้อัตโนมัติ
+        </p>
+
+        <div class="target">
+          <strong>ปลายทางที่ต้องการเปิด:</strong>
+          <div id="targetText" style="margin-top: 8px;">/</div>
+        </div>
+
+        <div class="status" id="statusBox">
+          กำลังรอการเชื่อมต่ออินเทอร์เน็ต…
+        </div>
+
+        <div class="actions">
+          <button class="btn primary" id="retryBtn" type="button">ลองเปิดอีกครั้ง</button>
+          <a class="btn" href="/">กลับหน้าแรก</a>
+        </div>
+
+        <div class="hint">
+          เคล็ดลับ: ถ้ากลับมาออนไลน์แล้วแต่ยังไม่เด้งอัตโนมัติ ให้กด “ลองเปิดอีกครั้ง”
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        var redirect = params.get("redirect") || "/";
+        var targetText = document.getElementById("targetText");
+        var statusBox = document.getElementById("statusBox");
+        var retryBtn = document.getElementById("retryBtn");
+        var storageKey = "daily-webapp:offline-push-redirect";
+
+        function setStatus(message, isOnline) {
+          statusBox.textContent = message;
+          statusBox.style.background = isOnline ? "#ecfdf5" : "#eff6ff";
+          statusBox.style.borderColor = isOnline ? "#a7f3d0" : "#bfdbfe";
+          statusBox.style.color = isOnline ? "#047857" : "#1d4ed8";
+        }
+
+        function goToRedirect() {
+          window.location.replace(redirect);
+        }
+
+        function tryOpenTarget() {
+          if (navigator.onLine) {
+            setStatus("เชื่อมต่อแล้ว กำลังพาไปยังหน้าที่ต้องการ…", true);
+            goToRedirect();
+            return;
+          }
+
+          setStatus("ยังออฟไลน์อยู่ กรุณาเชื่อมต่ออินเทอร์เน็ตก่อน", false);
+        }
+
+        try {
+          localStorage.setItem(storageKey, redirect);
+        } catch (e) {}
+
+        if (targetText) {
+          targetText.textContent = redirect;
+        }
+
+        retryBtn.addEventListener("click", function () {
+          tryOpenTarget();
+        });
+
+        window.addEventListener("online", function () {
+          tryOpenTarget();
+        });
+
+        window.addEventListener("offline", function () {
+          setStatus("การเชื่อมต่อหลุด กำลังรออินเทอร์เน็ตอีกครั้ง…", false);
+        });
+
+        if (navigator.onLine) {
+          setTimeout(function () {
+            tryOpenTarget();
+          }, 300);
+        } else {
+          setStatus("กำลังรอการเชื่อมต่ออินเทอร์เน็ต…", false);
+        }
+      })();
+    </script>
+  </body>
+</html>
