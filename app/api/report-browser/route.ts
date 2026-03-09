@@ -13,8 +13,6 @@ type Supervisor = {
   role: string;
 };
 
-type ProjectMetaDb = Record<string, unknown>;
-
 function str(v: unknown, fallback = "") {
   const s = String(v ?? "").trim();
   return s || fallback;
@@ -153,6 +151,29 @@ function isDailyReportApproved(
   });
 }
 
+function safeDateFromString(dateStr: string) {
+  const s = str(dateStr);
+  if (!s || s === "-") return null;
+
+  const parsed = new Date(s);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return parsed;
+}
+
+function diffDaysInclusive(start: Date, end: Date) {
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const startUtc = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+  const endUtc = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+  return Math.floor((endUtc - startUtc) / msPerDay) + 1;
+}
+
+function clampPositiveInt(value: number, fallback = 0) {
+  if (!Number.isFinite(value)) return fallback;
+  const n = Math.floor(value);
+  return n > 0 ? n : fallback;
+}
+
 export async function GET(req: NextRequest) {
   const user = await getAuthUser(req);
   if (!user) {
@@ -241,8 +262,8 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      const projectMeta = record(report.project?.meta);
-      const supervisors = normalizeSupervisors(projectMeta.supervisors);
+      const projectMetaRaw = record(report.project?.meta);
+      const supervisors = normalizeSupervisors(projectMetaRaw.supervisors);
       const approved = isDailyReportApproved(supervisors, report.approvals);
 
       if (!approved) {
@@ -254,11 +275,68 @@ export async function GET(req: NextRequest) {
       }
 
       const payload = record(report.payload);
+      const normalizedProjectMeta = normalizeProjectMeta(report.project?.name || "-", projectMetaRaw);
+
+      const contractStartDate = safeDateFromString(normalizedProjectMeta.contractStart);
+      const contractEndDate = safeDateFromString(normalizedProjectMeta.contractEnd);
+
+      let totalDays =
+        clampPositiveInt(num(projectMetaRaw.totalDurationDays, 0), 0) ||
+        clampPositiveInt(num(payload.totalDays, 0), 0);
+
+      if (!totalDays && contractStartDate && contractEndDate) {
+        totalDays = clampPositiveInt(diffDaysInclusive(contractStartDate, contractEndDate), 0);
+      }
+
+      let dayNo = clampPositiveInt(num(payload.dayNo, 0), 0);
+
+      if (!dayNo && contractStartDate) {
+        dayNo = clampPositiveInt(diffDaysInclusive(contractStartDate, report.date), 0);
+      }
+
+      if (!dayNo && totalDays > 0) {
+        dayNo = 1;
+      }
+
+      if (totalDays > 0 && dayNo > totalDays) {
+        dayNo = totalDays;
+      }
+
+      let installmentCount =
+        clampPositiveInt(normalizedProjectMeta.installmentCount, 0) ||
+        clampPositiveInt(num(payload.installmentCount, 0), 0);
+
+      let periodIndex = clampPositiveInt(num(payload.periodIndex, 0), 0);
+
+      if (!periodIndex && dayNo > 0 && totalDays > 0 && installmentCount > 0) {
+        const daysPerInstallment = totalDays / installmentCount;
+        if (daysPerInstallment > 0) {
+          periodIndex = clampPositiveInt(Math.ceil(dayNo / daysPerInstallment), 0);
+        }
+      }
+
+      if (installmentCount > 0 && periodIndex > installmentCount) {
+        periodIndex = installmentCount;
+      }
+
+      let totalWeeks = clampPositiveInt(num(payload.totalWeeks, 0), 0);
+      if (!totalWeeks && totalDays > 0) {
+        totalWeeks = clampPositiveInt(Math.ceil(totalDays / 7), 0);
+      }
+
+      let weekIndex = clampPositiveInt(num(payload.weekIndex, 0), 0);
+      if (!weekIndex && dayNo > 0) {
+        weekIndex = clampPositiveInt(Math.ceil(dayNo / 7), 0);
+      }
+
+      if (totalWeeks > 0 && weekIndex > totalWeeks) {
+        weekIndex = totalWeeks;
+      }
 
       const dailyModel = {
         date: report.date.toISOString(),
         projectName: str(report.project?.name, "-"),
-        projectMeta: normalizeProjectMeta(report.project?.name || "-", projectMeta),
+        projectMeta: normalizedProjectMeta,
         contractors: arrayOfObjects(payload.contractors),
         subContractors: arrayOfObjects(payload.subContractors),
         majorEquipment: arrayOfObjects(payload.majorEquipment),
@@ -285,6 +363,13 @@ export async function GET(req: NextRequest) {
         tempMinC: nullableNum(payload.tempMinC),
         hasOvertime: Boolean(payload.hasOvertime),
         supervisors,
+
+        dayNo,
+        totalDays,
+        periodIndex,
+        installmentCount,
+        weekIndex,
+        totalWeeks,
       };
 
       return NextResponse.json({
