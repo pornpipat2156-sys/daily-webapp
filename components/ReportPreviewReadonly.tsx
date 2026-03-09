@@ -678,9 +678,9 @@ export function ReportPreviewForm({
                         <table className="mini mt-2">
                           <colgroup>
                             <col style={{ width: "10%" }} />
-                            <col style={{ width: "40%" }} />
-                            <col style={{ width: "32%" }} />
-                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "45%" }} />
+                            <col style={{ width: "30%" }} />
+                            <col style={{ width: "15%" }} />
                           </colgroup>
                           <thead>
                             <tr className="miniFixedRow"><th>#</th><th className="nowrap">รายชื่อ</th><th>ตำแหน่ง</th><th>จำนวน</th></tr>
