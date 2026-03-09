@@ -292,7 +292,7 @@ function normalizeModel(raw: any): ReportRenderModel {
     tempMaxC: raw?.tempMaxC ?? raw?.temp_max_c ?? null,
     tempMinC: raw?.tempMinC ?? raw?.temp_min_c ?? null,
     hasOvertime: raw?.hasOvertime ?? null,
-    supervisors: safeArr<Supervisor>(raw?.supervisors).map((s: any, i) => ({
+    supervisors: safeArr<Supervisor>(raw?.supervisors).map((s: any) => ({
       name: String(s?.name ?? "-"),
       role: String(s?.role ?? "-"),
     })),
@@ -665,9 +665,9 @@ export function ReportPreviewForm({
                 <div className="sectionBar cell">ส่วนโครงการ (PROJECT TEAM)</div>
                 <table>
                   <colgroup>
-                    <col style={{ width: "33.33%" }} />
-                    <col style={{ width: "33.33%" }} />
-                    <col style={{ width: "33.33%" }} />
+                    <col style={{ width: "40%" }} />
+                    <col style={{ width: "30%" }} />
+                    <col style={{ width: "30%" }} />
                   </colgroup>
                   <tbody>
                     <tr>
@@ -678,18 +678,18 @@ export function ReportPreviewForm({
                         <table className="mini mt-2">
                           <colgroup>
                             <col style={{ width: "10%" }} />
-                            <col style={{ width: "30%" }} />
-                            <col style={{ width: "40%" }} />
-                            <col style={{ width: "20%" }} />
+                            <col style={{ width: "34%" }} />
+                            <col style={{ width: "38%" }} />
+                            <col style={{ width: "18%" }} />
                           </colgroup>
                           <thead>
-                            <tr className="miniFixedRow"><th>#</th><th>รายชื่อ</th><th>ตำแหน่ง</th><th>จำนวน</th></tr>
+                            <tr className="miniFixedRow"><th>#</th><th className="nowrap">รายชื่อ</th><th>ตำแหน่ง</th><th>จำนวน</th></tr>
                           </thead>
                           <tbody>
                             {contractorsPadded.map((r, i) => (
                               <tr key={r.id} className="miniFixedRow">
                                 <td className="c">{i + 1}</td>
-                                <td className="wrapText">{r.name?.trim() ? r.name : "-"}</td>
+                                <td className="nowrap">{r.name?.trim() ? r.name : "-"}</td>
                                 <td className="wrapText">{r.position?.trim() ? r.position : "-"}</td>
                                 <td className="c numTab">{Number(r.qty) || 0}</td>
                               </tr>
