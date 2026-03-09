@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import {
@@ -38,7 +38,7 @@ type ExportResponse =
     }
   | null;
 
-export default function ReportExportPage() {
+function ReportExportContent() {
   const searchParams = useSearchParams();
 
   const projectId = searchParams.get("projectId") || "";
@@ -131,12 +131,12 @@ export default function ReportExportPage() {
       `}</style>
 
       <div className="min-h-screen bg-slate-100 text-slate-900">
-        <div className="no-print mx-auto max-w-5xl px-4 py-4">
+        <div className="no-print mx-auto max-w-5xl px-2 py-3 sm:px-4 sm:py-4">
           <div className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="text-sm font-semibold text-slate-900">PDF Export (A4)</div>
               <div className="text-sm text-slate-500">
-                หน้านี้พิมพ์/บันทึกเฉพาะตัว Preview ไม่ใช่การ screenshot หน้าเว็บไซต์
+                หน้านี้พิมพ์หรือบันทึกเฉพาะตัว Preview ไม่ใช่การ screenshot หน้าเว็บไซต์
               </div>
             </div>
 
@@ -181,5 +181,23 @@ export default function ReportExportPage() {
         </div>
       </div>
     </>
+  );
+}
+
+function ReportExportFallback() {
+  return (
+    <div className="min-h-screen bg-slate-100 px-2 py-3 text-slate-900 sm:px-4 sm:py-4">
+      <div className="mx-auto max-w-[794px] rounded-[24px] border border-slate-200 bg-white px-5 py-5 text-sm text-slate-500 shadow-sm">
+        กำลังเตรียมหน้า export...
+      </div>
+    </div>
+  );
+}
+
+export default function ReportExportPage() {
+  return (
+    <Suspense fallback={<ReportExportFallback />}>
+      <ReportExportContent />
+    </Suspense>
   );
 }
