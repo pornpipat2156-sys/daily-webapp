@@ -6,15 +6,23 @@ import { getAuthUser } from "@/lib/auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Ctx = { params: Promise<{ id: string }> };
+type RouteContext = {
+  params: Promise<Record<string, string | string[] | undefined>>;
+};
 
-export async function GET(req: NextRequest, ctx: Ctx) {
+export async function GET(req: NextRequest, context: RouteContext) {
   const user = await getAuthUser(req);
-  if (!user) return NextResponse.json({ ok: false, message: "forbidden" }, { status: 403 });
+  if (!user) {
+    return NextResponse.json({ ok: false, message: "forbidden" }, { status: 403 });
+  }
 
-  const { id } = await ctx.params;
-  const reportId = String(id || "").trim();
-  if (!reportId) return NextResponse.json({ ok: false, message: "missing id" }, { status: 400 });
+  const params = await context.params;
+  const rawId = params?.id;
+  const reportId = Array.isArray(rawId) ? String(rawId[0] || "").trim() : String(rawId || "").trim();
+
+  if (!reportId) {
+    return NextResponse.json({ ok: false, message: "missing id" }, { status: 400 });
+  }
 
   try {
     const report = await prisma.dailyReport.findUnique({
@@ -23,8 +31,13 @@ export async function GET(req: NextRequest, ctx: Ctx) {
         id: true,
         projectId: true,
         date: true,
-        payload: true, // ✅ สำคัญ: ดึง payload กลับมา
-        project: { select: { name: true, meta: true } },
+        payload: true,
+        project: {
+          select: {
+            name: true,
+            meta: true,
+          },
+        },
         issues: {
           orderBy: { createdAt: "asc" },
           select: {
@@ -38,7 +51,14 @@ export async function GET(req: NextRequest, ctx: Ctx) {
                 id: true,
                 comment: true,
                 createdAt: true,
-                author: { select: { id: true, email: true, name: true, role: true } },
+                author: {
+                  select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    role: true,
+                  },
+                },
               },
             },
           },
@@ -46,31 +66,46 @@ export async function GET(req: NextRequest, ctx: Ctx) {
       },
     });
 
-    if (!report) return NextResponse.json({ ok: false, message: "report not found" }, { status: 404 });
+    if (!report) {
+      return NextResponse.json({ ok: false, message: "report not found" }, { status: 404 });
+    }
 
-    const payload = (report.payload && typeof report.payload === "object") ? report.payload : {};
+    const payload =
+      report.payload && typeof report.payload === "object" && !Array.isArray(report.payload)
+        ? (report.payload as Record<string, unknown>)
+        : {};
+
+    const renderReport = {
+      id: report.id,
+      projectId: report.projectId,
+      date: report.date.toISOString(),
+      projectName: report.project.name,
+      projectMeta: report.project.meta ?? null,
+      ...payload,
+      issues: report.issues.map((it) => ({
+        ...it,
+        createdAt: it.createdAt.toISOString(),
+        comments: it.comments.map((c) => ({
+          ...c,
+          createdAt: c.createdAt.toISOString(),
+        })),
+      })),
+    };
+
+    const mode = req.nextUrl.searchParams.get("mode");
+
+    if (mode === "render") {
+      return NextResponse.json(renderReport);
+    }
 
     return NextResponse.json({
       ok: true,
-      report: {
-        id: report.id,
-        projectId: report.projectId,
-        date: report.date.toISOString(),
-        projectName: report.project.name,
-        projectMeta: report.project.meta ?? null,
-
-        // ✅ ส่งข้อมูลฟอร์มทั้งหมดกลับมาแบบ “top-level” เพื่อให้ทุกหน้าอ่านได้
-        ...(payload as any),
-
-        // ✅ issues จากตาราง Issue จริง (พร้อม comments)
-        issues: report.issues.map((it) => ({
-          ...it,
-          createdAt: it.createdAt.toISOString(),
-          comments: it.comments.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() })),
-        })),
-      },
+      report: renderReport,
     });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, message: e?.message ?? "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, message: e?.message ?? "Internal server error" },
+      { status: 500 }
+    );
   }
 }

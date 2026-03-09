@@ -1,108 +1,137 @@
-// app/api/daily-reports/[id]/route.ts
+// app/api/daily-reports/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Ctx = {
-  params: Promise<{ id: string }>;
+type IssueRow = {
+  detail: string;
+  imageDataUrl?: string;
 };
 
-export async function GET(req: NextRequest, ctx: Ctx) {
+function toDateOnly(dateStr: string) {
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  const projectId = String(url.searchParams.get("projectId") || "").trim();
+
+  if (!projectId) {
+    return NextResponse.json(
+      { ok: false, message: "missing projectId" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const rows = await prisma.dailyReport.findMany({
+      where: { projectId },
+      orderBy: { date: "desc" },
+      select: { id: true, date: true },
+      take: 60,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      reports: rows.map((r) => ({
+        id: r.id,
+        date: r.date.toISOString(),
+      })),
+    });
+  } catch (e: any) {
+    return NextResponse.json(
+      { ok: false, message: e?.message ?? "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req: NextRequest) {
   const user = await getAuthUser(req);
   if (!user) {
     return NextResponse.json({ ok: false, message: "forbidden" }, { status: 403 });
   }
 
-  const { id } = await ctx.params;
-  const reportId = String(id || "").trim();
+  const body = await req.json().catch(() => null);
 
-  if (!reportId) {
-    return NextResponse.json({ ok: false, message: "missing id" }, { status: 400 });
+  const projectId = String(body?.projectId || "").trim();
+  const dateStr = String(body?.date || "").trim();
+  const issues = (Array.isArray(body?.issues) ? body.issues : []) as IssueRow[];
+
+  if (!projectId || !dateStr) {
+    return NextResponse.json(
+      { ok: false, message: "missing projectId/date" },
+      { status: 400 }
+    );
   }
 
+  const date = toDateOnly(dateStr);
+  if (!date) {
+    return NextResponse.json(
+      { ok: false, message: "invalid date" },
+      { status: 400 }
+    );
+  }
+
+  const cleanIssues = issues
+    .map((x) => ({
+      detail: String(x?.detail || "").trim(),
+      imageUrl: String(x?.imageDataUrl || "").trim() || null,
+    }))
+    .filter((x) => x.detail || x.imageUrl);
+
+  const payload: Prisma.InputJsonValue =
+    body && typeof body === "object" && !Array.isArray(body)
+      ? (() => {
+          const cloned: Record<string, unknown> = { ...body };
+          delete cloned.id;
+          delete cloned.reportId;
+          return cloned as Prisma.InputJsonObject;
+        })()
+      : {};
+
   try {
-    const report = await prisma.dailyReport.findUnique({
-      where: { id: reportId },
-      select: {
-        id: true,
-        projectId: true,
-        date: true,
-        payload: true,
-        project: {
-          select: {
-            name: true,
-            meta: true,
-          },
+    const created = await prisma.$transaction(async (tx) => {
+      const report = await tx.dailyReport.create({
+        data: {
+          projectId,
+          date,
+          payload,
         },
-        issues: {
-          orderBy: { createdAt: "asc" },
-          select: {
-            id: true,
-            detail: true,
-            imageUrl: true,
-            createdAt: true,
-            comments: {
-              orderBy: { createdAt: "asc" },
-              select: {
-                id: true,
-                comment: true,
-                createdAt: true,
-                author: {
-                  select: {
-                    id: true,
-                    email: true,
-                    name: true,
-                    role: true,
-                  },
-                },
-              },
-            },
-          },
+        select: {
+          id: true,
+          projectId: true,
+          date: true,
         },
-      },
+      });
+
+      if (cleanIssues.length) {
+        await tx.issue.createMany({
+          data: cleanIssues.map((it) => ({
+            reportId: report.id,
+            detail: it.detail || "-",
+            imageUrl: it.imageUrl,
+          })),
+        });
+      }
+
+      return report;
     });
 
-    if (!report) {
-      return NextResponse.json({ ok: false, message: "report not found" }, { status: 404 });
-    }
-
-    const payload =
-      report.payload && typeof report.payload === "object" && !Array.isArray(report.payload)
-        ? (report.payload as Record<string, unknown>)
-        : {};
-
-    const renderReport = {
-      id: report.id,
-      projectId: report.projectId,
-      date: report.date.toISOString(),
-      projectName: report.project.name,
-      projectMeta: report.project.meta ?? null,
-      ...payload,
-      issues: report.issues.map((it) => ({
-        ...it,
-        createdAt: it.createdAt.toISOString(),
-        comments: it.comments.map((c) => ({
-          ...c,
-          createdAt: c.createdAt.toISOString(),
-        })),
-      })),
-    };
-
-    const mode = req.nextUrl.searchParams.get("mode");
-
-    // สำคัญ:
-    // ReportPreviewReadonly -> เรียก ?mode=render และต้องการ object top-level
-    if (mode === "render") {
-      return NextResponse.json(renderReport);
-    }
-
-    // endpoint ปกติคงรูปแบบเดิมไว้ เพื่อไม่กระทบหน้าอื่น
     return NextResponse.json({
       ok: true,
-      report: renderReport,
+      reportId: created.id,
+      projectId: created.projectId,
+      date: created.date.toISOString(),
+      hasIssues: cleanIssues.length > 0,
+      issueCount: cleanIssues.length,
     });
   } catch (e: any) {
     return NextResponse.json(
