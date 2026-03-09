@@ -528,6 +528,8 @@ export function ReportPreviewForm({
         .mini th { text-align: center; vertical-align: middle; font-weight: 700; }
         .mini td { vertical-align: top; }
         .mini .c { text-align: center; vertical-align: middle; }
+        .miniFixedRow > th, .miniFixedRow > td { height: 40px; vertical-align: middle; }
+        .wrapText { word-break: break-word; overflow-wrap: anywhere; }
         .numTab { font-variant-numeric: tabular-nums; }
         .nowrap { white-space: nowrap; }
         .issueImg { width: 100%; max-height: 240px; object-fit: contain; display: block; }
@@ -539,6 +541,7 @@ export function ReportPreviewForm({
           .cell, .cellCenter { padding: 5px 6px; }
           .mini th, .mini td { font-size: 10px; padding: 3px 4px; }
           .nowrap { white-space: normal; }
+          .miniFixedRow > th, .miniFixedRow > td { height: 34px; }
         }
       `}</style>
 
@@ -674,24 +677,24 @@ export function ReportPreviewForm({
                         </div>
                         <table className="mini mt-2">
                           <colgroup>
-                            <col style={{ width: "12%" }} />
-                            <col style={{ width: "44%" }} />
-                            <col style={{ width: "24%" }} />
+                            <col style={{ width: "10%" }} />
+                            <col style={{ width: "30%" }} />
+                            <col style={{ width: "40%" }} />
                             <col style={{ width: "20%" }} />
                           </colgroup>
                           <thead>
-                            <tr><th>#</th><th>รายชื่อ</th><th>ตำแหน่ง</th><th>จำนวน</th></tr>
+                            <tr className="miniFixedRow"><th>#</th><th>รายชื่อ</th><th>ตำแหน่ง</th><th>จำนวน</th></tr>
                           </thead>
                           <tbody>
                             {contractorsPadded.map((r, i) => (
-                              <tr key={r.id}>
+                              <tr key={r.id} className="miniFixedRow">
                                 <td className="c">{i + 1}</td>
-                                <td>{r.name?.trim() ? r.name : "-"}</td>
-                                <td>{r.position?.trim() ? r.position : "-"}</td>
+                                <td className="wrapText">{r.name?.trim() ? r.name : "-"}</td>
+                                <td className="wrapText">{r.position?.trim() ? r.position : "-"}</td>
                                 <td className="c numTab">{Number(r.qty) || 0}</td>
                               </tr>
                             ))}
-                            <tr>
+                            <tr className="miniFixedRow">
                               <td className="c" />
                               <td colSpan={2}><span className="font-semibold">รวม</span></td>
                               <td className="c numTab"><span className="font-semibold">{contractorTotal}</span></td>
@@ -713,19 +716,19 @@ export function ReportPreviewForm({
                             <col style={{ width: "18%" }} />
                           </colgroup>
                           <thead>
-                            <tr><th>#</th><th>ตำแหน่ง</th><th>เช้า</th><th>บ่าย</th><th>ล่วงเวลา</th></tr>
+                            <tr className="miniFixedRow"><th>#</th><th>ตำแหน่ง</th><th>เช้า</th><th>บ่าย</th><th>ล่วงเวลา</th></tr>
                           </thead>
                           <tbody>
                             {subPadded.map((r, i) => (
-                              <tr key={r.id}>
+                              <tr key={r.id} className="miniFixedRow">
                                 <td className="c">{i + 1}</td>
-                                <td>{r.position?.trim() ? r.position : "-"}</td>
+                                <td className="wrapText">{r.position?.trim() ? r.position : "-"}</td>
                                 <td className="c numTab">{Number(r.morning) || 0}</td>
                                 <td className="c numTab">{Number(r.afternoon) || 0}</td>
                                 <td className="c numTab">{Number(r.overtime) || 0}</td>
                               </tr>
                             ))}
-                            <tr>
+                            <tr className="miniFixedRow">
                               <td className="c" />
                               <td><span className="font-semibold">รวม</span></td>
                               <td className="c numTab"><span className="font-semibold">{subTotals.morning}</span></td>
@@ -749,19 +752,19 @@ export function ReportPreviewForm({
                             <col style={{ width: "18%" }} />
                           </colgroup>
                           <thead>
-                            <tr><th>#</th><th>ชนิด</th><th>เช้า</th><th>บ่าย</th><th>ล่วงเวลา</th></tr>
+                            <tr className="miniFixedRow"><th>#</th><th>ชนิด</th><th>เช้า</th><th>บ่าย</th><th>ล่วงเวลา</th></tr>
                           </thead>
                           <tbody>
                             {equipPadded.map((r, i) => (
-                              <tr key={r.id}>
+                              <tr key={r.id} className="miniFixedRow">
                                 <td className="c">{i + 1}</td>
-                                <td>{r.type?.trim() ? r.type : "-"}</td>
+                                <td className="wrapText">{r.type?.trim() ? r.type : "-"}</td>
                                 <td className="c numTab">{Number(r.morning) || 0}</td>
                                 <td className="c numTab">{Number(r.afternoon) || 0}</td>
                                 <td className="c numTab">{Number(r.overtime) || 0}</td>
                               </tr>
                             ))}
-                            <tr>
+                            <tr className="miniFixedRow">
                               <td className="c" />
                               <td><span className="font-semibold">รวม</span></td>
                               <td className="c numTab"><span className="font-semibold">{equipTotals.morning}</span></td>
@@ -927,3 +930,5 @@ export function ReportPreviewReadonly({ reportId }: { reportId: string }) {
   }
   return <ReportPreviewForm model={model} />;
 }
+
+export default ReportPreviewReadonly;
