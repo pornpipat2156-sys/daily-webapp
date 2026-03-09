@@ -164,7 +164,10 @@ function normalizeIssueComments(list: ApiIssueComment[] | undefined): IssueComme
   }));
 }
 
-function normalizeReport(detail: ApiReportDetail, supervisorsFromProject: Supervisor[]): ReportRenderModel {
+function normalizeReport(
+  detail: ApiReportDetail,
+  supervisorsFromProject: Supervisor[]
+): ReportRenderModel {
   const issues: IssueRowUnified[] = Array.isArray(detail?.issues)
     ? detail.issues.map((it) => ({
         id: String(it?.id ?? ""),
@@ -194,7 +197,6 @@ function formatDateTimeThai(iso?: string) {
   if (!iso) return "-";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-
   return d.toLocaleString("th-TH", {
     year: "numeric",
     month: "short",
@@ -216,23 +218,21 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="soft-card rounded-[26px] p-4 sm:p-5 lg:p-6">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <section className="rounded-[28px] border border-white/75 bg-white/88 p-5 shadow-[0_20px_60px_rgba(148,163,184,0.16)] backdrop-blur dark:border-slate-800/70 dark:bg-slate-900/75">
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-xl">
+          <h2 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">
             {title}
           </h2>
           {subtitle ? (
-            <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
-              {subtitle}
-            </p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
           ) : null}
         </div>
 
         {badge ? (
-          <span className="inline-flex w-fit items-center rounded-full border border-white/60 bg-[linear-gradient(135deg,rgba(124,156,245,0.16),rgba(121,217,199,0.16))] px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm dark:text-slate-100">
+          <div className="inline-flex items-center rounded-full border border-white/70 bg-white/90 px-3 py-1 text-xs font-semibold text-slate-600 shadow-[0_8px_24px_rgba(148,163,184,0.12)] dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200">
             {badge}
-          </span>
+          </div>
         ) : null}
       </div>
 
@@ -243,7 +243,7 @@ function SectionCard({
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
       {children}
     </label>
   );
@@ -270,9 +270,13 @@ function StatCard({
       : "bg-[rgba(124,156,245,0.16)] text-blue-700 dark:text-blue-300";
 
   return (
-    <div className={cn("rounded-[22px] px-4 py-3", toneClass)}>
-      <div className="text-[11px] font-bold uppercase tracking-[0.16em] opacity-80">{label}</div>
-      <div className="mt-1 text-sm font-bold break-words">{value}</div>
+    <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(148,163,184,0.16)] backdrop-blur dark:border-slate-800/70 dark:bg-slate-900/75">
+      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+        {label}
+      </div>
+      <div className={cn("mt-3 inline-flex rounded-2xl px-3 py-2 text-sm font-semibold", toneClass)}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -350,9 +354,10 @@ export default function SummationPage() {
 
       setLoadingReports(true);
       try {
-        const res = await fetch(`/api/daily-reports?projectId=${encodeURIComponent(projectId)}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(
+          `/api/daily-reports?projectId=${encodeURIComponent(projectId)}`,
+          { cache: "no-store" }
+        );
         const json = await res.json().catch(() => null);
 
         const list: ReportRow[] = Array.isArray(json?.reports)
@@ -385,6 +390,7 @@ export default function SummationPage() {
     async function run() {
       setErr("");
       setDetail(null);
+
       if (!reportId) return;
 
       setLoadingDetail(true);
@@ -393,7 +399,10 @@ export default function SummationPage() {
           cache: "no-store",
         });
         const json = await res.json().catch(() => null);
-        if (!res.ok || !json?.ok) throw new Error(json?.message || "โหลดรายงานไม่สำเร็จ");
+
+        if (!res.ok || !json?.ok) {
+          throw new Error(json?.message || "โหลดรายงานไม่สำเร็จ");
+        }
 
         if (!cancel) setDetail(json.report as ApiReportDetail);
       } catch (e: any) {
@@ -415,6 +424,7 @@ export default function SummationPage() {
     async function run() {
       setErr("");
       setSupervisors([]);
+
       if (!projectId) return;
 
       setLoadingSup(true);
@@ -423,7 +433,10 @@ export default function SummationPage() {
           cache: "no-store",
         });
         const json = await res.json().catch(() => null);
-        if (!res.ok || !json?.ok) throw new Error(json?.message || "โหลด supervisors ไม่สำเร็จ");
+
+        if (!res.ok || !json?.ok) {
+          throw new Error(json?.message || "โหลด supervisors ไม่สำเร็จ");
+        }
 
         const fromProject =
           json?.project?.meta?.supervisors ??
@@ -456,15 +469,20 @@ export default function SummationPage() {
     async function run() {
       setErr("");
       setApprovals([]);
+
       if (!reportId) return;
 
       setLoadingApprovals(true);
       try {
-        const res = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, {
-          cache: "no-store",
-        });
+        const res = await fetch(
+          `/api/daily-reports/${encodeURIComponent(reportId)}/approvals`,
+          { cache: "no-store" }
+        );
         const json = await res.json().catch(() => null);
-        if (!res.ok || !json?.ok) throw new Error(json?.message || "โหลด approvals ไม่สำเร็จ");
+
+        if (!res.ok || !json?.ok) {
+          throw new Error(json?.message || "โหลด approvals ไม่สำเร็จ");
+        }
 
         const list: ApprovalRow[] = Array.isArray(json?.approvals) ? json.approvals : [];
         if (!cancel) setApprovals(list);
@@ -527,6 +545,44 @@ export default function SummationPage() {
     return supervisors.filter((s) => approvalsMap.has(norm(s.name))).length;
   }, [supervisors, approvalsMap]);
 
+  function renderSummationIssueCommentCell(issue: IssueRowUnified) {
+    const comments = Array.isArray(issue?.comments) ? issue.comments : [];
+
+    if (!comments.length) {
+      return <div className="text-sm opacity-60">ยังไม่มีความคิดเห็น</div>;
+    }
+
+    return (
+      <div className="space-y-3">
+        {comments.map((comment) => {
+          const authorName =
+            comment.author?.name?.trim() ||
+            comment.author?.email?.trim() ||
+            "ผู้แสดงความคิดเห็น";
+
+          const authorRole = comment.author?.role?.trim() || "";
+
+          return (
+            <div
+              key={comment.id}
+              className="rounded-lg border border-black/20 bg-white/70 p-2"
+            >
+              <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                {comment.comment || "-"}
+              </div>
+
+              <div className="mt-2 text-[11px] text-slate-600">
+                {authorName}
+                {authorRole ? ` (${authorRole})` : ""} •{" "}
+                {formatDateTimeThai(comment.createdAt)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   async function onApproveMe() {
     setErr("");
 
@@ -542,17 +598,25 @@ export default function SummationPage() {
 
     setSaving(true);
     try {
-      const res = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
+      const res = await fetch(
+        `/api/daily-reports/${encodeURIComponent(reportId)}/approvals`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
       const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) throw new Error(json?.message || "ยืนยันไม่สำเร็จ");
 
-      const res2 = await fetch(`/api/daily-reports/${encodeURIComponent(reportId)}/approvals`, {
-        cache: "no-store",
-      });
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.message || "ยืนยันไม่สำเร็จ");
+      }
+
+      const res2 = await fetch(
+        `/api/daily-reports/${encodeURIComponent(reportId)}/approvals`,
+        { cache: "no-store" }
+      );
       const json2 = await res2.json().catch(() => null);
+
       if (res2.ok && json2?.ok && Array.isArray(json2.approvals)) {
         setApprovals(json2.approvals);
       }
@@ -566,207 +630,207 @@ export default function SummationPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-3 pb-8 sm:px-4 lg:px-6">
-      <div className="mb-5 rounded-[30px] bg-[linear-gradient(135deg,rgba(124,156,245,0.16),rgba(121,217,199,0.14),rgba(247,199,217,0.16))] p-5 shadow-[0_14px_38px_rgba(148,163,184,0.10)] sm:p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0">
-            <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-300">
+    <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-4 md:px-6">
+      <section className="overflow-hidden rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(240,244,255,0.96),rgba(236,249,245,0.9),rgba(255,244,246,0.92))] p-6 shadow-[0_24px_80px_rgba(148,163,184,0.18)] backdrop-blur sm:p-8">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl">
+            <div className="text-xs font-semibold uppercase tracking-[0.34em] text-slate-400">
               Summation
             </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
-              Review & approval
+            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
+              Review &amp; approval
             </h1>
-            <div className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-              เลือกโครงการ → เลือกรายงาน → ตรวจสอบข้อมูลแบบอ่านอย่างเดียว → ผู้ควบคุมงานกดยืนยันของตนเอง
-            </div>
+            <p className="mt-4 text-lg text-slate-500">
+              เลือกโครงการ → เลือกรายงาน → ตรวจสอบข้อมูลแบบอ่านอย่างเดียว →
+              ผู้ควบคุมงานกดยืนยันของตนเอง
+            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             {reportId ? (
-              <span className="rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm dark:bg-slate-900/60 dark:text-slate-200">
+              <div className="inline-flex min-h-11 items-center rounded-full border border-white/70 bg-white/88 px-5 text-sm font-semibold text-slate-600 shadow-[0_10px_30px_rgba(148,163,184,0.16)]">
                 Report: {reportId}
-              </span>
+              </div>
             ) : null}
-            <span
+
+            <div
               className={cn(
-                "rounded-full px-3 py-1.5 text-xs font-bold shadow-sm",
+                "inline-flex min-h-11 items-center rounded-full border border-white/70 px-5 text-sm font-semibold shadow-[0_10px_30px_rgba(148,163,184,0.16)]",
                 allApproved
-                  ? "bg-[rgba(121,217,199,0.18)] text-emerald-700 dark:text-emerald-300"
-                  : "bg-[rgba(243,190,114,0.18)] text-amber-700 dark:text-amber-300"
+                  ? "bg-[rgba(121,217,199,0.16)] text-emerald-700"
+                  : "bg-[rgba(243,190,114,0.18)] text-amber-700"
               )}
             >
               {allApproved ? "อนุมัติครบแล้ว" : "รออนุมัติ"}
-            </span>
+            </div>
           </div>
         </div>
+      </section>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="ผู้ควบคุมงานทั้งหมด"
+          value={loadingSup ? "กำลังโหลด..." : supervisors.length}
+          tone="blue"
+        />
+        <StatCard
+          label="อนุมัติแล้ว"
+          value={loadingApprovals ? "กำลังโหลด..." : approvedSupervisorCount}
+          tone="mint"
+        />
+        <StatCard
+          label="รออนุมัติ"
+          value={loadingApprovals ? "กำลังโหลด..." : pendingSupervisorCount}
+          tone="amber"
+        />
+        <StatCard
+          label="จำนวนปัญหา"
+          value={loadingDetail ? "กำลังโหลด..." : issueCount}
+          tone="violet"
+        />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="space-y-6">
-          <SectionCard
-            title="เลือกข้อมูล"
-            subtitle="เลือกโครงการและรายงานที่ต้องการตรวจสอบ"
-            badge="Selector"
-          >
-            <div className="space-y-4">
-              <div>
-                <FieldLabel>โครงการ</FieldLabel>
-                <select
-                  className="soft-input h-12 w-full px-4 text-sm text-slate-700 hover:bg-white disabled:opacity-50 dark:text-slate-100"
-                  value={projectId}
-                  onChange={(e) => setProjectId(e.target.value)}
-                  disabled={loadingProjects || projects.length === 0}
-                >
-                  {loadingProjects ? (
-                    <option value="">กำลังโหลดโครงการ...</option>
-                  ) : projects.length === 0 ? (
-                    <option value="">ไม่พบโครงการ</option>
-                  ) : (
-                    projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.projectName}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <FieldLabel>รายงานประจำวันที่</FieldLabel>
-                <select
-                  className="soft-input h-12 w-full px-4 text-sm text-slate-700 hover:bg-white disabled:opacity-50 dark:text-slate-100"
-                  value={reportId}
-                  onChange={(e) => setReportId(e.target.value)}
-                  disabled={!projectId || loadingReports || reports.length === 0}
-                >
-                  {!projectId ? (
-                    <option value="">เลือกโครงการก่อน</option>
-                  ) : loadingReports ? (
-                    <option value="">กำลังโหลดรายงาน...</option>
-                  ) : reports.length === 0 ? (
-                    <option value="">ไม่พบรายงาน</option>
-                  ) : (
-                    reports.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {formatDateBE(r.date)}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <StatCard label="จำนวนรายงาน" value={reports.length} tone="blue" />
-              <StatCard label="Supervisors" value={supervisors.length} tone="mint" />
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title="สถานะการอนุมัติ"
-            subtitle="ตรวจสอบรายชื่อผู้ควบคุมงานที่อนุมัติแล้วและที่ยังรออยู่"
-            badge="Approvals"
-          >
-            <div className="grid gap-3 sm:grid-cols-2">
-              <StatCard label="อนุมัติแล้ว" value={approvedSupervisorCount} tone="mint" />
-              <StatCard label="รออนุมัติ" value={pendingSupervisorCount} tone="amber" />
-              <StatCard label="Issue ที่ต้องเช็ก" value={issueCount} tone="pink" />
-              <StatCard
-                label="คอมเมนต์ครบทุก Issue"
-                value={allIssuesHaveAtLeastOneComment ? "ครบแล้ว" : "ยังไม่ครบ"}
-                tone={allIssuesHaveAtLeastOneComment ? "violet" : "amber"}
-              />
-            </div>
-
-            <div className="mt-4">
-              <button
-                type="button"
-                onClick={onApproveMe}
-                disabled={!reportId || saving || disableApproveBecauseComments}
-                title={
-                  disableApproveBecauseComments
-                    ? "ต้องแสดงความคิดเห็นให้ครบก่อน"
-                    : "ผู้ควบคุมงานแต่ละคนต้อง login มากดยืนยันของตัวเอง"
-                }
-                className="soft-btn inline-flex min-h-12 w-full items-center justify-center rounded-[20px] border border-primary/25 bg-[linear-gradient(135deg,rgba(124,156,245,0.96),rgba(121,217,199,0.96))] px-6 text-sm font-bold text-white shadow-[0_16px_34px_rgba(124,156,245,0.24)] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {saving ? "กำลังยืนยัน..." : "ยืนยันของฉัน"}
-              </button>
-            </div>
-
-            {err ? (
-              <div className="mt-4 rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300">
-                {err}
-              </div>
-            ) : null}
-
-            <div className="mt-4 space-y-3">
-              {loadingApprovals ? (
-                <div className="rounded-[20px] border border-dashed border-border bg-white/70 px-4 py-4 text-sm text-slate-500 dark:bg-slate-900/30 dark:text-slate-400">
-                  กำลังโหลดสถานะการอนุมัติ...
-                </div>
-              ) : supervisors.length === 0 ? (
-                <div className="rounded-[20px] border border-dashed border-border bg-white/70 px-4 py-4 text-sm text-slate-500 dark:bg-slate-900/30 dark:text-slate-400">
-                  ยังไม่มีรายชื่อผู้ควบคุมงานในโครงการ
-                </div>
+      <SectionCard
+        title="เลือกข้อมูลรายงาน"
+        subtitle="เลือกโครงการและรายงานประจำวันที่ต้องการตรวจสอบและอนุมัติ"
+      >
+        <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
+          <div>
+            <FieldLabel>โครงการ</FieldLabel>
+            <select
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              disabled={loadingProjects || projects.length === 0}
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+            >
+              {loadingProjects ? (
+                <option>กำลังโหลดโครงการ...</option>
+              ) : projects.length === 0 ? (
+                <option>ไม่พบโครงการ</option>
               ) : (
-                supervisors.map((s, idx) => {
-                  const approved = approvalsMap.get(norm(s.name));
-                  return (
-                    <div
-                      key={`${s.name}-${s.role}-${idx}`}
-                      className="rounded-[22px] border border-border/80 bg-white/85 p-4 shadow-[0_6px_18px_rgba(148,163,184,0.08)] dark:bg-slate-900/50"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                            {s.name || "-"}
-                          </div>
-                          <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                            {s.role || "-"}
-                          </div>
-                          {approved ? (
-                            <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                              อนุมัติเมื่อ {formatDateTimeThai(approved.approvedAt)}
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <span
-                          className={cn(
-                            "rounded-full px-3 py-1 text-xs font-bold",
-                            approvalTone(Boolean(approved))
-                          )}
-                        >
-                          {approved ? "Approved" : "Pending"}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
+                projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.projectName}
+                  </option>
+                ))
               )}
-            </div>
-          </SectionCard>
+            </select>
+          </div>
+
+          <div>
+            <FieldLabel>รายงานประจำวันที่</FieldLabel>
+            <select
+              value={reportId}
+              onChange={(e) => setReportId(e.target.value)}
+              disabled={!projectId || loadingReports || reports.length === 0}
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+            >
+              {!projectId ? (
+                <option>เลือกโครงการก่อน</option>
+              ) : loadingReports ? (
+                <option>กำลังโหลดรายงาน...</option>
+              ) : reports.length === 0 ? (
+                <option>ไม่พบรายงาน</option>
+              ) : (
+                reports.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {formatDateBE(r.date)}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={onApproveMe}
+              disabled={
+                saving ||
+                !reportId ||
+                loadingDetail ||
+                loadingSup ||
+                loadingApprovals ||
+                disableApproveBecauseComments
+              }
+              className="inline-flex h-12 min-w-[160px] items-center justify-center rounded-2xl border border-white/70 bg-white/88 px-5 text-sm font-semibold text-slate-700 shadow-[0_10px_30px_rgba(148,163,184,0.16)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            >
+              {saving ? "กำลังยืนยัน..." : "ยืนยันของฉัน"}
+            </button>
+          </div>
         </div>
 
-        <SectionCard
-          title="Preview รายงาน"
-          subtitle="ตรวจสอบรายงานแบบอ่านอย่างเดียวก่อนกดยืนยัน"
-          badge="Preview"
-        >
-          {!reportId ? (
-            <div className="rounded-[24px] border border-dashed border-border bg-white/70 px-5 py-10 text-center text-sm text-slate-500 dark:bg-slate-900/30 dark:text-slate-400">
-              กรุณาเลือกโครงการและรายงานก่อน
-            </div>
-          ) : loadingDetail || loadingSup || !model ? (
-            <div className="rounded-[24px] border border-dashed border-border bg-white/70 px-5 py-10 text-center text-sm text-slate-500 dark:bg-slate-900/30 dark:text-slate-400">
-              กำลังโหลด Preview...
-            </div>
-          ) : (
-            <ReportPreviewForm model={model} />
-          )}
-        </SectionCard>
-      </div>
+        {err ? (
+          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300">
+            {err}
+          </div>
+        ) : null}
+      </SectionCard>
+
+      <SectionCard
+        title="สถานะผู้ควบคุมงาน"
+        subtitle="แสดงสถานะการอนุมัติของผู้ควบคุมงานในโครงการ"
+      >
+        {loadingApprovals ? (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
+            กำลังโหลดสถานะการอนุมัติ...
+          </div>
+        ) : supervisors.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
+            ยังไม่มีรายชื่อผู้ควบคุมงานในโครงการ
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {supervisors.map((s, idx) => {
+              const approved = approvalsMap.get(norm(s.name));
+
+              return (
+                <div
+                  key={`${s.name}-${idx}`}
+                  className="rounded-3xl border border-white/70 bg-white/88 p-4 shadow-[0_16px_40px_rgba(148,163,184,0.14)] dark:border-slate-800/70 dark:bg-slate-900/75"
+                >
+                  <div className="text-base font-semibold text-slate-900 dark:text-white">
+                    {s.name || "-"}
+                  </div>
+                  <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    {s.role || "-"}
+                  </div>
+
+                  {approved ? (
+                    <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                      อนุมัติเมื่อ {formatDateTimeThai(approved.approvedAt)}
+                    </div>
+                  ) : null}
+
+                  <div
+                    className={cn(
+                      "mt-4 inline-flex rounded-2xl px-3 py-2 text-sm font-semibold",
+                      approvalTone(Boolean(approved))
+                    )}
+                  >
+                    {approved ? "Approved" : "Pending"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </SectionCard>
+
+      {!reportId ? (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300">
+          กรุณาเลือกโครงการและรายงานก่อน
+        </div>
+      ) : loadingDetail || loadingSup || !model ? (
+        <div className="rounded-3xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+          กำลังโหลด Preview...
+        </div>
+      ) : (
+        <ReportPreviewForm
+          model={model}
+          renderIssueCommentCell={(issue) => renderSummationIssueCommentCell(issue)}
+        />
+      )}
     </div>
   );
 }
