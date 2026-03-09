@@ -218,10 +218,10 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-white/75 bg-white/88 p-5 shadow-[0_20px_60px_rgba(148,163,184,0.16)] backdrop-blur dark:border-slate-800/70 dark:bg-slate-900/75">
+    <section className="overflow-hidden rounded-[26px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(248,250,252,0.96),rgba(241,245,249,0.92))] p-5 shadow-[0_18px_50px_rgba(148,163,184,0.14)] backdrop-blur dark:border-slate-800/80 dark:bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(17,24,39,0.94),rgba(30,41,59,0.96))] dark:shadow-[0_20px_60px_rgba(2,6,23,0.42)] sm:p-6">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">
+          <h2 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
             {title}
           </h2>
           {subtitle ? (
@@ -230,7 +230,7 @@ function SectionCard({
         </div>
 
         {badge ? (
-          <div className="inline-flex items-center rounded-full border border-white/70 bg-white/90 px-3 py-1 text-xs font-semibold text-slate-600 shadow-[0_8px_24px_rgba(148,163,184,0.12)] dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200">
+          <div className="inline-flex items-center rounded-full border border-slate-200/80 bg-white/90 px-3 py-1 text-xs font-semibold text-slate-600 shadow-[0_8px_24px_rgba(148,163,184,0.12)] dark:border-slate-700/80 dark:bg-slate-900/75 dark:text-slate-200">
             {badge}
           </div>
         ) : null}
@@ -243,7 +243,7 @@ function SectionCard({
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
       {children}
     </label>
   );
@@ -270,8 +270,8 @@ function StatCard({
       : "bg-[rgba(124,156,245,0.16)] text-blue-700 dark:text-blue-300";
 
   return (
-    <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_18px_50px_rgba(148,163,184,0.16)] backdrop-blur dark:border-slate-800/70 dark:bg-slate-900/75">
-      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+    <div className="rounded-[24px] border border-white/70 bg-white/88 p-4 shadow-[0_16px_40px_rgba(148,163,184,0.14)] backdrop-blur dark:border-slate-800/80 dark:bg-slate-900/75 dark:shadow-[0_18px_50px_rgba(2,6,23,0.34)]">
+      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
         {label}
       </div>
       <div className={cn("mt-3 inline-flex rounded-2xl px-3 py-2 text-sm font-semibold", toneClass)}>
@@ -549,7 +549,7 @@ export default function SummationPage() {
     const comments = Array.isArray(issue?.comments) ? issue.comments : [];
 
     if (!comments.length) {
-      return <div className="text-sm opacity-60">ยังไม่มีความคิดเห็น</div>;
+      return <div className="text-sm text-slate-500 dark:text-slate-400">ยังไม่มีความคิดเห็น</div>;
     }
 
     return (
@@ -565,13 +565,13 @@ export default function SummationPage() {
           return (
             <div
               key={comment.id}
-              className="rounded-lg border border-black/20 bg-white/70 p-2"
+              className="rounded-xl border border-slate-200/80 bg-white/80 p-3 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/70"
             >
-              <div className="whitespace-pre-wrap text-sm leading-relaxed">
+              <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-200">
                 {comment.comment || "-"}
               </div>
 
-              <div className="mt-2 text-[11px] text-slate-600">
+              <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
                 {authorName}
                 {authorRole ? ` (${authorRole})` : ""} •{" "}
                 {formatDateTimeThai(comment.createdAt)}
@@ -630,207 +630,211 @@ export default function SummationPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-4 md:px-6">
-      <section className="overflow-hidden rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(240,244,255,0.96),rgba(236,249,245,0.9),rgba(255,244,246,0.92))] p-6 shadow-[0_24px_80px_rgba(148,163,184,0.18)] backdrop-blur sm:p-8">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <div className="text-xs font-semibold uppercase tracking-[0.34em] text-slate-400">
-              Summation
-            </div>
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
-              Review &amp; approval
-            </h1>
-            <p className="mt-4 text-lg text-slate-500">
-              เลือกโครงการ → เลือกรายงาน → ตรวจสอบข้อมูลแบบอ่านอย่างเดียว →
-              ผู้ควบคุมงานกดยืนยันของตนเอง
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            {reportId ? (
-              <div className="inline-flex min-h-11 items-center rounded-full border border-white/70 bg-white/88 px-5 text-sm font-semibold text-slate-600 shadow-[0_10px_30px_rgba(148,163,184,0.16)]">
-                Report: {reportId}
+    <div className="min-h-[calc(100dvh-4rem)] w-full bg-gradient-to-br from-slate-50 via-white to-slate-100 px-3 py-3 text-slate-900 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 dark:text-slate-100 sm:px-4 sm:py-4">
+      <div className="mx-auto w-full max-w-7xl space-y-6">
+        <section className="overflow-hidden rounded-[28px] border border-white/70 bg-[linear-gradient(135deg,rgba(240,244,255,0.96),rgba(236,249,245,0.9),rgba(255,244,246,0.92))] p-6 shadow-[0_24px_80px_rgba(148,163,184,0.16)] backdrop-blur dark:border-slate-800/80 dark:bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(17,24,39,0.94),rgba(30,41,59,0.96))] dark:shadow-[0_24px_80px_rgba(2,6,23,0.45)] sm:p-8">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-3xl">
+              <div className="text-xs font-semibold uppercase tracking-[0.34em] text-slate-400 dark:text-slate-500">
+                Summation
               </div>
-            ) : null}
+              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-5xl">
+                Review &amp; approval
+              </h1>
+              <p className="mt-4 text-lg text-slate-500 dark:text-slate-400">
+                เลือกโครงการ → เลือกรายงาน → ตรวจสอบข้อมูลแบบอ่านอย่างเดียว →
+                ผู้ควบคุมงานกดยืนยันของตนเอง
+              </p>
+            </div>
 
-            <div
-              className={cn(
-                "inline-flex min-h-11 items-center rounded-full border border-white/70 px-5 text-sm font-semibold shadow-[0_10px_30px_rgba(148,163,184,0.16)]",
-                allApproved
-                  ? "bg-[rgba(121,217,199,0.16)] text-emerald-700"
-                  : "bg-[rgba(243,190,114,0.18)] text-amber-700"
-              )}
-            >
-              {allApproved ? "อนุมัติครบแล้ว" : "รออนุมัติ"}
+            <div className="flex flex-wrap items-center gap-3">
+              {reportId ? (
+                <div className="inline-flex min-h-11 items-center rounded-full border border-slate-200/80 bg-white/88 px-5 text-sm font-semibold text-slate-600 shadow-[0_10px_30px_rgba(148,163,184,0.14)] dark:border-slate-700/80 dark:bg-slate-900/80 dark:text-slate-200 dark:shadow-[0_12px_30px_rgba(2,6,23,0.35)]">
+                  Report: {reportId}
+                </div>
+              ) : null}
+
+              <div
+                className={cn(
+                  "inline-flex min-h-11 items-center rounded-full border border-slate-200/80 px-5 text-sm font-semibold shadow-[0_10px_30px_rgba(148,163,184,0.14)] dark:border-slate-700/80 dark:shadow-[0_12px_30px_rgba(2,6,23,0.35)]",
+                  allApproved
+                    ? "bg-[rgba(121,217,199,0.16)] text-emerald-700 dark:text-emerald-300"
+                    : "bg-[rgba(243,190,114,0.18)] text-amber-700 dark:text-amber-300"
+                )}
+              >
+                {allApproved ? "อนุมัติครบแล้ว" : "รออนุมัติ"}
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="ผู้ควบคุมงานทั้งหมด"
-          value={loadingSup ? "กำลังโหลด..." : supervisors.length}
-          tone="blue"
-        />
-        <StatCard
-          label="อนุมัติแล้ว"
-          value={loadingApprovals ? "กำลังโหลด..." : approvedSupervisorCount}
-          tone="mint"
-        />
-        <StatCard
-          label="รออนุมัติ"
-          value={loadingApprovals ? "กำลังโหลด..." : pendingSupervisorCount}
-          tone="amber"
-        />
-        <StatCard
-          label="จำนวนปัญหา"
-          value={loadingDetail ? "กำลังโหลด..." : issueCount}
-          tone="violet"
-        />
-      </div>
-
-      <SectionCard
-        title="เลือกข้อมูลรายงาน"
-        subtitle="เลือกโครงการและรายงานประจำวันที่ต้องการตรวจสอบและอนุมัติ"
-      >
-        <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
-          <div>
-            <FieldLabel>โครงการ</FieldLabel>
-            <select
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              disabled={loadingProjects || projects.length === 0}
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
-            >
-              {loadingProjects ? (
-                <option>กำลังโหลดโครงการ...</option>
-              ) : projects.length === 0 ? (
-                <option>ไม่พบโครงการ</option>
-              ) : (
-                projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.projectName}
-                  </option>
-                ))
-              )}
-            </select>
-          </div>
-
-          <div>
-            <FieldLabel>รายงานประจำวันที่</FieldLabel>
-            <select
-              value={reportId}
-              onChange={(e) => setReportId(e.target.value)}
-              disabled={!projectId || loadingReports || reports.length === 0}
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
-            >
-              {!projectId ? (
-                <option>เลือกโครงการก่อน</option>
-              ) : loadingReports ? (
-                <option>กำลังโหลดรายงาน...</option>
-              ) : reports.length === 0 ? (
-                <option>ไม่พบรายงาน</option>
-              ) : (
-                reports.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {formatDateBE(r.date)}
-                  </option>
-                ))
-              )}
-            </select>
-          </div>
-
-          <div className="flex items-end">
-            <button
-              type="button"
-              onClick={onApproveMe}
-              disabled={
-                saving ||
-                !reportId ||
-                loadingDetail ||
-                loadingSup ||
-                loadingApprovals ||
-                disableApproveBecauseComments
-              }
-              className="inline-flex h-12 min-w-[160px] items-center justify-center rounded-2xl border border-white/70 bg-white/88 px-5 text-sm font-semibold text-slate-700 shadow-[0_10px_30px_rgba(148,163,184,0.16)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            >
-              {saving ? "กำลังยืนยัน..." : "ยืนยันของฉัน"}
-            </button>
-          </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="ผู้ควบคุมงานทั้งหมด"
+            value={loadingSup ? "กำลังโหลด..." : supervisors.length}
+            tone="blue"
+          />
+          <StatCard
+            label="อนุมัติแล้ว"
+            value={loadingApprovals ? "กำลังโหลด..." : approvedSupervisorCount}
+            tone="mint"
+          />
+          <StatCard
+            label="รออนุมัติ"
+            value={loadingApprovals ? "กำลังโหลด..." : pendingSupervisorCount}
+            tone="amber"
+          />
+          <StatCard
+            label="จำนวนปัญหา"
+            value={loadingDetail ? "กำลังโหลด..." : issueCount}
+            tone="violet"
+          />
         </div>
 
-        {err ? (
-          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300">
-            {err}
-          </div>
-        ) : null}
-      </SectionCard>
+        <SectionCard
+          title="เลือกข้อมูลรายงาน"
+          subtitle="เลือกโครงการและรายงานประจำวันที่ต้องการตรวจสอบและอนุมัติ"
+        >
+          <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
+            <div>
+              <FieldLabel>โครงการ</FieldLabel>
+              <select
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                disabled={loadingProjects || projects.length === 0}
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-700 dark:focus:ring-slate-800"
+              >
+                {loadingProjects ? (
+                  <option>กำลังโหลดโครงการ...</option>
+                ) : projects.length === 0 ? (
+                  <option>ไม่พบโครงการ</option>
+                ) : (
+                  projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.projectName}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
 
-      <SectionCard
-        title="สถานะผู้ควบคุมงาน"
-        subtitle="แสดงสถานะการอนุมัติของผู้ควบคุมงานในโครงการ"
-      >
-        {loadingApprovals ? (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
-            กำลังโหลดสถานะการอนุมัติ...
+            <div>
+              <FieldLabel>รายงานประจำวันที่</FieldLabel>
+              <select
+                value={reportId}
+                onChange={(e) => setReportId(e.target.value)}
+                disabled={!projectId || loadingReports || reports.length === 0}
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-700 dark:focus:ring-slate-800"
+              >
+                {!projectId ? (
+                  <option>เลือกโครงการก่อน</option>
+                ) : loadingReports ? (
+                  <option>กำลังโหลดรายงาน...</option>
+                ) : reports.length === 0 ? (
+                  <option>ไม่พบรายงาน</option>
+                ) : (
+                  reports.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {formatDateBE(r.date)}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={onApproveMe}
+                disabled={
+                  saving ||
+                  !reportId ||
+                  loadingDetail ||
+                  loadingSup ||
+                  loadingApprovals ||
+                  disableApproveBecauseComments
+                }
+                className="inline-flex h-12 min-w-[160px] items-center justify-center rounded-2xl border border-slate-200/80 bg-white/90 px-5 text-sm font-semibold text-slate-700 shadow-[0_10px_30px_rgba(148,163,184,0.14)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700/80 dark:bg-slate-900/80 dark:text-slate-100 dark:shadow-[0_12px_30px_rgba(2,6,23,0.35)] dark:hover:bg-slate-900"
+              >
+                {saving ? "กำลังยืนยัน..." : "ยืนยันของฉัน"}
+              </button>
+            </div>
           </div>
-        ) : supervisors.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
-            ยังไม่มีรายชื่อผู้ควบคุมงานในโครงการ
+
+          {err ? (
+            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300">
+              {err}
+            </div>
+          ) : null}
+        </SectionCard>
+
+        <SectionCard
+          title="สถานะผู้ควบคุมงาน"
+          subtitle="แสดงสถานะการอนุมัติของผู้ควบคุมงานในโครงการ"
+        >
+          {loadingApprovals ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
+              กำลังโหลดสถานะการอนุมัติ...
+            </div>
+          ) : supervisors.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
+              ยังไม่มีรายชื่อผู้ควบคุมงานในโครงการ
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {supervisors.map((s, idx) => {
+                const approved = approvalsMap.get(norm(s.name));
+
+                return (
+                  <div
+                    key={`${s.name}-${idx}`}
+                    className="rounded-[24px] border border-white/70 bg-white/88 p-4 shadow-[0_16px_40px_rgba(148,163,184,0.14)] dark:border-slate-800/80 dark:bg-slate-900/75 dark:shadow-[0_18px_50px_rgba(2,6,23,0.32)]"
+                  >
+                    <div className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                      {s.name || "-"}
+                    </div>
+                    <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      {s.role || "-"}
+                    </div>
+
+                    {approved ? (
+                      <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                        อนุมัติเมื่อ {formatDateTimeThai(approved.approvedAt)}
+                      </div>
+                    ) : null}
+
+                    <div
+                      className={cn(
+                        "mt-4 inline-flex rounded-2xl px-3 py-2 text-sm font-semibold",
+                        approvalTone(Boolean(approved))
+                      )}
+                    >
+                      {approved ? "Approved" : "Pending"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </SectionCard>
+
+        {!reportId ? (
+          <div className="rounded-[26px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300">
+            กรุณาเลือกโครงการและรายงานก่อน
+          </div>
+        ) : loadingDetail || loadingSup || !model ? (
+          <div className="rounded-[26px] border border-slate-200 bg-white/85 px-5 py-4 text-sm text-slate-500 shadow-[0_18px_50px_rgba(148,163,184,0.1)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80 dark:text-slate-300 dark:shadow-[0_20px_60px_rgba(2,6,23,0.35)]">
+            กำลังโหลด Preview...
           </div>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {supervisors.map((s, idx) => {
-              const approved = approvalsMap.get(norm(s.name));
-
-              return (
-                <div
-                  key={`${s.name}-${idx}`}
-                  className="rounded-3xl border border-white/70 bg-white/88 p-4 shadow-[0_16px_40px_rgba(148,163,184,0.14)] dark:border-slate-800/70 dark:bg-slate-900/75"
-                >
-                  <div className="text-base font-semibold text-slate-900 dark:text-white">
-                    {s.name || "-"}
-                  </div>
-                  <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    {s.role || "-"}
-                  </div>
-
-                  {approved ? (
-                    <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                      อนุมัติเมื่อ {formatDateTimeThai(approved.approvedAt)}
-                    </div>
-                  ) : null}
-
-                  <div
-                    className={cn(
-                      "mt-4 inline-flex rounded-2xl px-3 py-2 text-sm font-semibold",
-                      approvalTone(Boolean(approved))
-                    )}
-                  >
-                    {approved ? "Approved" : "Pending"}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <section className="rounded-[28px] border border-slate-200/70 bg-slate-100/70 p-2 shadow-[0_18px_50px_rgba(148,163,184,0.08)] dark:border-slate-800/80 dark:bg-slate-900/60 dark:shadow-[0_20px_60px_rgba(2,6,23,0.32)] sm:p-3">
+            <ReportPreviewForm
+              model={model}
+              renderIssueCommentCell={(issue) => renderSummationIssueCommentCell(issue)}
+            />
+          </section>
         )}
-      </SectionCard>
-
-      {!reportId ? (
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300">
-          กรุณาเลือกโครงการและรายงานก่อน
-        </div>
-      ) : loadingDetail || loadingSup || !model ? (
-        <div className="rounded-3xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-          กำลังโหลด Preview...
-        </div>
-      ) : (
-        <ReportPreviewForm
-          model={model}
-          renderIssueCommentCell={(issue) => renderSummationIssueCommentCell(issue)}
-        />
-      )}
+      </div>
     </div>
   );
 }
