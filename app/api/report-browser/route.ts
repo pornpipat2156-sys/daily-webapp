@@ -281,6 +281,7 @@ export async function GET(req: NextRequest) {
       const contractEndDate = safeDateFromString(normalizedProjectMeta.contractEnd);
 
       let totalDays =
+        clampPositiveInt(normalizedProjectMeta.totalDurationDays, 0) ||
         clampPositiveInt(num(projectMetaRaw.totalDurationDays, 0), 0) ||
         clampPositiveInt(num(payload.totalDays, 0), 0);
 
@@ -304,6 +305,7 @@ export async function GET(req: NextRequest) {
 
       let installmentCount =
         clampPositiveInt(normalizedProjectMeta.installmentCount, 0) ||
+        clampPositiveInt(num(projectMetaRaw.installmentCount, 0), 0) ||
         clampPositiveInt(num(payload.installmentCount, 0), 0);
 
       let periodIndex = clampPositiveInt(num(payload.periodIndex, 0), 0);
@@ -333,10 +335,26 @@ export async function GET(req: NextRequest) {
         weekIndex = totalWeeks;
       }
 
+      const resolvedProjectMeta = {
+        ...normalizedProjectMeta,
+        dailyReportNo:
+          dayNo > 0 && totalDays > 0 ? `${dayNo}/${totalDays}` : normalizedProjectMeta.dailyReportNo,
+        periodNo:
+          periodIndex > 0 && installmentCount > 0
+            ? `${periodIndex}/${installmentCount}`
+            : normalizedProjectMeta.periodNo,
+        weekNo:
+          weekIndex > 0 && totalWeeks > 0
+            ? `${weekIndex}/${totalWeeks}`
+            : normalizedProjectMeta.weekNo,
+        installmentCount,
+        totalDurationDays: totalDays,
+      };
+
       const dailyModel = {
         date: report.date.toISOString(),
         projectName: str(report.project?.name, "-"),
-        projectMeta: normalizedProjectMeta,
+        projectMeta: resolvedProjectMeta,
         contractors: arrayOfObjects(payload.contractors),
         subContractors: arrayOfObjects(payload.subContractors),
         majorEquipment: arrayOfObjects(payload.majorEquipment),
