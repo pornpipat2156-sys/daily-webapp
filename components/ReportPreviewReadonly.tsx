@@ -678,8 +678,8 @@ export function ReportPreviewForm({
                         <table className="mini mt-2">
                           <colgroup>
                             <col style={{ width: "10%" }} />
-                            <col style={{ width: "34%" }} />
-                            <col style={{ width: "38%" }} />
+                            <col style={{ width: "40%" }} />
+                            <col style={{ width: "32%" }} />
                             <col style={{ width: "18%" }} />
                           </colgroup>
                           <thead>
