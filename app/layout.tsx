@@ -1,5 +1,5 @@
 // app/layout.tsx
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 
@@ -34,17 +34,22 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f8fc" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f1724" },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[radial-gradient(circle_at_top_left,_rgba(190,227,255,0.22),_transparent_26%),radial-gradient(circle_at_top_right,_rgba(240,210,255,0.18),_transparent_24%),linear-gradient(180deg,_#fcfdff_0%,_#f7f9fc_52%,_#f4f7fb_100%)] text-slate-800`}
-      >
-        <div className="min-h-screen bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(255,255,255,0.64))]">
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased text-foreground`}>
+        <div className="app-theme-shell min-h-screen">
           <Providers>
             <AppShell>{children}</AppShell>
           </Providers>

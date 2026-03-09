@@ -2,6 +2,8 @@
 
 /* ===== Soft Modern Theme Tokens ===== */
 :root {
+  color-scheme: light;
+
   --background: #f7f8fc;
   --foreground: #1f2937;
 
@@ -91,6 +93,11 @@ body {
   overflow-x: visible;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  background-color: var(--background);
+}
+
+html {
+  color: var(--foreground);
 }
 
 body {
@@ -102,9 +109,24 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.app-theme-shell {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.64));
+}
+
 * {
   box-sizing: border-box;
   word-break: break-word;
+}
+
+*,
+*::before,
+*::after {
+  border-color: var(--border);
+}
+
+::selection {
+  background: rgba(124, 156, 245, 0.24);
+  color: var(--foreground);
 }
 
 button,
@@ -113,6 +135,31 @@ input,
 select,
 textarea {
   -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+select,
+textarea {
+  color: inherit;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: color-mix(in srgb, var(--foreground) 52%, transparent);
+}
+
+input,
+select,
+textarea {
+  accent-color: var(--primary);
+}
+
+img,
+svg,
+canvas,
+video {
+  max-width: 100%;
 }
 
 .bg-background {
@@ -161,8 +208,7 @@ textarea {
 
 /* ===== Soft utility classes ===== */
 .soft-shell {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.72));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.72));
   backdrop-filter: blur(18px);
 }
 
@@ -189,7 +235,11 @@ textarea {
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
 }
 
-.soft-input:focus-visible {
+.soft-input:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
   outline: none;
   border-color: rgba(124, 156, 245, 0.7);
   box-shadow:
@@ -261,8 +311,87 @@ textarea {
   color: #7058d8;
 }
 
+/* ===== Common surface fallbacks for pages that still use fixed Tailwind color classes ===== */
+.bg-white,
+.bg-white\/80,
+.bg-white\/90,
+.bg-white\/95,
+.bg-slate-50,
+.bg-slate-100,
+.bg-slate-100\/70,
+.bg-slate-50\/80 {
+  background-color: var(--card);
+}
+
+.text-slate-900,
+.text-slate-800,
+.text-slate-700,
+.text-slate-600,
+.text-slate-500,
+.text-gray-900,
+.text-gray-800,
+.text-gray-700,
+.text-gray-600 {
+  color: var(--foreground);
+}
+
+.border-slate-100,
+.border-slate-200,
+.border-slate-300,
+.border-gray-200,
+.border-gray-300 {
+  border-color: var(--border);
+}
+
+/* ===== React Datepicker ===== */
+.react-datepicker {
+  border: 1px solid var(--border) !important;
+  background: var(--card) !important;
+  color: var(--foreground) !important;
+  border-radius: 18px !important;
+  box-shadow: var(--shadow-soft) !important;
+  overflow: hidden;
+}
+
+.react-datepicker__header {
+  background: var(--muted) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+.react-datepicker__current-month,
+.react-datepicker-time__header,
+.react-datepicker-year-header,
+.react-datepicker__day-name,
+.react-datepicker__day,
+.react-datepicker__time-name {
+  color: var(--foreground) !important;
+}
+
+.react-datepicker__day:hover,
+.react-datepicker__month-text:hover,
+.react-datepicker__quarter-text:hover,
+.react-datepicker__year-text:hover {
+  background: var(--primary-soft) !important;
+  border-radius: 10px !important;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected,
+.react-datepicker__month-text--selected,
+.react-datepicker__quarter-text--selected,
+.react-datepicker__year-text--selected {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+.react-datepicker__triangle {
+  display: none !important;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: dark;
+
     --background: #0f1724;
     --foreground: #eef4ff;
     --card: #162131;
@@ -307,9 +436,12 @@ textarea {
       linear-gradient(180deg, #0d1522 0%, #0f1724 100%);
   }
 
+  .app-theme-shell {
+    background: linear-gradient(180deg, rgba(15, 23, 36, 0.54), rgba(15, 23, 36, 0.7));
+  }
+
   .soft-shell {
-    background:
-      linear-gradient(180deg, rgba(22, 33, 49, 0.78), rgba(22, 33, 49, 0.68));
+    background: linear-gradient(180deg, rgba(22, 33, 49, 0.78), rgba(22, 33, 49, 0.68));
   }
 
   .soft-card {
@@ -328,7 +460,68 @@ textarea {
     color: var(--foreground);
   }
 
+  .soft-scroll {
+    scrollbar-color: #31445f transparent;
+  }
+
   .soft-scroll::-webkit-scrollbar-thumb {
     background: #31445f;
+  }
+
+  .bg-white,
+  .bg-white\/80,
+  .bg-white\/90,
+  .bg-white\/95,
+  .bg-slate-50,
+  .bg-slate-50\/80,
+  .bg-slate-100,
+  .bg-slate-100\/70 {
+    background-color: rgba(22, 33, 49, 0.9) !important;
+  }
+
+  .text-slate-900,
+  .text-slate-800,
+  .text-slate-700,
+  .text-slate-600,
+  .text-slate-500,
+  .text-gray-900,
+  .text-gray-800,
+  .text-gray-700,
+  .text-gray-600 {
+    color: var(--foreground) !important;
+  }
+
+  .border-slate-100,
+  .border-slate-200,
+  .border-slate-300,
+  .border-gray-200,
+  .border-gray-300 {
+    border-color: var(--border) !important;
+  }
+
+  .shadow-sm,
+  .shadow,
+  .shadow-md,
+  .shadow-lg,
+  .shadow-xl {
+    box-shadow: var(--shadow-soft) !important;
+  }
+
+  .react-datepicker {
+    background: var(--card) !important;
+    border-color: var(--border) !important;
+    color: var(--foreground) !important;
+  }
+
+  .react-datepicker__header {
+    background: var(--muted) !important;
+    border-bottom-color: var(--border) !important;
+  }
+
+  .react-datepicker__day:not(.react-datepicker__day--selected):not(.react-datepicker__day--keyboard-selected):hover,
+  .react-datepicker__month-text:not(.react-datepicker__month-text--selected):hover,
+  .react-datepicker__quarter-text:not(.react-datepicker__quarter-text--selected):hover,
+  .react-datepicker__year-text:not(.react-datepicker__year-text--selected):hover {
+    color: var(--foreground) !important;
   }
 }
