@@ -313,17 +313,33 @@ export function ReportPreviewForm({
   }, []);
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const scaledRef = useRef<HTMLDivElement | null>(null);
+
   const [scale, setScale] = useState(init.ss);
   const [scaledWidth, setScaledWidth] = useState(init.scaledW);
+  const [scaledHeight, setScaledHeight] = useState<number | null>(null);
+  const [isMobilePreview, setIsMobilePreview] = useState(false);
 
   useLayoutEffect(() => {
     const el = wrapRef.current;
+
     const updateFromEl = () => {
       const w = el?.getBoundingClientRect().width ?? window.innerWidth ?? A4_WIDTH_PX;
       const { ss, scaledW } = computeScaleFromWidth(w);
+      const mobile = w <= 640;
+
       setScale(ss);
       setScaledWidth(scaledW);
+      setIsMobilePreview(mobile);
+
+      const contentHeight = scaledRef.current?.offsetHeight ?? 0;
+      if (mobile && contentHeight > 0) {
+        setScaledHeight(Math.ceil(contentHeight * ss));
+      } else {
+        setScaledHeight(null);
+      }
     };
+
     updateFromEl();
 
     let ro: ResizeObserver | null = null;
@@ -527,8 +543,18 @@ export function ReportPreviewForm({
       `}</style>
 
       <div ref={wrapRef} className="previewWrap">
-        <div className="previewSized" style={{ width: scaledWidth }}>
-          <div className="previewScaled" style={{ width: A4_WIDTH_PX, transform: `scale(${scale}) translateZ(0)` }}>
+        <div
+          className="previewSized"
+          style={{
+            width: scaledWidth,
+            height: isMobilePreview && scaledHeight ? scaledHeight : undefined,
+          }}
+        >
+          <div
+            ref={scaledRef}
+            className="previewScaled"
+            style={{ width: A4_WIDTH_PX, transform: `scale(${scale}) translateZ(0)` }}
+          >
             <div className="a4">
               <div className="box">
                 <table>
@@ -875,7 +901,6 @@ export function ReportPreviewReadonly({ reportId }: { reportId: string }) {
         setErr(null);
         setModel(null);
 
-        // ✅ ถ้าโปรเจกต์คุณมี endpoint อื่น สามารถเปลี่ยนแค่ URL นี้
         const raw = await jgetText(`/api/daily-reports/${encodeURIComponent(reportId)}?mode=render`);
         const normalized = normalizeModel(raw);
 
