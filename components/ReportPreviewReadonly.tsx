@@ -524,7 +524,7 @@ export function ReportPreviewForm({
         th, td { overflow-wrap: break-word; word-break: normal; }
         .hMain { font-weight: 800; font-size: 18px; letter-spacing: 0.2px; }
         .hSub  { font-weight: 600; font-size: 13px; }
-        .mini th, .mini td { border: 1.5px solid #111; padding: 4px 6px; font-size: 12px; line-height: 1.1; }
+        .mini th, .mini td { border: 1.5px solid #111; padding: 4px 6px; font-size: 10px; line-height: 1.0; }
         .mini th { text-align: center; vertical-align: middle; font-weight: 700; }
         .mini td { vertical-align: top; }
         .mini .c { text-align: center; vertical-align: middle; }
@@ -539,7 +539,7 @@ export function ReportPreviewForm({
           .hMain { font-size: 15px; }
           .hSub { font-size: 11px; }
           .cell, .cellCenter { padding: 5px 6px; }
-          .mini th, .mini td { font-size: 10px; padding: 3px 4px; }
+          .mini th, .mini td { font-size: 9px; padding: 3px 4px; }
           .nowrap { white-space: normal; }
           .miniFixedRow > th, .miniFixedRow > td { height: 34px; }
         }
