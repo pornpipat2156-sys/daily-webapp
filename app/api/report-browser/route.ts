@@ -179,13 +179,17 @@ export async function GET(req: NextRequest) {
 
   try {
     if (type === "daily") {
-      const report = await prisma.dailyReport.findUnique({
+      const selectedDateEnd = toEndOfDayUtc(selectedDate);
+
+      const report = await prisma.dailyReport.findFirst({
         where: {
-          projectId_date: {
-            projectId,
-            date: selectedDate,
+          projectId,
+          date: {
+            gte: selectedDate,
+            lte: selectedDateEnd,
           },
         },
+        orderBy: { date: "desc" },
         select: {
           id: true,
           projectId: true,
@@ -233,7 +237,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
           ok: true,
           found: false,
-          message: "ไม่พบ Daily report ตามวันที่ที่เลือก",
+          message: "ไม่พบ Daily report ตามวันที่เลือก",
         });
       }
 
@@ -332,7 +336,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
           ok: true,
           found: false,
-          message: "ไม่พบ Weekly report ตามวันที่ที่เลือก",
+          message: "ไม่พบ Weekly report ตามวันที่เลือก",
         });
       }
 
