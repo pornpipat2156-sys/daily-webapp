@@ -18,6 +18,13 @@ type ProjectRow = {
 
 type ReportType = "daily" | "weekly" | "monthly";
 
+type PeriodOption = {
+  id: string;
+  value: string;
+  label: string;
+  meta?: Record<string, unknown>;
+};
+
 type DailyResponse = {
   ok: true;
   found: true;
@@ -57,15 +64,12 @@ type ErrorResponse = {
   message: string;
 };
 
-type BrowserResponse = DailyResponse | SummaryResponse | NotFoundResponse | ErrorResponse | null;
-
-function todayYmd() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+type BrowserResponse =
+  | DailyResponse
+  | SummaryResponse
+  | NotFoundResponse
+  | ErrorResponse
+  | null;
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -128,13 +132,27 @@ function TypeButton({
   );
 }
 
-export default function ReportCenterPage() {
+function getPeriodLabel(type: ReportType) {
+  if (type === "daily") return "รายงานประจำวันที่";
+  if (type === "weekly") return "Week No. / Year";
+  return "Month / Year";
+}
+
+function getEmptyOptionLabel(type: ReportType) {
+  if (type === "daily") return "ไม่พบรายงานรายวัน";
+  if (type === "weekly") return "ไม่พบรายงานรายสัปดาห์";
+  return "ไม่พบรายงานรายเดือน";
+}
+
+export default function InputPage() {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [projectId, setProjectId] = useState("");
-  const [selectedDate, setSelectedDate] = useState(todayYmd());
   const [reportType, setReportType] = useState<ReportType>("daily");
+  const [periodOptions, setPeriodOptions] = useState<PeriodOption[]>([]);
+  const [selectedPeriodValue, setSelectedPeriodValue] = useState("");
 
   const [loadingProjects, setLoadingProjects] = useState(true);
+  const [loadingPeriods, setLoadingPeriods] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [result, setResult] = useState<BrowserResponse>(null);
 
@@ -178,17 +196,75 @@ export default function ReportCenterPage() {
   useEffect(() => {
     let cancelled = false;
 
+    async function loadPeriodOptions() {
+      setResult(null);
+      setPeriodOptions([]);
+      setSelectedPeriodValue("");
+
+      if (!projectId) return;
+
+      setLoadingPeriods(true);
+      try {
+        const qs = new URLSearchParams({
+          projectId,
+          type: reportType,
+        });
+
+        const res = await fetch(`/api/report-period-options?${qs.toString()}`, {
+          cache: "no-store",
+        });
+        const json = await res.json().catch(() => ({
+          ok: false,
+          items: [],
+        }));
+
+        const items: PeriodOption[] = Array.isArray(json?.items)
+          ? json.items.map((item: any) => ({
+              id: String(item?.id ?? ""),
+              value: String(item?.value ?? ""),
+              label: String(item?.label ?? "-"),
+              meta:
+                item?.meta && typeof item.meta === "object" && !Array.isArray(item.meta)
+                  ? item.meta
+                  : undefined,
+            }))
+          : [];
+
+        if (!cancelled) {
+          setPeriodOptions(items);
+          setSelectedPeriodValue(items[0]?.value || "");
+        }
+      } catch {
+        if (!cancelled) {
+          setPeriodOptions([]);
+          setSelectedPeriodValue("");
+        }
+      } finally {
+        if (!cancelled) setLoadingPeriods(false);
+      }
+    }
+
+    loadPeriodOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, reportType]);
+
+  useEffect(() => {
+    let cancelled = false;
+
     async function loadPreview() {
       setResult(null);
 
-      if (!projectId || !selectedDate) return;
+      if (!projectId || !selectedPeriodValue) return;
 
       setLoadingPreview(true);
       try {
         const qs = new URLSearchParams({
           projectId,
           type: reportType,
-          date: selectedDate,
+          date: selectedPeriodValue,
         });
 
         const res = await fetch(`/api/report-browser?${qs.toString()}`, {
@@ -219,18 +295,18 @@ export default function ReportCenterPage() {
     return () => {
       cancelled = true;
     };
-  }, [projectId, selectedDate, reportType]);
+  }, [projectId, selectedPeriodValue, reportType]);
 
   const pdfUrl = useMemo(() => {
-    if (!projectId || !selectedDate) return "";
+    if (!projectId || !selectedPeriodValue) return "";
     const qs = new URLSearchParams({
       projectId,
       type: reportType,
-      date: selectedDate,
+      date: selectedPeriodValue,
       auto: "1",
     });
     return `/report-export?${qs.toString()}`;
-  }, [projectId, selectedDate, reportType]);
+  }, [projectId, selectedPeriodValue, reportType]);
 
   const canExport =
     result &&
@@ -252,8 +328,8 @@ export default function ReportCenterPage() {
                 Summary &amp; PDF Preview
               </h1>
               <p className="mt-4 text-lg text-slate-500 dark:text-slate-400">
-                เลือกโครงการ เลือกวัน/เดือน/ปี และเลือกชนิดรายงานเพื่อแสดง Preview
-                พร้อมเปิดหน้า A4 สำหรับ Save as PDF / Share เป็น PDF
+                เลือกโครงการและเลือกรอบรายงานจากข้อมูลในระบบ เพื่อดู Preview
+                และเปิดเอกสาร A4 สำหรับดาวน์โหลด PDF
               </p>
             </div>
 
@@ -275,9 +351,9 @@ export default function ReportCenterPage() {
 
         <SectionCard
           title="เลือกข้อมูลรายงาน"
-          subtitle="หน้าเดียวใช้ได้ทั้ง Daily / Weekly / Monthly"
+          subtitle="Daily เลือกจากรายงานประจำวันที่มีในระบบ / Weekly และ Monthly เลือกตามรายการที่มีใน DB"
         >
-          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.9fr_1.2fr]">
+          <div className="grid gap-4 xl:grid-cols-[1.2fr_1.2fr_1.1fr]">
             <div>
               <FieldLabel>โครงการ</FieldLabel>
               <select
@@ -301,14 +377,27 @@ export default function ReportCenterPage() {
             </div>
 
             <div>
-              <FieldLabel>วัน / เดือน / ปี</FieldLabel>
-              <input
-                type="date"
-                inputMode="numeric"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-700 dark:focus:ring-slate-800"
-              />
+              <FieldLabel>{getPeriodLabel(reportType)}</FieldLabel>
+              <select
+                value={selectedPeriodValue}
+                onChange={(e) => setSelectedPeriodValue(e.target.value)}
+                disabled={!projectId || loadingPeriods || periodOptions.length === 0}
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-700 dark:focus:ring-slate-800"
+              >
+                {!projectId ? (
+                  <option>เลือกโครงการก่อน</option>
+                ) : loadingPeriods ? (
+                  <option>กำลังโหลดรายการ...</option>
+                ) : periodOptions.length === 0 ? (
+                  <option>{getEmptyOptionLabel(reportType)}</option>
+                ) : (
+                  periodOptions.map((item) => (
+                    <option key={`${item.id}-${item.value}`} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))
+                )}
+              </select>
             </div>
 
             <div>
