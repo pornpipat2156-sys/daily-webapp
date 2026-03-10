@@ -234,7 +234,8 @@ export default async function ReportExportPage({
         [aria-label="Open Next.js Dev Tools"],
         [data-vercel-toolbar],
         iframe,
-        button {
+        button,
+        .export-print-btn {
           display: none !important;
           visibility: hidden !important;
         }
