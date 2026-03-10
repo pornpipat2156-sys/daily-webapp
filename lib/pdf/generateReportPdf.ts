@@ -673,7 +673,7 @@ async function getBrowser() {
         ? macPath
         : process.platform === "win32"
           ? winPath
-          : linuxPath || linuxAltPath);
+          : linuxAltPath);
 
   return puppeteer.default.launch({
     headless: true,
@@ -715,12 +715,53 @@ export async function buildReportPdf(input: {
       timeout: 15000,
     });
 
+    await page.addStyleTag({
+      content: `
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #ffffff !important;
+        }
+
+        body {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+
+        #__next-build-watcher,
+        nextjs-portal,
+        [data-nextjs-toast],
+        [data-next-badge-root],
+        [data-next-mark],
+        [data-next-route-announcer],
+        [aria-label="Open Next.js Dev Tools"],
+        [data-vercel-toolbar],
+        iframe,
+        script[src*="vercel"],
+        div[style*="position: fixed"][style*="bottom"],
+        div[style*="position:fixed"][style*="bottom"] {
+          display: none !important;
+          visibility: hidden !important;
+        }
+
+        [data-pdf-preview-root='1'] {
+          width: 794px !important;
+          margin: 0 auto !important;
+          padding: 0 !important;
+          background: #ffffff !important;
+        }
+      `,
+    });
+
     await new Promise((resolve) => setTimeout(resolve, 1800));
 
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
       preferCSSPageSize: true,
+      displayHeaderFooter: false,
+      omitBackground: false,
+      tagged: false,
       margin: {
         top: "0mm",
         bottom: "0mm",

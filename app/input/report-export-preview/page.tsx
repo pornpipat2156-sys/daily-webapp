@@ -35,16 +35,23 @@ function ErrorBox({ message }: { message: string }) {
       style={{
         width: "794px",
         margin: "0 auto",
-        background: "#fff",
+        background: "#ffffff",
         color: "#111827",
-        border: "1px solid #e5e7eb",
-        borderRadius: "12px",
-        padding: "24px",
+        padding: 0,
         fontFamily: "Arial, sans-serif",
         fontSize: "14px",
       }}
     >
-      {message}
+      <div
+        style={{
+          border: "1px solid #e5e7eb",
+          borderRadius: "12px",
+          padding: "24px",
+          margin: "16px",
+        }}
+      >
+        {message}
+      </div>
     </div>
   );
 }
@@ -65,7 +72,7 @@ export default async function ReportExportPreviewPage({
       <main
         style={{
           margin: 0,
-          padding: "0",
+          padding: 0,
           background: "#ffffff",
         }}
       >
@@ -74,7 +81,7 @@ export default async function ReportExportPreviewPage({
           style={{
             width: "794px",
             margin: "0 auto",
-            padding: "0",
+            padding: 0,
             background: "#ffffff",
           }}
         >
@@ -95,7 +102,7 @@ export default async function ReportExportPreviewPage({
       <main
         style={{
           margin: 0,
-          padding: "0",
+          padding: 0,
           background: "#ffffff",
         }}
       >
@@ -104,7 +111,7 @@ export default async function ReportExportPreviewPage({
           style={{
             width: "794px",
             margin: "0 auto",
-            padding: "0",
+            padding: 0,
             background: "#ffffff",
           }}
         >
@@ -118,15 +125,15 @@ export default async function ReportExportPreviewPage({
     <main
       style={{
         margin: 0,
-        padding: "0",
+        padding: 0,
         background: "#ffffff",
       }}
     >
       <style>{`
         html, body {
-          margin: 0;
-          padding: 0;
-          background: #ffffff;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #ffffff !important;
         }
 
         @page {
@@ -140,7 +147,14 @@ export default async function ReportExportPreviewPage({
         }
 
         #__next-build-watcher,
-        nextjs-portal {
+        nextjs-portal,
+        [data-nextjs-toast],
+        [data-next-badge-root],
+        [data-next-mark],
+        [data-next-route-announcer],
+        [aria-label="Open Next.js Dev Tools"],
+        [data-vercel-toolbar],
+        iframe {
           display: none !important;
         }
       `}</style>
@@ -150,8 +164,9 @@ export default async function ReportExportPreviewPage({
         style={{
           width: "794px",
           margin: "0 auto",
-          padding: "0",
+          padding: 0,
           background: "#ffffff",
+          overflow: "hidden",
         }}
       >
         {result.renderMode === "daily" ? (
