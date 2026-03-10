@@ -44,9 +44,9 @@ function ExportGlobalStyle() {
 
       @page {
         size: A4 portrait;
-        margin-top: 0.5mm;
+        margin-top: 10mm; 
         margin-right: 10mm;
-        margin-bottom: 0.5mm;
+        margin-bottom: 10mm;
         margin-left: 10mm;
       }
 
@@ -182,9 +182,9 @@ function PaginationScript() {
     });
 
     var PX_PER_INCH = 96;
-    var A4_HEIGHT_PX = Math.round(11.6929 * PX_PER_INCH); // ~1122.5
-    var TOP_MARGIN_PX = Math.round(1.5 * PX_PER_INCH);    // 144
-    var OTHER_MARGIN_PX = Math.round((10 / 25.4) * PX_PER_INCH); // ~38
+    var A4_HEIGHT_PX = Math.round(11.6929 * PX_PER_INCH);
+    var TOP_MARGIN_PX = Math.round(1.5 * PX_PER_INCH);
+    var OTHER_MARGIN_PX = Math.round((10 / 25.4) * PX_PER_INCH);
     var CONTENT_HEIGHT = A4_HEIGHT_PX - TOP_MARGIN_PX - OTHER_MARGIN_PX;
 
     function topWithinRoot(el) {
