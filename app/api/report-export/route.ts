@@ -38,9 +38,15 @@ function buildFileName(
   reportType: "DAILY" | "WEEKLY" | "MONTHLY"
 ) {
   const safeProject = sanitizeFileName(projectName || "Project");
+
   if (reportType === "DAILY") return `${safeProject}-DailyReport.pdf`;
   if (reportType === "WEEKLY") return `${safeProject}-WeeklyReport.pdf`;
   return `${safeProject}-MonthlyReport.pdf`;
+}
+
+function buildPreviewUrl(req: NextRequest, params: URLSearchParams) {
+  const origin = req.nextUrl.origin;
+  return `${origin}/input/report-export-preview?${params.toString()}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -94,9 +100,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const pdfBuffer = await buildReportPdf(result);
-    const pdfBytes = new Uint8Array(pdfBuffer);
+    const params = new URLSearchParams({
+      projectId,
+      type,
+      date,
+    });
 
+    const previewUrl = buildPreviewUrl(req, params);
+    const cookieHeader = req.headers.get("cookie") || "";
+
+    const pdfBuffer = await buildReportPdf({
+      previewUrl,
+      cookieHeader,
+    });
+
+    const pdfBytes = new Uint8Array(pdfBuffer);
     const unicodeFileName = buildFileName(result.projectName, result.reportType);
     const asciiFileName = toAsciiFileName(unicodeFileName);
 
