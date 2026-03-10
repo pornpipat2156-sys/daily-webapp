@@ -46,7 +46,7 @@ function ExportGlobalStyle() {
         size: A4 portrait;
         margin-top: 2mm;
         margin-right: 10mm;
-        margin-bottom: 5mm;
+        margin-bottom: 1mm;
         margin-left: 10mm;
       }
 
