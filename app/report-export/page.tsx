@@ -100,7 +100,7 @@ function ReportExportContent() {
 
     const timer = window.setTimeout(() => {
       window.print();
-    }, 400);
+    }, 450);
 
     return () => window.clearTimeout(timer);
   }, [auto, data]);
@@ -132,12 +132,12 @@ function ReportExportContent() {
         .export-screen-actions {
           position: sticky;
           top: 0;
-          z-index: 20;
+          z-index: 30;
           display: flex;
           justify-content: flex-end;
           gap: 12px;
           padding: 12px 16px;
-          background: rgba(255, 255, 255, 0.92);
+          background: rgba(255, 255, 255, 0.94);
           backdrop-filter: blur(8px);
           border-bottom: 1px solid #e5e7eb;
         }
@@ -187,11 +187,36 @@ function ReportExportContent() {
           }
 
           html,
-          body,
-          .export-root,
-          .export-sheet,
-          .export-sheet-inner {
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
             background: #ffffff !important;
+          }
+
+          body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          /* ซ่อนทุกอย่างทั้งหน้า แล้วค่อยแสดงเฉพาะ export root */
+          body * {
+            visibility: hidden !important;
+          }
+
+          #report-export-root,
+          #report-export-root * {
+            visibility: visible !important;
+          }
+
+          #report-export-root {
+            position: absolute !important;
+            inset: 0 !important;
+            width: 100% !important;
+            min-height: auto !important;
+            background: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
           }
 
           .export-screen-actions {
@@ -202,6 +227,7 @@ function ReportExportContent() {
             display: block !important;
             padding: 0 !important;
             margin: 0 !important;
+            background: #ffffff !important;
           }
 
           .export-sheet-inner {
@@ -209,6 +235,7 @@ function ReportExportContent() {
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
+            background: #ffffff !important;
           }
 
           .export-state {
@@ -220,14 +247,75 @@ function ReportExportContent() {
             color: #111111 !important;
           }
 
-          body * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+          /* Daily preview */
+          .previewWrap {
+            display: block !important;
+            width: 100% !important;
+            justify-content: initial !important;
+          }
+
+          .previewSized {
+            width: 100% !important;
+            height: auto !important;
+            margin: 0 !important;
+          }
+
+          .previewScaled {
+            width: 100% !important;
+            transform: none !important;
+            transform-origin: top left !important;
+            will-change: auto !important;
+          }
+
+          .a4 {
+            width: 100% !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+          }
+
+          /* ลดการตัดหน้ากลาง section */
+          .box,
+          .box table,
+          .box tbody,
+          .box thead,
+          .box tr,
+          .box td,
+          .box th,
+          .issueRowMin,
+          .sectionBar,
+          .subBar {
+            break-inside: avoid-page !important;
+            page-break-inside: avoid !important;
+          }
+
+          .box {
+            margin-top: 10px !important;
+            overflow: visible !important;
+          }
+
+          img,
+          table {
+            break-inside: avoid-page !important;
+            page-break-inside: avoid !important;
+          }
+
+          /* Summary preview */
+          [data-summary-preview-root="true"] {
+            max-width: none !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            background: #ffffff !important;
           }
         }
       `}</style>
 
-      <div className="export-root">
+      <div id="report-export-root" className="export-root">
         <div className="export-screen-actions">
           <button
             type="button"
@@ -251,7 +339,9 @@ function ReportExportContent() {
             ) : "renderMode" in data && data.renderMode === "daily" ? (
               <ReportPreviewForm model={data.dailyModel} />
             ) : "renderMode" in data && data.renderMode === "summary" ? (
-              <SummaryAggregatePreview model={data.summaryModel} printMode />
+              <div data-summary-preview-root="true">
+                <SummaryAggregatePreview model={data.summaryModel} printMode />
+              </div>
             ) : (
               <div className="export-state">ไม่สามารถแสดงเอกสารได้</div>
             )}
