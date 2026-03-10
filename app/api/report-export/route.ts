@@ -31,6 +31,7 @@ function buildFileName(
 
 export async function POST(req: NextRequest) {
   const user = await getAuthUser(req);
+
   if (!user) {
     return NextResponse.json(
       { ok: false, message: "forbidden" },
@@ -80,14 +81,16 @@ export async function POST(req: NextRequest) {
     }
 
     const pdfBuffer = await buildReportPdf(result);
+    const pdfBytes = new Uint8Array(pdfBuffer);
     const fileName = buildFileName(result.projectName, result.reportType);
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(pdfBytes, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
         "Cache-Control": "no-store, max-age=0",
+        "Content-Length": String(pdfBytes.byteLength),
       },
     });
   } catch (e: any) {

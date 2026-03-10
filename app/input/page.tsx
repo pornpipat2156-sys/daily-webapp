@@ -383,12 +383,6 @@ export default function InputPage() {
       });
 
       if (!res.ok) {
-        const contentType = res.headers.get("Content-Type") || "";
-        if (contentType.includes("application/json")) {
-          const errJson = await res.json().catch(() => null);
-          throw new Error(errJson?.message || "ดาวน์โหลด PDF ไม่สำเร็จ");
-        }
-
         const errText = await res.text().catch(() => "");
         throw new Error(errText || "ดาวน์โหลด PDF ไม่สำเร็จ");
       }
