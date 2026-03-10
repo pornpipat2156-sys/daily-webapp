@@ -106,6 +106,22 @@ export default async function ReportExportPreviewPage({
           background: "#ffffff",
         }}
       >
+        <style>{`
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+          }
+          @page {
+            size: A4 portrait;
+            margin: 0;
+          }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        `}</style>
+
         <div
           data-pdf-preview-root="1"
           style={{
@@ -146,16 +162,22 @@ export default async function ReportExportPreviewPage({
           print-color-adjust: exact !important;
         }
 
-        #__next-build-watcher,
+        header,
+        nav,
+        aside,
+        footer,
         nextjs-portal,
+        #__next-build-watcher,
         [data-nextjs-toast],
         [data-next-badge-root],
         [data-next-mark],
         [data-next-route-announcer],
         [aria-label="Open Next.js Dev Tools"],
         [data-vercel-toolbar],
-        iframe {
+        iframe,
+        button {
           display: none !important;
+          visibility: hidden !important;
         }
       `}</style>
 

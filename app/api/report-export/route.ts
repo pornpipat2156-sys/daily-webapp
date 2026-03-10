@@ -46,7 +46,7 @@ function buildFileName(
 
 function buildPreviewUrl(req: NextRequest, params: URLSearchParams) {
   const origin = req.nextUrl.origin;
-  return `${origin}/input/report-export-preview?${params.toString()}`;
+  return `${origin}/report-export-preview?${params.toString()}`;
 }
 
 export async function POST(req: NextRequest) {
