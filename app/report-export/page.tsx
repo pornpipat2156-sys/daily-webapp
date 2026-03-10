@@ -44,7 +44,7 @@ function ExportGlobalStyle() {
 
       @page {
         size: A4 portrait;
-        margin-top: 1mm;
+        margin-top: 0.5mm;
         margin-right: 10mm;
         margin-bottom: 0.5mm;
         margin-left: 10mm;
