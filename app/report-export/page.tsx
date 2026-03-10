@@ -100,7 +100,7 @@ function ReportExportContent() {
 
     const timer = window.setTimeout(() => {
       window.print();
-    }, 350);
+    }, 400);
 
     return () => window.clearTimeout(timer);
   }, [auto, data]);
@@ -110,17 +110,114 @@ function ReportExportContent() {
       <style jsx global>{`
         @page {
           size: A4 portrait;
-          margin: 12mm;
+          margin: 8mm;
+        }
+
+        html,
+        body {
+          margin: 0;
+          padding: 0;
+          background: #ffffff;
+        }
+
+        body {
+          color: #111111;
+        }
+
+        .export-root {
+          min-height: 100vh;
+          background: #ffffff;
+        }
+
+        .export-screen-actions {
+          position: sticky;
+          top: 0;
+          z-index: 20;
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+          padding: 12px 16px;
+          background: rgba(255, 255, 255, 0.92);
+          backdrop-filter: blur(8px);
+          border-bottom: 1px solid #e5e7eb;
+        }
+
+        .export-print-btn {
+          appearance: none;
+          border: 1px solid #d1d5db;
+          background: #111827;
+          color: #ffffff;
+          border-radius: 14px;
+          padding: 10px 16px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        .export-sheet {
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          padding: 16px 0 24px;
+          background: #ffffff;
+        }
+
+        .export-sheet-inner {
+          width: 100%;
+          max-width: 900px;
+          margin: 0 auto;
+          background: #ffffff;
+        }
+
+        .export-state {
+          max-width: 794px;
+          margin: 24px auto;
+          border: 1px solid #e5e7eb;
+          border-radius: 16px;
+          background: #ffffff;
+          padding: 20px;
+          color: #475569;
+          font-size: 14px;
         }
 
         @media print {
+          @page {
+            size: A4 portrait;
+            margin: 8mm;
+          }
+
           html,
-          body {
+          body,
+          .export-root,
+          .export-sheet,
+          .export-sheet-inner {
             background: #ffffff !important;
           }
 
-          .no-print {
+          .export-screen-actions {
             display: none !important;
+          }
+
+          .export-sheet {
+            display: block !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+
+          .export-sheet-inner {
+            max-width: none !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          .export-state {
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            color: #111111 !important;
           }
 
           body * {
@@ -130,54 +227,35 @@ function ReportExportContent() {
         }
       `}</style>
 
-      <div className="min-h-screen bg-slate-100 text-slate-900">
-        <div className="no-print mx-auto max-w-5xl px-2 py-3 sm:px-4 sm:py-4">
-          <div className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="text-sm font-semibold text-slate-900">PDF Export (A4)</div>
-              <div className="text-sm text-slate-500">
-                หน้านี้พิมพ์หรือบันทึกเฉพาะตัว Preview ไม่ใช่การ screenshot หน้าเว็บไซต์
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-900 px-5 text-sm font-semibold text-white transition hover:opacity-95"
-            >
-              พิมพ์ / Save PDF
-            </button>
-          </div>
+      <div className="export-root">
+        <div className="export-screen-actions">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="export-print-btn"
+          >
+            พิมพ์ / Save PDF
+          </button>
         </div>
 
-        <div className="mx-auto w-full max-w-[900px] px-2 pb-8 sm:px-4">
-          {loading ? (
-            <div className="mx-auto max-w-[794px] rounded-[24px] border border-slate-200 bg-white px-5 py-5 text-sm text-slate-500 shadow-sm">
-              กำลังโหลดเอกสาร...
-            </div>
-          ) : !data ? (
-            <div className="mx-auto max-w-[794px] rounded-[24px] border border-slate-200 bg-white px-5 py-5 text-sm text-slate-500 shadow-sm">
-              ไม่พบข้อมูล
-            </div>
-          ) : "ok" in data && data.ok === false ? (
-            <div className="mx-auto max-w-[794px] rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-5 text-sm text-rose-700 shadow-sm">
-              {data.message || "เกิดข้อผิดพลาด"}
-            </div>
-          ) : "found" in data && data.found === false ? (
-            <div className="mx-auto max-w-[794px] rounded-[24px] border border-amber-200 bg-amber-50 px-5 py-5 text-sm text-amber-700 shadow-sm">
-              {data.message || "ไม่พบรายงาน"}
-            </div>
-          ) : "renderMode" in data && data.renderMode === "daily" ? (
-            <div className="mx-auto">
+        <div className="export-sheet">
+          <div className="export-sheet-inner">
+            {loading ? (
+              <div className="export-state">กำลังโหลดเอกสาร...</div>
+            ) : !data ? (
+              <div className="export-state">ไม่พบข้อมูล</div>
+            ) : "ok" in data && data.ok === false ? (
+              <div className="export-state">{data.message || "เกิดข้อผิดพลาด"}</div>
+            ) : "found" in data && data.found === false ? (
+              <div className="export-state">{data.message || "ไม่พบรายงาน"}</div>
+            ) : "renderMode" in data && data.renderMode === "daily" ? (
               <ReportPreviewForm model={data.dailyModel} />
-            </div>
-          ) : "renderMode" in data && data.renderMode === "summary" ? (
-            <SummaryAggregatePreview model={data.summaryModel} printMode />
-          ) : (
-            <div className="mx-auto max-w-[794px] rounded-[24px] border border-slate-200 bg-white px-5 py-5 text-sm text-slate-500 shadow-sm">
-              ไม่สามารถแสดงเอกสารได้
-            </div>
-          )}
+            ) : "renderMode" in data && data.renderMode === "summary" ? (
+              <SummaryAggregatePreview model={data.summaryModel} printMode />
+            ) : (
+              <div className="export-state">ไม่สามารถแสดงเอกสารได้</div>
+            )}
+          </div>
         </div>
       </div>
     </>
@@ -186,8 +264,8 @@ function ReportExportContent() {
 
 function ReportExportFallback() {
   return (
-    <div className="min-h-screen bg-slate-100 px-2 py-3 text-slate-900 sm:px-4 sm:py-4">
-      <div className="mx-auto max-w-[794px] rounded-[24px] border border-slate-200 bg-white px-5 py-5 text-sm text-slate-500 shadow-sm">
+    <div className="min-h-screen bg-white">
+      <div className="mx-auto max-w-[794px] px-4 py-6 text-sm text-slate-500">
         กำลังเตรียมหน้า export...
       </div>
     </div>
