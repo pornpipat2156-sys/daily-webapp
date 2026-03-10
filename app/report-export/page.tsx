@@ -30,6 +30,68 @@ function isValidType(type: string): type is ReportType {
   return type === "daily" || type === "weekly" || type === "monthly";
 }
 
+function ExportGlobalStyle() {
+  return (
+    <style>{`
+      @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap");
+
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        font-family: "Noto Sans Thai", Arial, sans-serif !important;
+      }
+
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        font-family: "Noto Sans Thai", Arial, sans-serif !important;
+      }
+
+      header,
+      nav,
+      aside,
+      footer,
+      nextjs-portal,
+      #__next-build-watcher,
+      [data-nextjs-toast],
+      [data-next-badge-root],
+      [data-next-mark],
+      [data-next-route-announcer],
+      [aria-label="Open Next.js Dev Tools"],
+      [data-vercel-toolbar],
+      iframe,
+      button,
+      .export-print-btn {
+        display: none !important;
+        visibility: hidden !important;
+      }
+
+      [data-pdf-preview-root="1"] {
+        width: 794px !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        overflow: hidden !important;
+        font-family: "Noto Sans Thai", Arial, sans-serif !important;
+      }
+
+      [data-pdf-preview-root="1"] * {
+        font-family: "Noto Sans Thai", Arial, sans-serif !important;
+      }
+
+      img {
+        max-width: 100%;
+      }
+    `}</style>
+  );
+}
+
 function MessageBox({ message }: { message: string }) {
   return (
     <div
@@ -39,7 +101,7 @@ function MessageBox({ message }: { message: string }) {
         background: "#ffffff",
         color: "#111827",
         padding: 0,
-        fontFamily: "Arial, sans-serif",
+        fontFamily: '"Noto Sans Thai", Arial, sans-serif',
         fontSize: "14px",
       }}
     >
@@ -77,41 +139,7 @@ export default async function ReportExportPage({
           background: "#ffffff",
         }}
       >
-        <style>{`
-          html, body {
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #ffffff !important;
-          }
-
-          @page {
-            size: A4 portrait;
-            margin: 0;
-          }
-
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-
-          header,
-          nav,
-          aside,
-          footer,
-          nextjs-portal,
-          #__next-build-watcher,
-          [data-nextjs-toast],
-          [data-next-badge-root],
-          [data-next-mark],
-          [data-next-route-announcer],
-          [aria-label="Open Next.js Dev Tools"],
-          [data-vercel-toolbar],
-          iframe,
-          button {
-            display: none !important;
-            visibility: hidden !important;
-          }
-        `}</style>
+        <ExportGlobalStyle />
 
         <div
           data-pdf-preview-root="1"
@@ -144,41 +172,7 @@ export default async function ReportExportPage({
           background: "#ffffff",
         }}
       >
-        <style>{`
-          html, body {
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #ffffff !important;
-          }
-
-          @page {
-            size: A4 portrait;
-            margin: 0;
-          }
-
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-
-          header,
-          nav,
-          aside,
-          footer,
-          nextjs-portal,
-          #__next-build-watcher,
-          [data-nextjs-toast],
-          [data-next-badge-root],
-          [data-next-mark],
-          [data-next-route-announcer],
-          [aria-label="Open Next.js Dev Tools"],
-          [data-vercel-toolbar],
-          iframe,
-          button {
-            display: none !important;
-            visibility: hidden !important;
-          }
-        `}</style>
+        <ExportGlobalStyle />
 
         <div
           data-pdf-preview-root="1"
@@ -204,50 +198,7 @@ export default async function ReportExportPage({
         background: "#ffffff",
       }}
     >
-      <style>{`
-        html, body {
-          margin: 0 !important;
-          padding: 0 !important;
-          background: #ffffff !important;
-        }
-
-        @page {
-          size: A4 portrait;
-          margin: 0;
-        }
-
-        * {
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
-
-        header,
-        nav,
-        aside,
-        footer,
-        nextjs-portal,
-        #__next-build-watcher,
-        [data-nextjs-toast],
-        [data-next-badge-root],
-        [data-next-mark],
-        [data-next-route-announcer],
-        [aria-label="Open Next.js Dev Tools"],
-        [data-vercel-toolbar],
-        iframe,
-        button,
-        .export-print-btn {
-          display: none !important;
-          visibility: hidden !important;
-        }
-
-        [data-pdf-preview-root="1"] {
-          width: 794px !important;
-          margin: 0 auto !important;
-          padding: 0 !important;
-          background: #ffffff !important;
-          overflow: hidden !important;
-        }
-      `}</style>
+      <ExportGlobalStyle />
 
       <div
         data-pdf-preview-root="1"
