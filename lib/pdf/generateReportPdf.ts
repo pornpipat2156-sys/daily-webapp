@@ -218,20 +218,22 @@ function formatDateOnly(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
-function formatDateBE(isoOrYmd?: string) {
-  if (!isoOrYmd) return "-";
+function formatDateThai(value?: string | Date | null) {
+  if (!value) return "-";
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(isoOrYmd)) {
-    const [y, m, d] = isoOrYmd.split("-").map(Number);
-    if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
-      return isoOrYmd;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) {
+    const raw = String(value);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const [y, m, dd] = raw.split("-").map(Number);
+      return `${String(dd).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y + 543}`;
     }
-    return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y + 543}`;
+    return raw;
   }
 
-  const d = new Date(isoOrYmd);
-  if (Number.isNaN(d.getTime())) return isoOrYmd;
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear() + 543}`;
+  return `${String(d.getUTCDate()).padStart(2, "0")}/${String(
+    d.getUTCMonth() + 1
+  ).padStart(2, "0")}/${d.getUTCFullYear() + 543}`;
 }
 
 function getWeekRangeLabel(startDate: Date, endDate: Date) {
@@ -674,203 +676,340 @@ function escapeHtml(value: unknown) {
     .replace(/"/g, "&quot;");
 }
 
-function prettyLabel(key: string) {
-  return String(key || "")
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function formatPrimitive(value: unknown) {
-  if (value == null) return "-";
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "-";
-  const s = String(value).trim();
+function valueOrDash(value: unknown) {
+  const s = str(value);
   return s || "-";
 }
 
-function toRecordOrNull(v: unknown): Record<string, unknown> | null {
-  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
-  return v as Record<string, unknown>;
+function renderTableRows(
+  rows: string[][],
+  emptyCols: number,
+  emptyMessage = "-"
+) {
+  if (!rows.length) {
+    return `<tr><td colspan="${emptyCols}" class="ta-center">${escapeHtml(
+      emptyMessage
+    )}</td></tr>`;
+  }
+
+  return rows
+    .map(
+      (row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`
+    )
+    .join("");
 }
 
-function toArray(v: unknown): unknown[] {
-  return Array.isArray(v) ? v : [];
+function buildDailyTables(model: DailyModel) {
+  const contractorRows = model.contractors.map((row, index) => [
+    String(index + 1),
+    valueOrDash(row.name),
+    valueOrDash(row.position),
+    valueOrDash(row.qty),
+  ]);
+
+  const subContractorRows = model.subContractors.map((row, index) => [
+    String(index + 1),
+    valueOrDash(row.position),
+    valueOrDash(row.morning),
+    valueOrDash(row.afternoon),
+    valueOrDash(row.overtime),
+  ]);
+
+  const equipmentRows = model.majorEquipment.map((row, index) => [
+    String(index + 1),
+    valueOrDash(row.type),
+    valueOrDash(row.morning),
+    valueOrDash(row.afternoon),
+    valueOrDash(row.overtime),
+  ]);
+
+  const workRows = model.workPerformed.map((row) => [
+    valueOrDash(row.qty),
+    valueOrDash(row.desc),
+    valueOrDash(row.unit),
+    valueOrDash(row.location),
+    valueOrDash(row.materialDelivered),
+  ]);
+
+  return {
+    contractorRows,
+    subContractorRows,
+    equipmentRows,
+    workRows,
+  };
 }
 
-function renderMetaGrid(meta: Record<string, unknown>) {
-  const entries = [
-    ["โครงการ", meta.projectName],
-    ["เลขที่สัญญา", meta.contractNo],
-    ["เลขที่ภาคผนวก", meta.annexNo],
-    ["เริ่มสัญญา", meta.contractStart],
-    ["สิ้นสุดสัญญา", meta.contractEnd],
-    ["ผู้รับจ้าง", meta.contractorName],
-    ["สถานที่ก่อสร้าง", meta.siteLocation],
-    ["มูลค่าสัญญา", meta.contractValue],
-    ["วิธีจัดซื้อจัดจ้าง", meta.procurementMethod],
-    ["งวดงาน", meta.periodNo],
-    ["สัปดาห์", meta.weekNo],
-    ["รายงานประจำวัน", meta.dailyReportNo],
-  ];
+function renderIssueBlocks(model: DailyModel) {
+  if (!model.issues.length) {
+    return `<div class="issue-empty">ไม่มีข้อมูล</div>`;
+  }
+
+  return model.issues
+    .map((issue, index) => {
+      const authorLines =
+        issue.comments.length > 0
+          ? issue.comments
+              .map((comment) => {
+                const author =
+                  comment.author?.name ||
+                  comment.author?.email ||
+                  comment.author?.role ||
+                  "ผู้แสดงความคิดเห็น";
+                return `
+                  <div class="comment-item">
+                    <div class="comment-author">${escapeHtml(author)}</div>
+                    <div class="comment-body">${escapeHtml(comment.comment || "-")}</div>
+                  </div>
+                `;
+              })
+              .join("")
+          : `<div class="comment-item"><div class="comment-body">ไม่มีความคิดเห็น</div></div>`;
+
+      const imageBlock = issue.imageUrl
+        ? `<div class="issue-image-wrap"><img class="issue-image" src="${escapeHtml(
+            issue.imageUrl
+          )}" alt="issue-${index + 1}" /></div>`
+        : "";
+
+      return `
+        <div class="issue-card">
+          <div class="issue-title">Issue ${index + 1}</div>
+          <div class="issue-detail">${escapeHtml(issue.detail || "-")}</div>
+          ${imageBlock}
+          <div class="comment-list">${authorLines}</div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function renderSupervisorBlocks(supervisors: Supervisor[]) {
+  if (!supervisors.length) {
+    return `
+      <div class="signature-card">
+        <div class="signature-role">-</div>
+        <div class="signature-line"></div>
+        <div class="signature-name">(-)</div>
+      </div>
+    `;
+  }
+
+  return supervisors
+    .map(
+      (item) => `
+        <div class="signature-card">
+          <div class="signature-role">${escapeHtml(item.role || "/")}</div>
+          <div class="signature-line"></div>
+          <div class="signature-name">(${escapeHtml(item.name || "-")})</div>
+        </div>
+      `
+    )
+    .join("");
+}
+
+function renderLogoBlock(projectName: string) {
+  const initial = projectName.trim().charAt(0) || "R";
 
   return `
-    <div class="grid cols-2 gap-10">
-      ${entries
-        .map(
-          ([label, value]) => `
-            <div class="meta-item">
-              <div class="meta-label">${escapeHtml(label)}</div>
-              <div class="meta-value">${escapeHtml(formatPrimitive(value))}</div>
-            </div>
-          `
-        )
-        .join("")}
+    <div class="logo-circle">
+      <div class="logo-inner">${escapeHtml(initial)}</div>
     </div>
   `;
 }
 
-function renderGenericTable(title: string, rows: Array<Record<string, unknown>>) {
-  if (!rows.length) {
-    return `
-      <section class="section box avoid-break">
-        <div class="section-title">${escapeHtml(title)}</div>
-        <div class="empty">ไม่มีข้อมูล</div>
-      </section>
-    `;
-  }
-
-  const keys = Array.from(
-    rows.reduce((set, row) => {
-      Object.keys(row).forEach((k) => {
-        if (k !== "id") set.add(k);
-      });
-      return set;
-    }, new Set<string>())
-  );
+function renderDailyHtml(data: Extract<PdfExportData, { renderMode: "daily" }>) {
+  const model = data.dailyModel;
+  const meta = model.projectMeta;
+  const {
+    contractorRows,
+    subContractorRows,
+    equipmentRows,
+    workRows,
+  } = buildDailyTables(model);
 
   return `
-    <section class="section box avoid-break">
-      <div class="section-title">${escapeHtml(title)}</div>
-      <table>
-        <thead>
-          <tr>
-            ${keys.map((key) => `<th>${escapeHtml(prettyLabel(key))}</th>`).join("")}
-          </tr>
-        </thead>
-        <tbody>
-          ${rows
-            .map(
-              (row) => `
-                <tr>
-                  ${keys
-                    .map(
-                      (key) => `
-                        <td>${escapeHtml(formatPrimitive(row[key]))}</td>
-                      `
-                    )
-                    .join("")}
-                </tr>
-              `
-            )
-            .join("")}
-        </tbody>
-      </table>
-    </section>
-  `;
-}
+    <div class="daily-document">
+      <div class="daily-sheet">
+        <div class="form-shell">
+          <table class="report-head">
+            <tr>
+              <td class="logo-cell">
+                ${renderLogoBlock(model.projectName)}
+              </td>
+              <td class="title-cell">
+                <div class="title-main">รายงานการควบคุมงานก่อสร้างประจำวัน (DAILY REPORT)</div>
+                <div class="title-sub">ประจำวันที่ ${escapeHtml(
+                  formatDateThai(model.date)
+                )}</div>
+                <div class="title-project">โครงการ : ${escapeHtml(
+                  model.projectName || "-"
+                )}</div>
+              </td>
+            </tr>
+          </table>
 
-function renderIssuesSection(model: DailyModel) {
-  if (!model.issues.length) {
-    return `
-      <section class="section box avoid-break">
-        <div class="section-title">Issues / Obstacles</div>
-        <div class="empty">ไม่มีข้อมูล</div>
-      </section>
-    `;
-  }
+          <table class="meta-table">
+            <tr>
+              <th>สัญญาจ้าง</th>
+              <td>${escapeHtml(meta.contractNo || "-")}</td>
+              <th>สถานที่ก่อสร้าง</th>
+              <td>${escapeHtml(meta.siteLocation || "-")}</td>
+            </tr>
+            <tr>
+              <th>บันทึกแบบท้ายที่</th>
+              <td>${escapeHtml(meta.dailyReportNo || "-")}</td>
+              <th>วงเงินค่าก่อสร้าง</th>
+              <td>${escapeHtml(meta.contractValue || "-")}</td>
+            </tr>
+            <tr>
+              <th>เริ่มสัญญา</th>
+              <td>${escapeHtml(formatDateThai(meta.contractStart))}</td>
+              <th>ผู้รับจ้าง</th>
+              <td>${escapeHtml(meta.contractorName || "-")}</td>
+            </tr>
+            <tr>
+              <th>สิ้นสุดสัญญา</th>
+              <td>${escapeHtml(formatDateThai(meta.contractEnd))}</td>
+              <th>จัดจ้างโดยวิธี</th>
+              <td>${escapeHtml(meta.procurementMethod || "-")}</td>
+            </tr>
+            <tr>
+              <th>จำนวนงวด</th>
+              <td>${escapeHtml(
+                meta.installmentCount ? String(meta.installmentCount) : "-"
+              )}</td>
+              <th>รวมเวลาก่อสร้าง</th>
+              <td>${escapeHtml(
+                meta.totalDurationDays ? `${meta.totalDurationDays} วัน` : "-"
+              )}</td>
+            </tr>
+          </table>
 
-  return `
-    <section class="section box">
-      <div class="section-title">Issues / Obstacles</div>
-      <div class="issue-list">
-        ${model.issues
-          .map((issue, index) => {
-            const commentsHtml =
-              issue.comments.length > 0
-                ? `
-                  <div class="comment-list">
-                    ${issue.comments
-                      .map((c) => {
-                        const author =
-                          c.author?.name ||
-                          c.author?.email ||
-                          c.author?.role ||
-                          "ผู้แสดงความคิดเห็น";
-                        return `
-                          <div class="comment-item">
-                            <div class="comment-author">${escapeHtml(author)}</div>
-                            <div class="comment-body">${escapeHtml(c.comment)}</div>
-                          </div>
-                        `;
-                      })
-                      .join("")}
-                  </div>
-                `
-                : `<div class="muted">ไม่มีความคิดเห็น</div>`;
-
-            const imageHtml = issue.imageUrl
-              ? `<img class="issue-image" src="${escapeHtml(issue.imageUrl)}" alt="issue-${index + 1}" />`
-              : "";
-
-            return `
-              <div class="issue-card avoid-break">
-                <div class="issue-index">Issue ${index + 1}</div>
-                <div class="issue-detail">${escapeHtml(issue.detail || "-")}</div>
-                ${imageHtml}
-                <div class="issue-comments-title">Comments</div>
-                ${commentsHtml}
+          <div class="work-weather-wrap">
+            <div class="work-weather-left">
+              <div class="box-title">ช่วงเวลาทำงาน</div>
+              <div class="time-row">
+                <div>ช่วงเช้า 08:30น.-12:00น.</div>
+                <div>ช่วงบ่าย 13:00น.-17:00น.</div>
+                <div>ล่วงเวลา 17:00น. ขึ้นไป</div>
               </div>
-            `;
-          })
-          .join("")}
-      </div>
-    </section>
-  `;
-}
 
-function renderSupervisors(supervisors: Supervisor[]) {
-  if (!supervisors.length) {
-    return `
-      <section class="section box avoid-break">
-        <div class="section-title">ผู้ควบคุมงาน / ผู้ลงนาม</div>
-        <div class="empty">-</div>
-      </section>
-    `;
-  }
-
-  return `
-    <section class="section box avoid-break">
-      <div class="section-title">ผู้ควบคุมงาน / ผู้ลงนาม</div>
-      <div class="signature-grid">
-        ${supervisors
-          .map(
-            (item) => `
-              <div class="signature-item">
-                <div class="signature-line">ลงชื่อ ....................................................</div>
-                <div class="signature-name">(${escapeHtml(item.name || "-")})</div>
-                <div class="signature-role">${escapeHtml(item.role || " ")}</div>
+              <div class="box-title weather-title">สภาพอากาศ (WEATHER)</div>
+              <div class="weather-row">
+                <div>อุณหภูมิ สูงสุด: ${escapeHtml(
+                  model.tempMaxC == null ? "-°C" : `${model.tempMaxC}°C`
+                )}</div>
+                <div>อุณหภูมิ ต่ำสุด: ${escapeHtml(
+                  model.tempMinC == null ? "-°C" : `${model.tempMinC}°C`
+                )}</div>
               </div>
-            `
-          )
-          .join("")}
+              <div class="weather-row weather-row-2">
+                <div>เช้า: -</div>
+                <div>บ่าย: -</div>
+                <div>ล่วงเวลา: ${escapeHtml(model.hasOvertime ? "มี" : "-")}</div>
+              </div>
+            </div>
+
+            <div class="work-weather-right">
+              <div class="mini-box">${escapeHtml(meta.dailyReportNo || "-")}</div>
+              <div class="mini-box">${escapeHtml(meta.periodNo || "-")}</div>
+              <div class="mini-box">${escapeHtml(meta.weekNo || "-")}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="team-shell">
+          <div class="section-banner">ส่วนโครงการ (PROJECT TEAM)</div>
+
+          <div class="team-grid">
+            <div class="team-col">
+              <div class="team-title">ผู้รับเหมา<br />(CONTRACTORS)</div>
+              <table class="team-table">
+                <thead>
+                  <tr>
+                    <th class="col-no">#</th>
+                    <th>รายชื่อ</th>
+                    <th>ตำแหน่ง</th>
+                    <th class="col-qty">จำนวน</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${renderTableRows(contractorRows, 4)}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="team-col">
+              <div class="team-title">ผู้รับเหมารายย่อย<br />(SUB CONTRACTORS)</div>
+              <table class="team-table">
+                <thead>
+                  <tr>
+                    <th class="col-no">#</th>
+                    <th>ตำแหน่ง</th>
+                    <th class="col-sm">เช้า</th>
+                    <th class="col-sm">บ่าย</th>
+                    <th class="col-sm">ล่วงเวลา</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${renderTableRows(subContractorRows, 5)}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="team-col">
+              <div class="team-title">เครื่องจักรหลัก<br />(MAJOR EQUIPMENT)</div>
+              <table class="team-table">
+                <thead>
+                  <tr>
+                    <th class="col-no">#</th>
+                    <th>ชนิด</th>
+                    <th class="col-sm">เช้า</th>
+                    <th class="col-sm">บ่าย</th>
+                    <th class="col-sm">ล่วงเวลา</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${renderTableRows(equipmentRows, 5)}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="page-break"></div>
+
+        <div class="detail-shell">
+          <table class="detail-table">
+            <thead>
+              <tr>
+                <th class="col-w-qty">จำนวน</th>
+                <th>ผลงานที่ดำเนินการ</th>
+                <th class="col-w-unit">หน่วย</th>
+                <th>สถานที่</th>
+                <th>วัสดุที่ส่งมอบ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${renderTableRows(workRows, 5)}
+            </tbody>
+          </table>
+
+          <div class="issues-shell">
+            <div class="detail-title">Issues / Obstacles</div>
+            ${renderIssueBlocks(model)}
+          </div>
+
+          <div class="signature-shell">
+            ${renderSupervisorBlocks(model.supervisors)}
+          </div>
+        </div>
       </div>
-    </section>
+    </div>
   `;
 }
 
-function renderSummaryNode(label: string, value: unknown): string {
+function renderSummaryValue(label: string, value: unknown): string {
   if (
     value == null ||
     typeof value === "string" ||
@@ -878,126 +1017,27 @@ function renderSummaryNode(label: string, value: unknown): string {
     typeof value === "boolean"
   ) {
     return `
-      <div class="meta-item">
-        <div class="meta-label">${escapeHtml(label)}</div>
-        <div class="meta-value">${escapeHtml(formatPrimitive(value))}</div>
-      </div>
+      <tr>
+        <th>${escapeHtml(label)}</th>
+        <td>${escapeHtml(str(value, "-"))}</td>
+      </tr>
     `;
   }
 
-  const arr = toArray(value);
-  if (arr.length > 0) {
-    const allPrimitive = arr.every(
-      (item) =>
-        item == null ||
-        typeof item === "string" ||
-        typeof item === "number" ||
-        typeof item === "boolean"
-    );
-
-    const allObjects = arr.every((item) => !!toRecordOrNull(item));
-
-    if (allPrimitive) {
-      return `
-        <section class="section box avoid-break">
-          <div class="section-title">${escapeHtml(label)}</div>
-          <ul class="bullet-list">
-            ${arr.map((item) => `<li>${escapeHtml(formatPrimitive(item))}</li>`).join("")}
-          </ul>
-        </section>
-      `;
-    }
-
-    if (allObjects) {
-      const rows = arr.map((item) => toRecordOrNull(item) || {});
-      return renderGenericTable(label, rows);
-    }
-
+  if (Array.isArray(value)) {
     return `
-      <section class="section box avoid-break">
-        <div class="section-title">${escapeHtml(label)}</div>
-        <pre class="json-block">${escapeHtml(JSON.stringify(arr, null, 2))}</pre>
-      </section>
+      <tr>
+        <th>${escapeHtml(label)}</th>
+        <td><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre></td>
+      </tr>
     `;
   }
-
-  const obj = toRecordOrNull(value);
-  if (obj) {
-    const entries = Object.entries(obj);
-    if (!entries.length) return "";
-
-    return `
-      <section class="section box avoid-break">
-        <div class="section-title">${escapeHtml(label)}</div>
-        <div class="grid cols-2 gap-10">
-          ${entries.map(([k, v]) => renderSummaryNode(prettyLabel(k), v)).join("")}
-        </div>
-      </section>
-    `;
-  }
-
-  return "";
-}
-
-function renderDailyHtml(data: Extract<PdfExportData, { renderMode: "daily" }>) {
-  const model = data.dailyModel;
 
   return `
-    <div class="page">
-      <div class="report-shell">
-        <div class="hero">
-          <div class="hero-badge">DAILY REPORT</div>
-          <h1 class="hero-title">Daily Report Preview</h1>
-          <div class="hero-subtitle">${escapeHtml(model.projectName || "-")}</div>
-        </div>
-
-        <section class="section box avoid-break">
-          <div class="section-title">ข้อมูลโครงการ</div>
-          ${renderMetaGrid(model.projectMeta)}
-        </section>
-
-        <section class="section box avoid-break">
-          <div class="section-title">ข้อมูลรายงาน</div>
-          <div class="grid cols-2 gap-10">
-            <div class="meta-item">
-              <div class="meta-label">วันที่รายงาน</div>
-              <div class="meta-value">${escapeHtml(formatDateBE(model.date))}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">อ้างอิงวันที่เลือก</div>
-              <div class="meta-value">${escapeHtml(formatDateBE(data.selectedDate))}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">อุณหภูมิสูงสุด</div>
-              <div class="meta-value">${escapeHtml(
-                model.tempMaxC == null ? "-" : `${model.tempMaxC} °C`
-              )}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">อุณหภูมิต่ำสุด</div>
-              <div class="meta-value">${escapeHtml(
-                model.tempMinC == null ? "-" : `${model.tempMinC} °C`
-              )}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">Overtime</div>
-              <div class="meta-value">${escapeHtml(model.hasOvertime ? "มี" : "ไม่มี")}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">Safety Note</div>
-              <div class="meta-value">${escapeHtml(model.safetyNote || "-")}</div>
-            </div>
-          </div>
-        </section>
-
-        ${renderGenericTable("ผู้รับเหมา", model.contractors)}
-        ${renderGenericTable("ผู้รับเหมาช่วง", model.subContractors)}
-        ${renderGenericTable("เครื่องจักรหลัก", model.majorEquipment)}
-        ${renderGenericTable("ผลงานที่ดำเนินการ", model.workPerformed)}
-        ${renderIssuesSection(model)}
-        ${renderSupervisors(model.supervisors)}
-      </div>
-    </div>
+    <tr>
+      <th>${escapeHtml(label)}</th>
+      <td><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre></td>
+    </tr>
   `;
 }
 
@@ -1005,111 +1045,63 @@ function renderSummaryHtml(
   data: Extract<PdfExportData, { renderMode: "summary" }>
 ) {
   const model = data.summaryModel;
-  const metaEntries = Object.entries(model.projectMeta || {}).filter(
-    ([k, v]) => k !== "supervisors" && v != null && String(v).trim() !== ""
-  );
   const payloadEntries = Object.entries(model.payload || {});
+  const metaEntries = Object.entries(model.projectMeta || {});
 
   return `
-    <div class="page">
-      <div class="report-shell">
-        <div class="hero">
-          <div class="hero-badge">${escapeHtml(model.reportType)} REPORT</div>
-          <h1 class="hero-title">${escapeHtml(model.documentTitle || "Report Preview")}</h1>
-          <div class="hero-subtitle">${escapeHtml(model.projectName || "-")}</div>
-        </div>
+    <div class="summary-document">
+      <div class="summary-card">
+        <div class="summary-title">${escapeHtml(model.documentTitle || "Report")}</div>
+        <div class="summary-subtitle">${escapeHtml(model.projectName || "-")}</div>
 
-        <section class="section box avoid-break">
-          <div class="grid cols-2 gap-10">
-            <div class="meta-item">
-              <div class="meta-label">โครงการ</div>
-              <div class="meta-value">${escapeHtml(model.projectName || "-")}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">ช่วงรายงาน</div>
-              <div class="meta-value">${escapeHtml(model.periodLabel || "-")}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">อ้างอิงวันที่เลือก</div>
-              <div class="meta-value">${escapeHtml(model.selectedDate || "-")}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">ประเภท</div>
-              <div class="meta-value">${escapeHtml(model.reportType)}</div>
-            </div>
-          </div>
-        </section>
-
-        ${
-          model.title || model.summary
-            ? `
-              <section class="section box avoid-break">
-                <div class="section-title">Summary</div>
-                ${
-                  model.title
-                    ? `
-                      <div class="meta-item">
-                        <div class="meta-label">Title</div>
-                        <div class="meta-value">${escapeHtml(model.title)}</div>
-                      </div>
-                    `
-                    : ""
-                }
-                ${
-                  model.summary
-                    ? `
-                      <div class="meta-item" style="margin-top:12px;">
-                        <div class="meta-label">Summary</div>
-                        <div class="meta-value multiline">${escapeHtml(model.summary)}</div>
-                      </div>
-                    `
-                    : ""
-                }
-              </section>
-            `
-            : ""
-        }
+        <table class="summary-table">
+          <tr>
+            <th>ประเภท</th>
+            <td>${escapeHtml(model.reportType)}</td>
+          </tr>
+          <tr>
+            <th>ช่วงรายงาน</th>
+            <td>${escapeHtml(model.periodLabel || "-")}</td>
+          </tr>
+          <tr>
+            <th>วันที่อ้างอิง</th>
+            <td>${escapeHtml(model.selectedDate || "-")}</td>
+          </tr>
+          <tr>
+            <th>Title</th>
+            <td>${escapeHtml(model.title || "-")}</td>
+          </tr>
+          <tr>
+            <th>Summary</th>
+            <td>${escapeHtml(model.summary || "-")}</td>
+          </tr>
+        </table>
 
         ${
           metaEntries.length
             ? `
-              <section class="section box avoid-break">
-                <div class="section-title">Project Information</div>
-                <div class="grid cols-2 gap-10">
-                  ${metaEntries
-                    .map(([k, v]) => renderSummaryNode(prettyLabel(k), v))
-                    .join("")}
-                </div>
-              </section>
+              <div class="summary-section-title">Project Meta</div>
+              <table class="summary-table">
+                ${metaEntries
+                  .map(([key, value]) => renderSummaryValue(key, value))
+                  .join("")}
+              </table>
             `
             : ""
         }
 
         ${
-          model.sourceReportIds?.length
+          payloadEntries.length
             ? `
-              <section class="section box avoid-break">
-                <div class="section-title">Source Reports</div>
-                <ul class="bullet-list">
-                  ${model.sourceReportIds
-                    .map((id) => `<li>${escapeHtml(id)}</li>`)
-                    .join("")}
-                </ul>
-              </section>
+              <div class="summary-section-title">Payload</div>
+              <table class="summary-table">
+                ${payloadEntries
+                  .map(([key, value]) => renderSummaryValue(key, value))
+                  .join("")}
+              </table>
             `
             : ""
         }
-
-        <section class="section box">
-          <div class="section-title">Preview Data</div>
-          ${
-            payloadEntries.length === 0
-              ? `<div class="empty">ไม่พบ payload สำหรับแสดงผล</div>`
-              : payloadEntries
-                  .map(([k, v]) => renderSummaryNode(prettyLabel(k), v))
-                  .join("")
-          }
-        </section>
       </div>
     </div>
   `;
@@ -1124,8 +1116,11 @@ function buildDocumentHtml(data: PdfExportData) {
     <html lang="th">
       <head>
         <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>${escapeHtml(data.documentTitle)}</title>
         <style>
+          @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap");
+
           @page {
             size: A4 portrait;
             margin: 8mm;
@@ -1140,188 +1135,343 @@ function buildDocumentHtml(data: PdfExportData) {
           html, body {
             margin: 0;
             padding: 0;
-            background: #eef2f7;
-            color: #0f172a;
-            font-family: Arial, Helvetica, sans-serif;
+            background: #ffffff;
+            color: #111111;
+            font-family: "Noto Sans Thai", Arial, sans-serif;
             font-size: 12px;
-            line-height: 1.45;
+            line-height: 1.35;
           }
 
           body {
-            padding: 0;
-          }
-
-          .page {
             width: 100%;
           }
 
-          .report-shell {
+          .page-break {
+            page-break-before: always;
+            break-before: page;
+          }
+
+          .daily-document,
+          .summary-document {
             width: 100%;
-            background: #ffffff;
           }
 
-          .hero {
-            border: 1px solid #e2e8f0;
-            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 55%, #e2e8f0 100%);
-            border-radius: 20px;
-            padding: 18px 20px;
-            margin-bottom: 16px;
+          .daily-sheet {
+            width: 100%;
           }
 
-          .hero-badge {
-            display: inline-block;
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 0.14em;
-            color: #475569;
-            margin-bottom: 8px;
-          }
-
-          .hero-title {
-            font-size: 22px;
-            line-height: 1.2;
-            margin: 0;
-            font-weight: 700;
-            color: #0f172a;
-          }
-
-          .hero-subtitle {
-            margin-top: 6px;
-            font-size: 12px;
-            color: #475569;
-          }
-
-          .section {
-            margin-bottom: 14px;
-          }
-
-          .box {
-            border: 1px solid #e2e8f0;
+          .form-shell,
+          .team-shell,
+          .detail-shell {
+            border: 2px solid #1b1b1b;
             border-radius: 18px;
-            padding: 14px;
-            background: #ffffff;
+            padding: 12px 14px;
+            margin-bottom: 16px;
+            overflow: hidden;
           }
 
-          .section-title {
-            font-size: 13px;
-            font-weight: 700;
-            color: #0f172a;
-            margin-bottom: 10px;
-          }
-
-          .grid {
-            display: grid;
-          }
-
-          .cols-2 {
-            grid-template-columns: 1fr 1fr;
-          }
-
-          .gap-10 {
-            gap: 10px;
-          }
-
-          .meta-item {
-            min-width: 0;
-          }
-
-          .meta-label {
-            font-size: 10px;
-            color: #64748b;
-            margin-bottom: 4px;
-          }
-
-          .meta-value {
-            font-size: 12px;
-            color: #0f172a;
-            font-weight: 600;
-            word-break: break-word;
-          }
-
-          .multiline {
-            white-space: pre-wrap;
-          }
-
-          table {
+          .report-head,
+          .meta-table,
+          .detail-table,
+          .team-table,
+          .summary-table {
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
-            break-inside: avoid;
           }
 
-          thead {
-            display: table-header-group;
+          .report-head td,
+          .meta-table th,
+          .meta-table td,
+          .detail-table th,
+          .detail-table td,
+          .team-table th,
+          .team-table td,
+          .summary-table th,
+          .summary-table td {
+            border: 1.6px solid #1b1b1b;
           }
 
-          tr, td, th {
-            break-inside: avoid;
+          .logo-cell {
+            width: 145px;
+            height: 150px;
+            text-align: center;
+            vertical-align: middle;
+            background: #ffffff;
           }
 
-          th, td {
-            border: 1px solid #cbd5e1;
-            padding: 8px 7px;
-            vertical-align: top;
+          .title-cell {
+            background: #e6daf2;
+            text-align: center;
+            padding: 14px 18px;
+          }
+
+          .title-main {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 6px;
+          }
+
+          .title-sub {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 6px;
+          }
+
+          .title-project {
+            font-size: 14px;
+            font-weight: 600;
+          }
+
+          .logo-circle {
+            width: 92px;
+            height: 92px;
+            margin: 0 auto;
+            border-radius: 50%;
+            border: 5px solid #22754f;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at 35% 35%, #efe5ff 0%, #d2b5eb 58%, #c89fe4 100%);
+          }
+
+          .logo-inner {
+            width: 68px;
+            height: 68px;
+            border-radius: 50%;
+            border: 2px solid #4a3f56;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            font-weight: 700;
+            color: #3f3150;
+            background: #f9f4ff;
+          }
+
+          .meta-table th,
+          .meta-table td {
+            padding: 8px 10px;
+            font-size: 12px;
+            vertical-align: middle;
+          }
+
+          .meta-table th {
+            width: 18%;
             text-align: left;
+            font-weight: 600;
+            background: #ffffff;
+          }
+
+          .meta-table td {
+            width: 32%;
+            background: #ffffff;
+          }
+
+          .work-weather-wrap {
+            margin-top: 8px;
+            display: grid;
+            grid-template-columns: 1fr 220px;
+            gap: 0;
+            border: 2px solid #23314f;
+          }
+
+          .work-weather-left {
+            padding: 12px 14px;
+            background: #f5f2df;
+            border-right: 2px solid #23314f;
+            min-height: 124px;
+          }
+
+          .work-weather-right {
+            background: #f5f2df;
+            display: grid;
+            grid-template-rows: repeat(3, 1fr);
+            gap: 10px;
+            padding: 10px;
+          }
+
+          .mini-box {
+            border: 2px solid #23314f;
+            background: #f5f2df;
+            min-height: 54px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 0 12px;
+            font-size: 13px;
+            font-weight: 500;
+          }
+
+          .box-title {
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 6px;
+          }
+
+          .weather-title {
+            margin-top: 10px;
+          }
+
+          .time-row,
+          .weather-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
             font-size: 11px;
+          }
+
+          .weather-row {
+            grid-template-columns: 1fr 1fr;
+            margin-top: 2px;
+          }
+
+          .weather-row-2 {
+            grid-template-columns: 1fr 1fr 1fr;
+            margin-top: 6px;
+          }
+
+          .section-banner {
+            background: #d9ead8;
+            border: 2px solid #1b1b1b;
+            border-bottom: 0;
+            margin: -12px -14px 0 -14px;
+            padding: 8px 12px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 700;
+          }
+
+          .team-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr 1fr;
+            gap: 0;
+          }
+
+          .team-col {
+            border-left: 1px solid #1b1b1b;
+          }
+
+          .team-col:first-child {
+            border-left: 0;
+          }
+
+          .team-title {
+            text-align: center;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 10px 8px;
+            min-height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+          }
+
+          .team-table th,
+          .team-table td {
+            padding: 6px 6px;
+            font-size: 11px;
+            vertical-align: top;
+            word-break: break-word;
+            background: #ffffff;
+          }
+
+          .team-table th {
+            text-align: center;
+            font-weight: 700;
+          }
+
+          .col-no {
+            width: 40px;
+            text-align: center;
+          }
+
+          .col-qty,
+          .col-sm {
+            width: 64px;
+            text-align: center;
+          }
+
+          .detail-table {
+            margin-bottom: 16px;
+          }
+
+          .detail-table th,
+          .detail-table td {
+            padding: 8px 8px;
+            font-size: 11px;
+            vertical-align: top;
+            background: #ffffff;
             word-break: break-word;
           }
 
-          th {
-            background: #f8fafc;
-            color: #334155;
+          .detail-table th {
+            text-align: center;
             font-weight: 700;
           }
 
-          .empty,
-          .muted {
-            color: #64748b;
+          .col-w-qty {
+            width: 70px;
+          }
+
+          .col-w-unit {
+            width: 75px;
+          }
+
+          .detail-title {
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 8px;
+          }
+
+          .issues-shell {
+            border: 1.8px solid #1b1b1b;
+            border-radius: 16px;
+            padding: 12px;
+            min-height: 120px;
+            margin-bottom: 16px;
+          }
+
+          .issue-empty {
             font-size: 11px;
           }
 
-          .issue-list {
-            display: grid;
-            gap: 12px;
-          }
-
           .issue-card {
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
-            padding: 12px;
-            background: #fff;
+            border: 1px solid #b7b7b7;
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 10px;
+            page-break-inside: avoid;
             break-inside: avoid;
           }
 
-          .issue-index {
-            font-size: 10px;
+          .issue-card:last-child {
+            margin-bottom: 0;
+          }
+
+          .issue-title {
+            font-size: 11px;
             font-weight: 700;
-            color: #64748b;
-            letter-spacing: 0.08em;
             margin-bottom: 6px;
           }
 
           .issue-detail {
-            font-size: 12px;
-            color: #0f172a;
-            font-weight: 600;
-            margin-bottom: 8px;
             white-space: pre-wrap;
+            font-size: 11px;
+            margin-bottom: 8px;
+          }
+
+          .issue-image-wrap {
+            margin-bottom: 8px;
           }
 
           .issue-image {
-            display: block;
             max-width: 100%;
-            max-height: 260px;
-            object-fit: contain;
-            border-radius: 10px;
-            border: 1px solid #e2e8f0;
-            margin: 8px 0 10px;
-          }
-
-          .issue-comments-title {
-            font-size: 11px;
-            font-weight: 700;
-            color: #334155;
-            margin-bottom: 6px;
+            max-height: 220px;
+            border: 1px solid #b7b7b7;
+            border-radius: 8px;
+            display: block;
           }
 
           .comment-list {
@@ -1330,76 +1480,104 @@ function buildDocumentHtml(data: PdfExportData) {
           }
 
           .comment-item {
-            border: 1px solid #e2e8f0;
-            background: #f8fafc;
-            border-radius: 10px;
+            border: 1px solid #d0d0d0;
+            border-radius: 8px;
             padding: 8px;
           }
 
           .comment-author {
             font-size: 10px;
             font-weight: 700;
-            color: #475569;
-            margin-bottom: 3px;
+            margin-bottom: 4px;
           }
 
           .comment-body {
             font-size: 11px;
-            color: #0f172a;
             white-space: pre-wrap;
           }
 
-          .signature-grid {
+          .signature-shell {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 18px 14px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px 14px;
+            min-height: 110px;
           }
 
-          .signature-item {
-            min-height: 70px;
+          .signature-card {
+            border: 1.8px solid #1b1b1b;
+            border-radius: 16px;
+            min-height: 110px;
+            padding: 14px 14px 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            page-break-inside: avoid;
             break-inside: avoid;
+          }
+
+          .signature-role {
+            font-size: 11px;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 22px;
           }
 
           .signature-line {
+            border-top: 1.5px dotted #222222;
+            width: 82%;
+            margin: 0 auto 6px;
+          }
+
+          .signature-name {
+            text-align: center;
             font-size: 11px;
-            color: #0f172a;
-            margin-bottom: 8px;
           }
 
-          .signature-name,
-          .signature-role {
+          .ta-center {
+            text-align: center;
+          }
+
+          .summary-card {
+            border: 1.8px solid #1b1b1b;
+            border-radius: 16px;
+            padding: 16px;
+          }
+
+          .summary-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 6px;
+          }
+
+          .summary-subtitle {
+            font-size: 13px;
+            margin-bottom: 12px;
+          }
+
+          .summary-section-title {
+            font-size: 14px;
+            font-weight: 700;
+            margin: 16px 0 8px;
+          }
+
+          .summary-table th,
+          .summary-table td {
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
             font-size: 11px;
-            color: #334155;
           }
 
-          .bullet-list {
-            margin: 0;
-            padding-left: 18px;
+          .summary-table th {
+            width: 180px;
+            font-weight: 700;
           }
 
-          .bullet-list li {
-            margin: 4px 0;
-          }
-
-          .json-block {
+          pre {
             margin: 0;
             white-space: pre-wrap;
             word-break: break-word;
-            font-size: 10px;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 10px;
-          }
-
-          .page-break {
-            page-break-before: always;
-            break-before: page;
-          }
-
-          .avoid-break {
-            break-inside: avoid;
-            page-break-inside: avoid;
+            font-family: "Noto Sans Thai", Arial, sans-serif;
           }
         </style>
       </head>
@@ -1457,6 +1635,8 @@ export async function buildReportPdf(data: PdfExportData): Promise<Buffer> {
     await page.setContent(html, {
       waitUntil: ["domcontentloaded", "networkidle0"],
     });
+
+    await page.emulateMediaType("screen");
 
     const pdf = await page.pdf({
       format: "A4",
