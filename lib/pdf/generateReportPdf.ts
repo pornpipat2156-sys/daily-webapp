@@ -660,8 +660,8 @@ async function getBrowser() {
   const isVercel = Boolean(process.env.VERCEL);
   const macPath =
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-  const linuxPath = "/usr/bin/google-chrome";
   const linuxAltPath = "/usr/bin/chromium-browser";
+  const linuxPath = "/usr/bin/google-chrome";
   const winPath =
     "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 
@@ -673,7 +673,7 @@ async function getBrowser() {
         ? macPath
         : process.platform === "win32"
           ? winPath
-          : linuxAltPath);
+          : linuxPath || linuxAltPath);
 
   return puppeteer.default.launch({
     headless: true,
@@ -704,16 +704,34 @@ export async function buildReportPdf(input: {
       });
     }
 
-    await page.goto(input.previewUrl, {
-      waitUntil: "networkidle0",
+    const response = await page.goto(input.previewUrl, {
+      waitUntil: "domcontentloaded",
       timeout: 60000,
     });
 
-    await page.emulateMediaType("screen");
+    if (!response) {
+      throw new Error("เปิดหน้า preview สำหรับ PDF ไม่สำเร็จ");
+    }
 
-    await page.waitForSelector("[data-pdf-preview-root='1']", {
+    const finalUrl = page.url();
+    if (
+      finalUrl.includes("/login") ||
+      finalUrl.includes("/api/auth") ||
+      finalUrl.includes("error")
+    ) {
+      throw new Error("preview route ถูก redirect หรือเข้าใช้งานไม่ได้");
+    }
+
+    await page.waitForSelector("body", {
       timeout: 15000,
     });
+
+    await page.waitForNetworkIdle({
+      idleTime: 800,
+      timeout: 30000,
+    }).catch(() => null);
+
+    await page.emulateMediaType("screen");
 
     await page.addStyleTag({
       content: `
@@ -721,15 +739,16 @@ export async function buildReportPdf(input: {
           margin: 0 !important;
           padding: 0 !important;
           background: #ffffff !important;
-        }
-
-        body {
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
 
-        #__next-build-watcher,
+        header,
+        nav,
+        aside,
+        footer,
         nextjs-portal,
+        #__next-build-watcher,
         [data-nextjs-toast],
         [data-next-badge-root],
         [data-next-mark],
@@ -737,9 +756,7 @@ export async function buildReportPdf(input: {
         [aria-label="Open Next.js Dev Tools"],
         [data-vercel-toolbar],
         iframe,
-        script[src*="vercel"],
-        div[style*="position: fixed"][style*="bottom"],
-        div[style*="position:fixed"][style*="bottom"] {
+        button {
           display: none !important;
           visibility: hidden !important;
         }
@@ -749,11 +766,27 @@ export async function buildReportPdf(input: {
           margin: 0 auto !important;
           padding: 0 !important;
           background: #ffffff !important;
+          overflow: hidden !important;
         }
       `,
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 1800));
+    const hasPdfRoot = await page.$("[data-pdf-preview-root='1']");
+    if (!hasPdfRoot) {
+      const bodyText = await page.evaluate(() => {
+        return document.body?.innerText?.slice(0, 500) || "";
+      });
+
+      if (bodyText.includes("404") || bodyText.includes("not found")) {
+        throw new Error("ไม่พบหน้า preview สำหรับสร้าง PDF");
+      }
+
+      if (bodyText.includes("sign in") || bodyText.includes("login")) {
+        throw new Error("preview route ต้องเข้าสู่ระบบก่อนใช้งาน");
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1200));
 
     const pdf = await page.pdf({
       format: "A4",
