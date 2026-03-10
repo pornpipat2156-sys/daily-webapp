@@ -226,14 +226,148 @@ function isTemplatePlaceholder(value: string) {
   return s.includes("${") && s.includes("}");
 }
 
-function resolveAnnexDisplay(pm: ProjectMetaUnified) {
+function safeDateFromString(value?: string) {
+  const s = String(value || "").trim();
+  if (!s || s === "-") return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+  }
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+    const [d, m, y] = s.split("/").map(Number);
+    const adYear = y > 2400 ? y - 543 : y;
+    return new Date(Date.UTC(adYear, m - 1, d, 0, 0, 0, 0));
+  }
+
+  const parsed = new Date(s);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function diffDaysInclusive(start: Date, end: Date) {
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const startUtc = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+  const endUtc = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+  return Math.floor((endUtc - startUtc) / msPerDay) + 1;
+}
+
+function clampPositiveInt(value: number, fallback = 0) {
+  if (!Number.isFinite(value)) return fallback;
+  const n = Math.floor(value);
+  return n > 0 ? n : fallback;
+}
+
+function parseLeadingPositiveInt(value?: string) {
+  const s = String(value || "").trim();
+  const m = s.match(/^(\d+)/);
+  if (!m) return 0;
+  return clampPositiveInt(Number(m[1]), 0);
+}
+
+function computeDisplayNumbers(pm: ProjectMetaUnified, reportDate: string) {
+  const contractStartDate = safeDateFromString(pm.contractStart);
+  const reportDt = safeDateFromString(reportDate);
+
+  let totalDays = clampPositiveInt(Number(pm.totalDurationDays || 0), 0);
+  let installmentCount = clampPositiveInt(Number(pm.installmentCount || 0), 0);
+
+  let dayNo = parseLeadingPositiveInt(pm.dailyReportNo);
+  let periodIndex = parseLeadingPositiveInt(pm.periodNo);
+  let weekIndex = parseLeadingPositiveInt(pm.weekNo);
+
+  if (!dayNo && contractStartDate && reportDt) {
+    dayNo = clampPositiveInt(diffDaysInclusive(contractStartDate, reportDt), 0);
+  }
+
+  if (!totalDays && contractStartDate) {
+    const contractEndDate = safeDateFromString(pm.contractEnd);
+    if (contractEndDate) {
+      totalDays = clampPositiveInt(diffDaysInclusive(contractStartDate, contractEndDate), 0);
+    }
+  }
+
+  if (!dayNo && totalDays > 0) dayNo = 1;
+  if (totalDays > 0 && dayNo > totalDays) dayNo = totalDays;
+
+  let totalWeeks = clampPositiveInt(Math.ceil(totalDays / 7), 0);
+  if (!weekIndex && dayNo > 0) {
+    weekIndex = clampPositiveInt(Math.ceil(dayNo / 7), 0);
+  }
+  if (totalWeeks > 0 && weekIndex > totalWeeks) weekIndex = totalWeeks;
+
+  if (!periodIndex && dayNo > 0 && totalDays > 0 && installmentCount > 0) {
+    const daysPerInstallment = totalDays / installmentCount;
+    if (daysPerInstallment > 0) {
+      periodIndex = clampPositiveInt(Math.ceil(dayNo / daysPerInstallment), 0);
+    }
+  }
+  if (installmentCount > 0 && periodIndex > installmentCount) {
+    periodIndex = installmentCount;
+  }
+
+  return {
+    dayNo,
+    totalDays,
+    periodIndex,
+    installmentCount,
+    weekIndex,
+    totalWeeks,
+  };
+}
+
+function resolveAnnexDisplay(pm: ProjectMetaUnified, reportDate: string) {
   const annexNo = String(pm.annexNo || "").trim();
-  if (annexNo && !isTemplatePlaceholder(annexNo)) return annexNo;
+  if (annexNo && !isTemplatePlaceholder(annexNo) && annexNo !== "1") return annexNo;
+
+  const nums = computeDisplayNumbers(pm, reportDate);
+  if (nums.dayNo > 0 && nums.totalDays > 0) {
+    return `${nums.dayNo}/${nums.totalDays}`;
+  }
 
   const dailyReportNo = String(pm.dailyReportNo || "").trim();
   if (dailyReportNo && !isTemplatePlaceholder(dailyReportNo)) return dailyReportNo;
 
   return annexNo || dailyReportNo || "-";
+}
+
+function resolveDailyReportDisplay(pm: ProjectMetaUnified, reportDate: string) {
+  const value = String(pm.dailyReportNo || "").trim();
+  if (value && !isTemplatePlaceholder(value) && value !== "1") return value;
+
+  const nums = computeDisplayNumbers(pm, reportDate);
+  if (nums.dayNo > 0 && nums.totalDays > 0) {
+    return `${nums.dayNo}/${nums.totalDays}`;
+  }
+
+  return value || "-";
+}
+
+function resolvePeriodDisplay(pm: ProjectMetaUnified, reportDate: string) {
+  const value = String(pm.periodNo || "").trim();
+  if (value && !isTemplatePlaceholder(value) && value.includes("/")) return value;
+
+  const nums = computeDisplayNumbers(pm, reportDate);
+  if (nums.periodIndex > 0 && nums.installmentCount > 0) {
+    return `${nums.periodIndex}/${nums.installmentCount}`;
+  }
+
+  if (value && !isTemplatePlaceholder(value) && value !== "0") return value;
+  return value || "-";
+}
+
+function resolveWeekDisplay(pm: ProjectMetaUnified, reportDate: string) {
+  const value = String(pm.weekNo || "").trim();
+  if (value && !isTemplatePlaceholder(value) && value.includes("/")) return value;
+
+  const nums = computeDisplayNumbers(pm, reportDate);
+  if (nums.weekIndex > 0 && nums.totalWeeks > 0) {
+    return `${nums.weekIndex}/${nums.totalWeeks}`;
+  }
+
+  if (value && !isTemplatePlaceholder(value) && value !== "0") return value;
+  return value || "-";
 }
 
 function normalizeModel(raw: any): ReportRenderModel {
@@ -520,7 +654,10 @@ export function ReportPreviewForm({
 
   const hasIssues = issuesList.length > 0;
   const pm = model.projectMeta;
-  const annexDisplay = resolveAnnexDisplay(pm);
+  const annexDisplay = resolveAnnexDisplay(pm, model.date);
+  const dailyReportDisplay = resolveDailyReportDisplay(pm, model.date);
+  const periodDisplay = resolvePeriodDisplay(pm, model.date);
+  const weekDisplay = resolveWeekDisplay(pm, model.date);
 
   return (
     <>
@@ -669,9 +806,9 @@ export function ReportPreviewForm({
                   </div>
 
                   <div className="col-span-3 border-t-2 border-l-2 border-black p-2">
-                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{pm.dailyReportNo}</div>
-                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{pm.periodNo}</div>
-                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm">{pm.weekNo}</div>
+                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{dailyReportDisplay}</div>
+                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm mb-2">{periodDisplay}</div>
+                    <div className="border-2 border-black bg-yellow-50 p-2 text-sm">{weekDisplay}</div>
                   </div>
                 </div>
               </div>
