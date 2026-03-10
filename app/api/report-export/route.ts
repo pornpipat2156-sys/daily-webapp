@@ -16,7 +16,21 @@ function str(v: unknown, fallback = "") {
 }
 
 function sanitizeFileName(value: string) {
-  return value.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
+  return value
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function toAsciiFileName(value: string) {
+  const cleaned = sanitizeFileName(value);
+  const asciiOnly = cleaned
+    .normalize("NFKD")
+    .replace(/[^\x20-\x7E]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return asciiOnly || "report.pdf";
 }
 
 function buildFileName(
@@ -82,13 +96,17 @@ export async function POST(req: NextRequest) {
 
     const pdfBuffer = await buildReportPdf(result);
     const pdfBytes = new Uint8Array(pdfBuffer);
-    const fileName = buildFileName(result.projectName, result.reportType);
+
+    const unicodeFileName = buildFileName(result.projectName, result.reportType);
+    const asciiFileName = toAsciiFileName(unicodeFileName);
 
     return new NextResponse(pdfBytes, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+        "Content-Disposition": `attachment; filename="${asciiFileName}"; filename*=UTF-8''${encodeURIComponent(
+          unicodeFileName
+        )}`,
         "Cache-Control": "no-store, max-age=0",
         "Content-Length": String(pdfBytes.byteLength),
       },
