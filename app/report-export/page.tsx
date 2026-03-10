@@ -44,11 +44,10 @@ function ExportGlobalStyle() {
 
       @page {
         size: A4 portrait;
-        margin-top: 10mm;
-        margin-left: 10mm;
+        margin-top: 5mm;
         margin-right: 10mm;
         margin-bottom: 10mm;
-
+        margin-left: 10mm;
       }
 
       * {
@@ -82,7 +81,7 @@ function ExportGlobalStyle() {
         margin: 0 auto !important;
         padding: 0 !important;
         background: #ffffff !important;
-        overflow: hidden !important;
+        overflow: visible !important;
         font-family: "Noto Sans Thai", Arial, sans-serif !important;
       }
 
@@ -98,7 +97,6 @@ function ExportGlobalStyle() {
         page-break-inside: avoid;
       }
 
-      /* Smart page-break behavior */
       [data-pdf-preview-root="1"] table {
         width: 100%;
         border-collapse: collapse;
@@ -128,27 +126,19 @@ function ExportGlobalStyle() {
         vertical-align: top;
       }
 
+      [data-pdf-preview-root="1"] .pdf-page-break {
+        break-before: page !important;
+        page-break-before: always !important;
+      }
+
+      [data-pdf-preview-root="1"] .pdf-avoid-break,
       [data-pdf-preview-root="1"] .avoid-break,
-      [data-pdf-preview-root="1"] .page-section,
       [data-pdf-preview-root="1"] .issue-card,
-      [data-pdf-preview-root="1"] .signature-card,
-      [data-pdf-preview-root="1"] .weather-box,
-      [data-pdf-preview-root="1"] .project-team-box,
-      [data-pdf-preview-root="1"] .safety-box,
-      [data-pdf-preview-root="1"] .comments-box {
+      [data-pdf-preview-root="1"] .signature-card {
         break-inside: avoid-page !important;
         page-break-inside: avoid !important;
       }
 
-      /* Generic fallback for bordered blocks/cards in the preview */
-      [data-pdf-preview-root="1"] div[style*="border"],
-      [data-pdf-preview-root="1"] section,
-      [data-pdf-preview-root="1"] article {
-        break-inside: avoid-page;
-        page-break-inside: avoid;
-      }
-
-      /* Keep headings with the content below them */
       [data-pdf-preview-root="1"] h1,
       [data-pdf-preview-root="1"] h2,
       [data-pdf-preview-root="1"] h3,
@@ -159,7 +149,6 @@ function ExportGlobalStyle() {
         page-break-after: avoid;
       }
 
-      /* Allow long text to wrap instead of forcing ugly splits */
       [data-pdf-preview-root="1"] td,
       [data-pdf-preview-root="1"] th,
       [data-pdf-preview-root="1"] p,
@@ -169,20 +158,152 @@ function ExportGlobalStyle() {
         word-break: break-word;
       }
 
-      /* Optional utility if the form already uses manual page split blocks */
-      [data-pdf-preview-root="1"] .page-break,
-      [data-pdf-preview-root="1"] .pdf-page-break {
-        break-before: page;
-        page-break-before: always;
-      }
-
-      /* Prevent tiny orphan/widow chunks where browsers support it */
       [data-pdf-preview-root="1"] p,
       [data-pdf-preview-root="1"] li {
         orphans: 3;
         widows: 3;
       }
     `}</style>
+  );
+}
+
+function PaginationScript() {
+  return (
+    <script
+      dangerouslySetInnerHTML={{
+        __html: `
+(function () {
+  function runSmartPagination() {
+    var root = document.querySelector('[data-pdf-preview-root="1"]');
+    if (!root) return;
+
+    root.querySelectorAll('.pdf-page-break').forEach(function (el) {
+      el.classList.remove('pdf-page-break');
+    });
+
+    var PX_PER_INCH = 96;
+    var A4_HEIGHT_PX = Math.round(11.6929 * PX_PER_INCH); // ~1122.5
+    var TOP_MARGIN_PX = Math.round(1.5 * PX_PER_INCH);    // 144
+    var OTHER_MARGIN_PX = Math.round((10 / 25.4) * PX_PER_INCH); // ~38
+    var CONTENT_HEIGHT = A4_HEIGHT_PX - TOP_MARGIN_PX - OTHER_MARGIN_PX;
+
+    function topWithinRoot(el) {
+      var r = el.getBoundingClientRect();
+      var rr = root.getBoundingClientRect();
+      return r.top - rr.top;
+    }
+
+    function shouldAvoidBreak(el) {
+      var text = (el.textContent || "").trim();
+      if (!text) return false;
+
+      return (
+        text.includes("รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว") ||
+        text.includes("WORK PERFORMED") ||
+        text.includes("บันทึกด้านความปลอดภัยในการทำงาน") ||
+        text.includes("รายชื่อผู้ควบคุมงาน") ||
+        text.includes("PROJECT TEAM") ||
+        text.includes("ปัญหา") ||
+        text.includes("อุปสรรค") ||
+        text.includes("Issues") ||
+        text.includes("Obstacles")
+      );
+    }
+
+    function pickBlock(el) {
+      var current = el;
+      while (current && current !== root) {
+        if (
+          current.tagName === "TABLE" ||
+          current.classList.contains("pdf-avoid-break") ||
+          current.classList.contains("avoid-break")
+        ) {
+          return current;
+        }
+
+        var style = window.getComputedStyle(current);
+        var hasBorder =
+          parseFloat(style.borderTopWidth || "0") > 0 ||
+          parseFloat(style.borderRightWidth || "0") > 0 ||
+          parseFloat(style.borderBottomWidth || "0") > 0 ||
+          parseFloat(style.borderLeftWidth || "0") > 0;
+
+        if (hasBorder || style.borderRadius !== "0px") {
+          return current;
+        }
+
+        current = current.parentElement;
+      }
+      return el;
+    }
+
+    root.querySelectorAll("tr").forEach(function (row) {
+      row.classList.add("pdf-avoid-break");
+      row.style.breakInside = "avoid-page";
+      row.style.pageBreakInside = "avoid";
+    });
+
+    var candidateSet = new Set();
+
+    root.querySelectorAll("table").forEach(function (el) {
+      candidateSet.add(el);
+    });
+
+    root.querySelectorAll("div, section, article").forEach(function (el) {
+      if (shouldAvoidBreak(el)) {
+        candidateSet.add(pickBlock(el));
+      }
+    });
+
+    var candidates = Array.from(candidateSet)
+      .filter(function (el) {
+        return el && el !== root && typeof el.getBoundingClientRect === "function";
+      })
+      .sort(function (a, b) {
+        return topWithinRoot(a) - topWithinRoot(b);
+      });
+
+    for (var pass = 0; pass < 3; pass++) {
+      var changed = false;
+
+      candidates.forEach(function (el) {
+        var rect = el.getBoundingClientRect();
+        var height = rect.height;
+        if (!height) return;
+
+        var top = topWithinRoot(el);
+        var offsetInPage = ((top % CONTENT_HEIGHT) + CONTENT_HEIGHT) % CONTENT_HEIGHT;
+        var remaining = CONTENT_HEIGHT - offsetInPage;
+
+        if (height > remaining && offsetInPage > 24 && height < CONTENT_HEIGHT * 0.95) {
+          if (!el.classList.contains("pdf-page-break")) {
+            el.classList.add("pdf-page-break");
+            changed = true;
+          }
+        }
+      });
+
+      if (!changed) break;
+    }
+  }
+
+  function boot() {
+    runSmartPagination();
+    setTimeout(runSmartPagination, 300);
+    setTimeout(runSmartPagination, 900);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+
+  window.addEventListener("load", boot);
+})();
+        `,
+      }}
+    />
   );
 }
 
@@ -234,6 +355,7 @@ export default async function ReportExportPage({
         }}
       >
         <ExportGlobalStyle />
+        <PaginationScript />
 
         <div
           data-pdf-preview-root="1"
@@ -242,7 +364,7 @@ export default async function ReportExportPage({
             margin: "0 auto",
             padding: 0,
             background: "#ffffff",
-            overflow: "hidden",
+            overflow: "visible",
           }}
         >
           <MessageBox message="ข้อมูลสำหรับสร้าง PDF ไม่ถูกต้อง" />
@@ -267,6 +389,7 @@ export default async function ReportExportPage({
         }}
       >
         <ExportGlobalStyle />
+        <PaginationScript />
 
         <div
           data-pdf-preview-root="1"
@@ -275,7 +398,7 @@ export default async function ReportExportPage({
             margin: "0 auto",
             padding: 0,
             background: "#ffffff",
-            overflow: "hidden",
+            overflow: "visible",
           }}
         >
           <MessageBox message={result.message || "ไม่พบรายงาน"} />
@@ -293,6 +416,7 @@ export default async function ReportExportPage({
       }}
     >
       <ExportGlobalStyle />
+      <PaginationScript />
 
       <div
         data-pdf-preview-root="1"
@@ -301,7 +425,7 @@ export default async function ReportExportPage({
           margin: "0 auto",
           padding: 0,
           background: "#ffffff",
-          overflow: "hidden",
+          overflow: "visible",
         }}
       >
         {result.renderMode === "daily" ? (
