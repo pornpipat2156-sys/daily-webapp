@@ -44,7 +44,7 @@ function ExportGlobalStyle() {
 
       @page {
         size: A4 portrait;
-        margin-top: 10mm; 
+        margin-top: 38.1mm;   /* 1.5 inch */
         margin-right: 10mm;
         margin-bottom: 10mm;
         margin-left: 10mm;
@@ -87,6 +87,30 @@ function ExportGlobalStyle() {
 
       [data-pdf-preview-root="1"] * {
         font-family: "Noto Sans Thai", Arial, sans-serif !important;
+      }
+
+      /* สำคัญ: ปิด preview scale เฉพาะตอน export PDF */
+      [data-pdf-preview-root="1"] [style*="transform: scale("] {
+        transform: none !important;
+        transform-origin: top left !important;
+      }
+
+      [data-pdf-preview-root="1"] [style*="scale("] {
+        transform: none !important;
+      }
+
+      /* กัน wrapper ที่ถูกคำนวณความสูงจาก scaled preview */
+      [data-pdf-preview-root="1"] [style*="height: calc("],
+      [data-pdf-preview-root="1"] [style*="height:calc("] {
+        height: auto !important;
+        min-height: 0 !important;
+      }
+
+      /* ทำให้ A4 block ใช้ความกว้างจริงตอน export */
+      [data-pdf-preview-root="1"] [style*="width: 794px"],
+      [data-pdf-preview-root="1"] [style*="width:794px"] {
+        width: 794px !important;
+        max-width: 794px !important;
       }
 
       img,
