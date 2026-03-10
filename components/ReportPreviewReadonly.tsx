@@ -1,4 +1,3 @@
-// components/ReportPreviewReadonly.tsx
 "use client";
 
 import Image from "next/image";
@@ -220,6 +219,21 @@ function normStr(s: any) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ");
+}
+
+function isTemplatePlaceholder(value: string) {
+  const s = String(value || "").trim();
+  return s.includes("${") && s.includes("}");
+}
+
+function resolveAnnexDisplay(pm: ProjectMetaUnified) {
+  const annexNo = String(pm.annexNo || "").trim();
+  if (annexNo && !isTemplatePlaceholder(annexNo)) return annexNo;
+
+  const dailyReportNo = String(pm.dailyReportNo || "").trim();
+  if (dailyReportNo && !isTemplatePlaceholder(dailyReportNo)) return dailyReportNo;
+
+  return annexNo || dailyReportNo || "-";
 }
 
 function normalizeModel(raw: any): ReportRenderModel {
@@ -506,6 +520,7 @@ export function ReportPreviewForm({
 
   const hasIssues = issuesList.length > 0;
   const pm = model.projectMeta;
+  const annexDisplay = resolveAnnexDisplay(pm);
 
   return (
     <>
@@ -597,7 +612,7 @@ export function ReportPreviewForm({
                     </tr>
                     <tr>
                       <td className="cell">บันทึกแนบท้ายที่</td>
-                      <td className="cell">{pm.annexNo}</td>
+                      <td className="cell">{annexDisplay}</td>
                       <td className="cell">วงเงินค่าก่อสร้าง</td>
                       <td className="cell">{pm.contractValue}</td>
                     </tr>
