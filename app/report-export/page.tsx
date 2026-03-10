@@ -51,6 +51,7 @@ function ExportGlobalStyle() {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
         font-family: "Noto Sans Thai", Arial, sans-serif !important;
+        box-sizing: border-box;
       }
 
       header,
@@ -85,8 +86,97 @@ function ExportGlobalStyle() {
         font-family: "Noto Sans Thai", Arial, sans-serif !important;
       }
 
-      img {
+      img,
+      svg,
+      canvas {
         max-width: 100%;
+        break-inside: avoid-page;
+        page-break-inside: avoid;
+      }
+
+      /* Smart page-break behavior */
+      [data-pdf-preview-root="1"] table {
+        width: 100%;
+        border-collapse: collapse;
+        break-inside: auto;
+        page-break-inside: auto;
+      }
+
+      [data-pdf-preview-root="1"] thead {
+        display: table-header-group;
+      }
+
+      [data-pdf-preview-root="1"] tfoot {
+        display: table-footer-group;
+      }
+
+      [data-pdf-preview-root="1"] tbody {
+        break-inside: auto;
+        page-break-inside: auto;
+      }
+
+      [data-pdf-preview-root="1"] tr,
+      [data-pdf-preview-root="1"] th,
+      [data-pdf-preview-root="1"] td {
+        break-inside: avoid-page;
+        page-break-inside: avoid;
+        page-break-after: auto;
+        vertical-align: top;
+      }
+
+      [data-pdf-preview-root="1"] .avoid-break,
+      [data-pdf-preview-root="1"] .page-section,
+      [data-pdf-preview-root="1"] .issue-card,
+      [data-pdf-preview-root="1"] .signature-card,
+      [data-pdf-preview-root="1"] .weather-box,
+      [data-pdf-preview-root="1"] .project-team-box,
+      [data-pdf-preview-root="1"] .safety-box,
+      [data-pdf-preview-root="1"] .comments-box {
+        break-inside: avoid-page !important;
+        page-break-inside: avoid !important;
+      }
+
+      /* Generic fallback for bordered blocks/cards in the preview */
+      [data-pdf-preview-root="1"] div[style*="border"],
+      [data-pdf-preview-root="1"] section,
+      [data-pdf-preview-root="1"] article {
+        break-inside: avoid-page;
+        page-break-inside: avoid;
+      }
+
+      /* Keep headings with the content below them */
+      [data-pdf-preview-root="1"] h1,
+      [data-pdf-preview-root="1"] h2,
+      [data-pdf-preview-root="1"] h3,
+      [data-pdf-preview-root="1"] h4,
+      [data-pdf-preview-root="1"] h5,
+      [data-pdf-preview-root="1"] h6 {
+        break-after: avoid-page;
+        page-break-after: avoid;
+      }
+
+      /* Allow long text to wrap instead of forcing ugly splits */
+      [data-pdf-preview-root="1"] td,
+      [data-pdf-preview-root="1"] th,
+      [data-pdf-preview-root="1"] p,
+      [data-pdf-preview-root="1"] span,
+      [data-pdf-preview-root="1"] div {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+
+      /* Optional utility if the form already uses manual page split blocks */
+      [data-pdf-preview-root="1"] .page-break,
+      [data-pdf-preview-root="1"] .pdf-page-break {
+        break-before: page;
+        page-break-before: always;
+      }
+
+      /* Prevent tiny orphan/widow chunks where browsers support it */
+      [data-pdf-preview-root="1"] p,
+      [data-pdf-preview-root="1"] li {
+        orphans: 3;
+        widows: 3;
       }
     `}</style>
   );
