@@ -620,26 +620,18 @@ export default function InputPage() {
             </PreviewStateBox>
           ) : "found" in result && result.found === false ? (
             <PreviewStateBox>{result.message || "ไม่พบรายงาน"}</PreviewStateBox>
-          ) : "renderMode" in result && result.renderMode === "daily" ? (
-            <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-950">
-              <div className="overflow-x-auto">
-                <div className="min-w-[820px]">
-                  <ReportPreviewForm
-                    model={result.dailyModel}
-                    renderIssueCommentCell={(issue) =>
-                      renderInputIssueCommentCell(issue)
-                    }
-                  />
-                </div>
-              </div>
+                    ) : "renderMode" in result && result.renderMode === "daily" ? (
+            <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white p-1 shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-950 sm:p-2">
+              <ReportPreviewForm
+                model={result.dailyModel}
+                renderIssueCommentCell={(issue) =>
+                  renderInputIssueCommentCell(issue)
+                }
+              />
             </div>
           ) : "renderMode" in result && result.renderMode === "summary" ? (
-            <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-950">
-              <div className="overflow-x-auto">
-                <div className="min-w-[820px]">
-                  <SummaryAggregatePreview model={result.summaryModel} />
-                </div>
-              </div>
+            <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white p-1 shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-950 sm:p-2">
+              <SummaryAggregatePreview model={result.summaryModel} />
             </div>
           ) : (
             <PreviewStateBox>ไม่สามารถแสดง Preview ได้</PreviewStateBox>
