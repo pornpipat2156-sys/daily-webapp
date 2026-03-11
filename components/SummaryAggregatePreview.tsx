@@ -3,8 +3,10 @@
 
 import { useMemo, type ReactNode } from "react";
 
+export type SummaryReportType = "DAILY" | "WEEKLY" | "MONTHLY";
+
 export type SummaryDocumentModel = {
-  reportType: "WEEKLY" | "MONTHLY";
+  reportType: SummaryReportType;
   documentTitle: string;
   projectName: string;
   periodLabel: string;
@@ -36,24 +38,22 @@ function str(value: unknown, fallback = "-") {
   return s || fallback;
 }
 
+function num(value: unknown, fallback = 0) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const cleaned = value.replace(/,/g, "").trim();
+    const parsed = Number(cleaned);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
 function primitiveOrDash(value: unknown) {
   if (value == null) return "-";
   if (typeof value === "string") return value.trim() || "-";
   if (typeof value === "number") return Number.isFinite(value) ? String(value) : "-";
   if (typeof value === "boolean") return value ? "ใช่" : "ไม่";
   return "-";
-}
-
-function compactDate(value: string) {
-  const s = String(value || "").trim();
-  if (!s) return "-";
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return s;
-  return d.toLocaleDateString("th-TH", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
 }
 
 function extractFirst<T>(...values: unknown[]): T | undefined {
@@ -81,8 +81,50 @@ function getByAliases(record: AnyRecord | null | undefined, aliases: string[]) {
   return undefined;
 }
 
+function formatDateBE(input?: string | null) {
+  const raw = String(input ?? "").trim();
+  if (!raw || raw === "-") return "-";
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear() + 543;
+  return `${day}/${month}/${year}`;
+}
+
+function formatDateThai(input?: string | null) {
+  const raw = String(input ?? "").trim();
+  if (!raw || raw === "-") return "-";
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function formatInteger(value?: number | null) {
+  if (value == null || Number.isNaN(Number(value))) return "-";
+  return Number(value).toLocaleString("th-TH", { maximumFractionDigits: 0 });
+}
+
+function formatNumber(value?: number | null, digits = 2) {
+  if (value == null || Number.isNaN(Number(value))) return "-";
+  return Number(value).toLocaleString("th-TH", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+function textOrDash(value?: string | null) {
+  const v = String(value ?? "").trim();
+  return v || "-";
+}
+
 function titleCaseLabel(key: string) {
-  const normalized = key
+  const normalized = String(key || "")
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/[_-]+/g, " ")
     .trim();
@@ -95,141 +137,122 @@ function titleCaseLabel(key: string) {
     contractValue: "วงเงินค่าก่อสร้าง",
     contractorName: "ผู้รับจ้าง",
     procurementMethod: "วิธีจัดซื้อจัดจ้าง",
-    annexNo: "ภาคผนวก",
     periodNo: "งวดงาน",
     weekNo: "สัปดาห์",
-    installmentCount: "จำนวนงวด",
-    totalDurationDays: "ระยะเวลาตามสัญญา",
+    month: "เดือน",
+    year: "ปี",
   };
 
   return dictionary[key] || normalized || key;
 }
 
-function normalizeSummaryData(model: SummaryDocumentModel) {
+type NormalizedSummary = {
+  weekNo: number;
+  monthNo: number;
+  year: number;
+  projectSummary: {
+    projectName: string;
+    contractNo: string;
+    installmentLabel: string;
+    contractorName: string;
+    siteLocation: string;
+    contractStart: string;
+    contractEnd: string;
+    contractValue: string;
+    procurementMethod: string;
+  };
+  timeSummary: {
+    contractDays: number | null;
+    previousUsedDays: number | null;
+    currentPeriodDays: number | null;
+    accumulatedDays: number | null;
+    remainingDays: number | null;
+    varianceDays: number | null;
+  };
+  workItems: Array<{
+    id: string;
+    description: string;
+    qty: number | null;
+    unit: string | null;
+    location: string | null;
+    remark: string | null;
+  }>;
+  comments: string;
+  problems: Array<{
+    id: string;
+    topic: string;
+    impact: string | null;
+    solution: string | null;
+  }>;
+  safety: {
+    note: string;
+    accidentCount: number | null;
+    injuredCount: number | null;
+    lostTimeCount: number | null;
+  };
+  progress: Array<{
+    id: string;
+    category: string;
+    weightPercent: number;
+    previousPercent: number;
+    currentPercent: number;
+    accumulatedPercent: number;
+    remainingPercent: number;
+    plannedPercent: number | null;
+    variancePercent: number | null;
+  }>;
+  supervisors: Array<{
+    name: string;
+    role: string;
+  }>;
+  payload: AnyRecord;
+  meta: AnyRecord;
+};
+
+function normalizeSummaryData(model: SummaryDocumentModel): NormalizedSummary {
   const payload = toRecord(model.payload) || {};
   const meta = toRecord(model.projectMeta) || {};
 
-  const payloadHeader =
-    toRecord(getByAliases(payload, ["header", "reportHeader", "documentHeader"])) || {};
-  const payloadSummary =
-    toRecord(getByAliases(payload, ["summary", "weeklySummary", "monthlySummary"])) || {};
-  const payloadDuration =
-    toRecord(getByAliases(payload, ["durationSummary", "timeSummary", "scheduleSummary"])) || {};
-  const payloadSafety =
-    toRecord(getByAliases(payload, ["safetySummary", "safety", "safetyStats"])) || {};
-  const payloadProgress =
-    toRecord(getByAliases(payload, ["progressSummary", "progress", "progressTable"])) || {};
-  const payloadComment =
-    toRecord(getByAliases(payload, ["commentary", "comments", "supervisorCommentSection"])) || {};
+  const header =
+    toRecord(
+      extractFirst(
+        getByAliases(payload, ["header", "reportHeader", "documentHeader"]),
+        getByAliases(payload, ["summary"])
+      )
+    ) || {};
 
-  const weekNoRaw = extractFirst(
-    getByAliases(payloadHeader, ["weekNo", "week", "weekNumber"]),
-    getByAliases(payload, ["weekNo", "week", "weekNumber"])
-  );
+  const summaryBlock =
+    toRecord(getByAliases(payload, ["summary", "projectSummary", "weeklySummary", "monthlySummary"])) || {};
 
-  const monthRaw = extractFirst(
-    getByAliases(payloadHeader, ["month", "monthNo", "monthNumber"]),
-    getByAliases(payload, ["month", "monthNo", "monthNumber"])
-  );
+  const timeSummary =
+    toRecord(getByAliases(payload, ["timeSummary", "durationSummary", "scheduleSummary"])) || {};
 
-  const yearRaw = extractFirst(
-    getByAliases(payloadHeader, ["year"]),
-    getByAliases(payload, ["year"])
-  );
+  const safety =
+    toRecord(getByAliases(payload, ["safety", "safetySummary", "safetyStats"])) || {};
 
-  const contract = {
-    contractNo: extractFirst(
-      getByAliases(payloadHeader, ["contractNo", "contractNumber"]),
-      getByAliases(payload, ["contractNo", "contractNumber"]),
-      getByAliases(meta, ["contractNo", "contractNumber"])
-    ),
-    siteLocation: extractFirst(
-      getByAliases(payloadHeader, ["siteLocation", "location"]),
-      getByAliases(payload, ["siteLocation", "location"]),
-      getByAliases(meta, ["siteLocation", "location"])
-    ),
-    periodNo: extractFirst(
-      getByAliases(payloadHeader, ["periodNo", "periodNumber"]),
-      getByAliases(payload, ["periodNo", "periodNumber"]),
-      getByAliases(meta, ["periodNo", "periodNumber"])
-    ),
-    contractValue: extractFirst(
-      getByAliases(payloadHeader, ["contractValue", "budget", "projectValue"]),
-      getByAliases(payload, ["contractValue", "budget", "projectValue"]),
-      getByAliases(meta, ["contractValue", "budget", "projectValue"])
-    ),
-    contractStart: extractFirst(
-      getByAliases(payloadHeader, ["contractStart", "startDate", "start"]),
-      getByAliases(payload, ["contractStart", "startDate", "start"]),
-      getByAliases(meta, ["contractStart", "startDate", "start"])
-    ),
-    contractorName: extractFirst(
-      getByAliases(payloadHeader, ["contractorName", "contractor", "vendorName"]),
-      getByAliases(payload, ["contractorName", "contractor", "vendorName"]),
-      getByAliases(meta, ["contractorName", "contractor", "vendorName"])
-    ),
-    contractEnd: extractFirst(
-      getByAliases(payloadHeader, ["contractEnd", "endDate", "end"]),
-      getByAliases(payload, ["contractEnd", "endDate", "end"]),
-      getByAliases(meta, ["contractEnd", "endDate", "end"])
-    ),
-    procurementMethod: extractFirst(
-      getByAliases(payloadHeader, ["procurementMethod", "purchaseMethod"]),
-      getByAliases(payload, ["procurementMethod", "purchaseMethod"]),
-      getByAliases(meta, ["procurementMethod", "purchaseMethod"])
-    ),
-  };
-
-  const durationRow = {
-    plan: extractFirst(
-      getByAliases(payloadDuration, ["accordingToContract", "plan", "contractDays", "total"]),
-      getByAliases(payloadSummary, ["accordingToContract", "plan", "contractDays", "total"])
-    ),
-    before: extractFirst(
-      getByAliases(payloadDuration, ["beforeThisWeek", "before", "previous"]),
-      getByAliases(payloadSummary, ["beforeThisWeek", "before", "previous"])
-    ),
-    thisPeriod: extractFirst(
-      getByAliases(payloadDuration, ["thisWeek", "thisMonth", "thisPeriod", "current"]),
-      getByAliases(payloadSummary, ["thisWeek", "thisMonth", "thisPeriod", "current"])
-    ),
-    cumulative: extractFirst(
-      getByAliases(payloadDuration, ["cumulative", "accumulated"]),
-      getByAliases(payloadSummary, ["cumulative", "accumulated"])
-    ),
-    remaining: extractFirst(
-      getByAliases(payloadDuration, ["remaining", "balance"]),
-      getByAliases(payloadSummary, ["remaining", "balance"])
-    ),
-    deviation: extractFirst(
-      getByAliases(payloadDuration, ["deviation", "variance", "delay"]),
-      getByAliases(payloadSummary, ["deviation", "variance", "delay"])
-    ),
-  };
-
-  const mergedWorkItems =
+  const workItemsRaw =
     toArray<AnyRecord>(
       extractFirst(
-        getByAliases(payload, ["mergedWorkItems", "workItems", "works", "weeklyWorks", "monthlyWorks"])
+        getByAliases(payload, ["workPerformedWeekly", "workPerformedMonthly", "mergedWorkItems", "workItems", "works"])
       )
     ) || [];
 
-  const issueRows =
+  const problemsRaw =
     toArray<AnyRecord>(
       extractFirst(
-        getByAliases(payload, ["issues", "issueSummary", "obstacles", "problemItems"])
+        getByAliases(payload, ["problemsAndObstacles", "issues", "issueSummary", "obstacles"])
       )
     ) || [];
 
-  const progressRows =
+  const progressRaw =
     toArray<AnyRecord>(
       extractFirst(
-        getByAliases(payloadProgress, ["items", "rows"]),
-        getByAliases(payload, ["progressItems", "progressRows"])
+        getByAliases(payload, ["progressByCategory", "progressItems", "progressRows"]),
+        getByAliases(payload, ["progress"])
       )
     ) || [];
 
-  const supervisors =
+  const supervisorsRaw =
     toArray<AnyRecord>(
       extractFirst(
         getByAliases(payload, ["supervisors", "approvedBy", "signers"]),
@@ -237,49 +260,271 @@ function normalizeSummaryData(model: SummaryDocumentModel) {
       )
     ) || [];
 
-  const supervisorComment = extractFirst(
-    getByAliases(payloadComment, ["text", "comment", "supervisorComment"]),
-    getByAliases(payload, ["supervisorComment", "comment", "controllerComment"]),
-    model.summary
+  const weekNo = num(
+    extractFirst(
+      getByAliases(payload, ["weekNo"]),
+      getByAliases(header, ["weekNo"]),
+      getByAliases(meta, ["weekNo"])
+    ),
+    0
   );
 
-  const safety = {
-    accident: extractFirst(
-      getByAliases(payloadSafety, ["accident", "accidents", "accidentCount"]),
-      getByAliases(payload, ["accident", "accidents", "accidentCount"])
+  const monthNo = num(
+    extractFirst(
+      getByAliases(payload, ["month", "monthNo"]),
+      getByAliases(header, ["month", "monthNo"])
     ),
-    injury: extractFirst(
-      getByAliases(payloadSafety, ["injury", "injuries", "injuryCount"]),
-      getByAliases(payload, ["injury", "injuries", "injuryCount"])
+    0
+  );
+
+  const year = num(
+    extractFirst(
+      getByAliases(payload, ["year"]),
+      getByAliases(header, ["year"])
     ),
-    lostTime: extractFirst(
-      getByAliases(payloadSafety, ["lostTime", "losttime"]),
-      getByAliases(payload, ["lostTime", "losttime"])
+    0
+  );
+
+  const projectSummary = {
+    projectName: str(
+      extractFirst(
+        getByAliases(summaryBlock, ["projectName"]),
+        getByAliases(payload, ["projectName"]),
+        getByAliases(meta, ["projectName"]),
+        model.projectName
+      ),
+      "-"
     ),
-    remark: extractFirst(
-      getByAliases(payloadSafety, ["remark", "remarks", "note"]),
-      getByAliases(payload, ["safetyRemark", "remark", "remarks"])
+    contractNo: str(
+      extractFirst(
+        getByAliases(summaryBlock, ["contractNo", "contractNumber"]),
+        getByAliases(payload, ["contractNo", "contractNumber"]),
+        getByAliases(meta, ["contractNo", "contractNumber"])
+      ),
+      "-"
+    ),
+    installmentLabel: str(
+      extractFirst(
+        getByAliases(summaryBlock, ["installmentLabel"]),
+        getByAliases(payload, ["installmentLabel"]),
+        getByAliases(meta, ["periodNo"]),
+        getByAliases(payload, ["periodNo"]),
+        getByAliases(meta, ["weekNo"])
+      ),
+      "-"
+    ),
+    contractorName: str(
+      extractFirst(
+        getByAliases(summaryBlock, ["contractorName", "contractor"]),
+        getByAliases(payload, ["contractorName", "contractor"]),
+        getByAliases(meta, ["contractorName", "contractor"])
+      ),
+      "-"
+    ),
+    siteLocation: str(
+      extractFirst(
+        getByAliases(summaryBlock, ["siteLocation", "location"]),
+        getByAliases(payload, ["siteLocation", "location"]),
+        getByAliases(meta, ["siteLocation", "location"])
+      ),
+      "-"
+    ),
+    contractStart: str(
+      extractFirst(
+        getByAliases(summaryBlock, ["contractStart", "startDate"]),
+        getByAliases(payload, ["contractStart", "startDate"]),
+        getByAliases(meta, ["contractStart", "startDate"])
+      ),
+      "-"
+    ),
+    contractEnd: str(
+      extractFirst(
+        getByAliases(summaryBlock, ["contractEnd", "endDate"]),
+        getByAliases(payload, ["contractEnd", "endDate"]),
+        getByAliases(meta, ["contractEnd", "endDate"])
+      ),
+      "-"
+    ),
+    contractValue: str(
+      extractFirst(
+        getByAliases(summaryBlock, ["contractValue", "budget", "projectValue"]),
+        getByAliases(payload, ["contractValue", "budget", "projectValue"]),
+        getByAliases(meta, ["contractValue", "budget", "projectValue"])
+      ),
+      "-"
+    ),
+    procurementMethod: str(
+      extractFirst(
+        getByAliases(summaryBlock, ["procurementMethod", "purchaseMethod"]),
+        getByAliases(payload, ["procurementMethod", "purchaseMethod"]),
+        getByAliases(meta, ["procurementMethod", "purchaseMethod"])
+      ),
+      "-"
     ),
   };
 
+  const normalizedTimeSummary = {
+    contractDays: extractFirst<number>(
+      num(getByAliases(timeSummary, ["contractDays", "accordingToContract", "plan"]), NaN),
+      num(getByAliases(payload, ["contractDays"]), NaN)
+    ),
+    previousUsedDays: extractFirst<number>(
+      num(getByAliases(timeSummary, ["previousUsedDays", "beforeThisWeek", "before", "previous"]), NaN)
+    ),
+    currentPeriodDays: extractFirst<number>(
+      num(getByAliases(timeSummary, ["currentWeekDays", "currentMonthDays", "thisWeek", "thisMonth", "thisPeriod"]), NaN)
+    ),
+    accumulatedDays: extractFirst<number>(
+      num(getByAliases(timeSummary, ["accumulatedDays", "cumulative", "accumulated"]), NaN)
+    ),
+    remainingDays: extractFirst<number>(
+      num(getByAliases(timeSummary, ["remainingDays", "remaining", "balance"]), NaN)
+    ),
+    varianceDays: extractFirst<number>(
+      num(getByAliases(timeSummary, ["varianceDays", "deviation", "variance", "delay"]), NaN)
+    ),
+  };
+
+  const comments = str(
+    extractFirst(
+      getByAliases(payload, ["comments", "comment", "supervisorComment", "controllerComment"]),
+      model.summary
+    ),
+    "-"
+  );
+
+  const normalizedWorkItems = workItemsRaw.map((row, index) => ({
+    id: str(extractFirst(row.id, row.code), `work-${index + 1}`),
+    description: str(
+      extractFirst(
+        getByAliases(row, ["description", "desc", "workName", "item", "title"])
+      ),
+      "-"
+    ),
+    qty: (() => {
+      const value = extractFirst(
+        getByAliases(row, ["qty", "quantity", "amount"])
+      );
+      const parsed = num(value, NaN);
+      return Number.isFinite(parsed) ? parsed : null;
+    })(),
+    unit: str(getByAliases(row, ["unit"]), "").trim() || null,
+    location: str(getByAliases(row, ["location", "position", "area"]), "").trim() || null,
+    remark: str(getByAliases(row, ["remark", "remarks", "note", "materialDelivered"]), "").trim() || null,
+  }));
+
+  const normalizedProblems = problemsRaw.map((row, index) => ({
+    id: str(extractFirst(row.id, row.code), `problem-${index + 1}`),
+    topic: str(extractFirst(getByAliases(row, ["topic", "title", "problem", "detail"])), "-"),
+    impact: str(getByAliases(row, ["impact", "effect", "result"]), "").trim() || null,
+    solution: str(getByAliases(row, ["solution", "fix", "resolution", "action"]), "").trim() || null,
+  }));
+
+  const normalizedSafety = {
+    note: str(
+      extractFirst(
+        getByAliases(safety, ["note", "remark", "remarks"]),
+        getByAliases(payload, ["safetyNote", "safetyRemark"])
+      ),
+      "-"
+    ),
+    accidentCount: (() => {
+      const parsed = num(
+        extractFirst(
+          getByAliases(safety, ["accidentCount", "accident", "accidents"]),
+          getByAliases(payload, ["accidentCount", "accident"])
+        ),
+        NaN
+      );
+      return Number.isFinite(parsed) ? parsed : null;
+    })(),
+    injuredCount: (() => {
+      const parsed = num(
+        extractFirst(
+          getByAliases(safety, ["injuredCount", "injuryCount", "injury", "injuries"]),
+          getByAliases(payload, ["injuredCount", "injuryCount", "injury"])
+        ),
+        NaN
+      );
+      return Number.isFinite(parsed) ? parsed : null;
+    })(),
+    lostTimeCount: (() => {
+      const parsed = num(
+        extractFirst(
+          getByAliases(safety, ["lostTimeCount", "lostTime", "losttime"]),
+          getByAliases(payload, ["lostTimeCount", "lostTime"])
+        ),
+        NaN
+      );
+      return Number.isFinite(parsed) ? parsed : null;
+    })(),
+  };
+
+  const normalizedProgress = progressRaw.map((row, index) => ({
+    id: str(extractFirst(row.id, row.code), `progress-${index + 1}`),
+    category: str(
+      extractFirst(getByAliases(row, ["category", "name", "section", "workType", "title"])),
+      `หมวดงาน ${index + 1}`
+    ),
+    weightPercent: num(getByAliases(row, ["weightPercent", "weight", "weightPct", "weightPercentage"]), 0),
+    previousPercent: num(getByAliases(row, ["previousPercent", "before", "previous", "beforePercent"]), 0),
+    currentPercent: num(getByAliases(row, ["weeklyPercent", "monthlyPercent", "currentPercent", "thisWeek", "thisMonth", "thisPeriod"]), 0),
+    accumulatedPercent: num(getByAliases(row, ["accumulatedPercent", "cumulativePercent", "cumulative", "accumulated"]), 0),
+    remainingPercent: num(getByAliases(row, ["remainingPercent", "remaining", "balance"]), 0),
+    plannedPercent: (() => {
+      const parsed = num(getByAliases(row, ["plannedPercent", "planPercent", "plan", "planned"]), NaN);
+      return Number.isFinite(parsed) ? parsed : null;
+    })(),
+    variancePercent: (() => {
+      const parsed = num(getByAliases(row, ["variancePercent", "deviationPercent", "deviation", "variance", "delay"]), NaN);
+      return Number.isFinite(parsed) ? parsed : null;
+    })(),
+  }));
+
+  const normalizedSupervisors = supervisorsRaw
+    .map((item) => ({
+      name: str(item.name, ""),
+      role: str(item.role, ""),
+    }))
+    .filter((item) => item.name || item.role);
+
   return {
+    weekNo,
+    monthNo,
+    year,
+    projectSummary,
+    timeSummary: {
+      contractDays: Number.isFinite(normalizedTimeSummary.contractDays as number)
+        ? (normalizedTimeSummary.contractDays as number)
+        : null,
+      previousUsedDays: Number.isFinite(normalizedTimeSummary.previousUsedDays as number)
+        ? (normalizedTimeSummary.previousUsedDays as number)
+        : null,
+      currentPeriodDays: Number.isFinite(normalizedTimeSummary.currentPeriodDays as number)
+        ? (normalizedTimeSummary.currentPeriodDays as number)
+        : null,
+      accumulatedDays: Number.isFinite(normalizedTimeSummary.accumulatedDays as number)
+        ? (normalizedTimeSummary.accumulatedDays as number)
+        : null,
+      remainingDays: Number.isFinite(normalizedTimeSummary.remainingDays as number)
+        ? (normalizedTimeSummary.remainingDays as number)
+        : null,
+      varianceDays: Number.isFinite(normalizedTimeSummary.varianceDays as number)
+        ? (normalizedTimeSummary.varianceDays as number)
+        : null,
+    },
+    workItems: normalizedWorkItems,
+    comments,
+    problems: normalizedProblems,
+    safety: normalizedSafety,
+    progress: normalizedProgress,
+    supervisors: normalizedSupervisors,
     payload,
     meta,
-    weekNo: primitiveOrDash(weekNoRaw),
-    month: primitiveOrDash(monthRaw),
-    year: primitiveOrDash(yearRaw),
-    contract,
-    durationRow,
-    mergedWorkItems,
-    issueRows,
-    progressRows,
-    supervisors,
-    supervisorComment: primitiveOrDash(supervisorComment),
-    safety,
   };
 }
 
-function TableCell({
+function Cell({
   children,
   className,
   header = false,
@@ -313,7 +558,7 @@ function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <tr>
       <td
-        colSpan={12}
+        colSpan={8}
         className="border border-black bg-[#dfeedd] px-2 py-2 text-center text-[12px] font-bold text-black"
       >
         {children}
@@ -322,112 +567,10 @@ function SectionTitle({ children }: { children: ReactNode }) {
   );
 }
 
-function valueFromRow(row: AnyRecord, aliases: string[], fallback = "-") {
-  return primitiveOrDash(extractFirst(getByAliases(row, aliases), fallback));
-}
+function SignatureGrid({ items }: { items: Array<{ name: string; role: string }> }) {
+  const clean = (items || []).filter((x) => x?.name?.trim() || x?.role?.trim());
 
-function renderWorkRows(rows: AnyRecord[]) {
-  if (!rows.length) {
-    return (
-      <tr>
-        <TableCell className="font-medium" align="center">
-          ไม่มีรายการงาน
-        </TableCell>
-        <TableCell align="center">-</TableCell>
-        <TableCell align="center">-</TableCell>
-        <TableCell align="center">-</TableCell>
-        <TableCell align="center">-</TableCell>
-        <TableCell align="center">-</TableCell>
-      </tr>
-    );
-  }
-
-  return rows.map((row, idx) => (
-    <tr key={`work-${idx}`}>
-      <TableCell>{idx + 1}</TableCell>
-      <TableCell align="left">
-        {valueFromRow(row, ["desc", "description", "workName", "item", "title"])}
-      </TableCell>
-      <TableCell align="left">
-        {valueFromRow(row, ["location", "position", "area"])}
-      </TableCell>
-      <TableCell align="right">
-        {valueFromRow(row, ["qty", "quantity", "amount"])}
-      </TableCell>
-      <TableCell align="center">
-        {valueFromRow(row, ["unit"])}
-      </TableCell>
-      <TableCell align="left">
-        {valueFromRow(row, ["remark", "remarks", "note", "materialDelivered"])}
-      </TableCell>
-    </tr>
-  ));
-}
-
-function renderIssueRows(rows: AnyRecord[]) {
-  if (!rows.length) {
-    return (
-      <tr>
-        <TableCell>1</TableCell>
-        <TableCell align="left">ไม่มีปัญหาและอุปสรรค</TableCell>
-        <TableCell align="left">-</TableCell>
-        <TableCell align="left">-</TableCell>
-      </tr>
-    );
-  }
-
-  return rows.map((row, idx) => (
-    <tr key={`issue-${idx}`}>
-      <TableCell>{idx + 1}</TableCell>
-      <TableCell align="left">
-        {valueFromRow(row, ["title", "topic", "problem", "detail"])}
-      </TableCell>
-      <TableCell align="left">
-        {valueFromRow(row, ["impact", "effect", "result"])}
-      </TableCell>
-      <TableCell align="left">
-        {valueFromRow(row, ["solution", "fix", "resolution", "action"])}
-      </TableCell>
-    </tr>
-  ));
-}
-
-function renderProgressRows(rows: AnyRecord[]) {
-  if (!rows.length) {
-    return (
-      <tr>
-        <TableCell align="center" className="font-medium">
-          ยังไม่มีการสรุปความก้าวหน้า
-        </TableCell>
-        <TableCell>0</TableCell>
-        <TableCell>0</TableCell>
-        <TableCell>0</TableCell>
-        <TableCell>0</TableCell>
-        <TableCell>0</TableCell>
-        <TableCell>0</TableCell>
-        <TableCell>-</TableCell>
-      </tr>
-    );
-  }
-
-  return rows.map((row, idx) => (
-    <tr key={`progress-${idx}`}>
-      <TableCell align="left">
-        {valueFromRow(row, ["category", "name", "section", "workType", "title"], `หมวดงาน ${idx + 1}`)}
-      </TableCell>
-      <TableCell align="right">{valueFromRow(row, ["weight", "weightPercent", "weightPct", "weightPercentage"])}</TableCell>
-      <TableCell align="right">{valueFromRow(row, ["before", "previous", "beforePercent", "previousPercent"])}</TableCell>
-      <TableCell align="right">{valueFromRow(row, ["thisWeek", "thisMonth", "thisPeriod", "currentPercent"])}</TableCell>
-      <TableCell align="right">{valueFromRow(row, ["cumulative", "accumulated", "cumulativePercent"])}</TableCell>
-      <TableCell align="right">{valueFromRow(row, ["remaining", "balance", "remainingPercent"])}</TableCell>
-      <TableCell align="right">{valueFromRow(row, ["plan", "planned", "planPercent"])}</TableCell>
-      <TableCell align="right">{valueFromRow(row, ["deviation", "variance", "delay", "deviationPercent"])}</TableCell>
-    </tr>
-  ));
-}
-
-function SignatureGrid({ supervisors }: { supervisors: AnyRecord[] }) {
-  if (!supervisors.length) {
+  if (!clean.length) {
     return (
       <div className="border border-black px-3 py-4 text-center text-[12px] text-black">
         ยังไม่มีข้อมูลผู้ลงนาม
@@ -435,23 +578,16 @@ function SignatureGrid({ supervisors }: { supervisors: AnyRecord[] }) {
     );
   }
 
-  const clean = supervisors
-    .map((item) => ({
-      name: str(item.name, "-"),
-      role: str(item.role, ""),
-    }))
-    .filter((item) => item.name !== "-" || item.role);
-
   return (
-    <div className="grid grid-cols-1 gap-3 px-2 py-3 md:grid-cols-2">
-      {clean.map((item, idx) => (
+    <div className="grid grid-cols-1 gap-3 px-2 py-3 md:grid-cols-2 xl:grid-cols-3">
+      {clean.map((it, i) => (
         <div
-          key={`sign-${idx}`}
+          key={`sign-${i}`}
           className="min-h-[78px] border border-black px-3 py-3 text-center text-[11px] text-black"
         >
           <div className="pt-5">ลงชื่อ ................................</div>
-          <div className="mt-2">({item.name || "-"})</div>
-          <div className="mt-1">{item.role || " "}</div>
+          <div className="mt-2">({it.name || "-"})</div>
+          <div className="mt-1">{it.role || " "}</div>
         </div>
       ))}
     </div>
@@ -468,8 +604,9 @@ function MetaFallback({
   const metaEntries = Object.entries(projectMeta).filter(
     ([k, v]) => k !== "supervisors" && v != null && String(v).trim() !== ""
   );
+
   const payloadEntries = Object.entries(payload).filter(
-    ([, v]) => v != null && !(Array.isArray(v) && v.length === 0) && String(v).trim() !== ""
+    ([, v]) => v != null && !(Array.isArray(v) && v.length === 0)
   );
 
   if (!metaEntries.length && !payloadEntries.length) return null;
@@ -527,18 +664,31 @@ export function SummaryAggregatePreview({
       ? "รายงานการควบคุมงานก่อสร้างประจำสัปดาห์ (WEEKLY REPORT)"
       : "รายงานการควบคุมงานก่อสร้างประจำเดือน (MONTHLY REPORT)";
 
-  const periodSmallLabel =
+  const periodLabelTop =
     model.reportType === "WEEKLY"
-      ? `สัปดาห์ที่ ${normalized.weekNo}`
-      : `เดือนที่ ${normalized.month} / ${normalized.year}`;
+      ? `สัปดาห์ที่ ${normalized.weekNo || 0}`
+      : normalized.monthNo && normalized.year
+      ? `เดือนที่ ${normalized.monthNo} / ${normalized.year}`
+      : "รายงานประจำเดือน";
+
+  const currentPeriodHeading = model.reportType === "WEEKLY" ? "สัปดาห์นี้" : "เดือนนี้";
+  const currentPeriodPercentHeading = model.reportType === "WEEKLY" ? "สัปดาห์นี้ (%)" : "เดือนนี้ (%)";
+  const workSectionTitle = model.reportType === "WEEKLY" ? "ผลงานที่ดำเนินการประจำสัปดาห์" : "ผลงานที่ดำเนินการประจำเดือน";
+
+  const totalWeight = normalized.progress.reduce((sum, item) => sum + Number(item.weightPercent || 0), 0);
+  const totalPrev = normalized.progress.reduce((sum, item) => sum + Number(item.previousPercent || 0), 0);
+  const totalCurrent = normalized.progress.reduce((sum, item) => sum + Number(item.currentPercent || 0), 0);
+  const totalAccum = normalized.progress.reduce((sum, item) => sum + Number(item.accumulatedPercent || 0), 0);
+  const totalRemain = normalized.progress.reduce((sum, item) => sum + Number(item.remainingPercent || 0), 0);
 
   const hasStructuredData =
-    normalized.mergedWorkItems.length > 0 ||
-    normalized.issueRows.length > 0 ||
-    normalized.progressRows.length > 0 ||
-    normalized.supervisorComment !== "-" ||
-    Object.values(normalized.contract).some((v) => v != null && String(v).trim() !== "") ||
-    Object.values(normalized.durationRow).some((v) => v != null && String(v).trim() !== "");
+    normalized.workItems.length > 0 ||
+    normalized.problems.length > 0 ||
+    normalized.progress.length > 0 ||
+    normalized.supervisors.length > 0 ||
+    normalized.projectSummary.contractNo !== "-" ||
+    normalized.projectSummary.contractorName !== "-" ||
+    normalized.comments !== "-";
 
   return (
     <div
@@ -570,141 +720,199 @@ export function SummaryAggregatePreview({
 
               <td className="border border-black bg-[#eadff2] px-4 py-4 text-center text-black">
                 <div className="text-[14px] font-bold md:text-[16px]">{reportLabel}</div>
-                <div className="mt-1 text-[12px] font-semibold">{periodSmallLabel}</div>
-                <div className="mt-1 text-[12px]">ช่วงวันที่ {str(model.periodLabel, "-")}</div>
-                <div className="mt-1 text-[12px]">โครงการ : {str(model.projectName, "-")}</div>
+                <div className="mt-1 text-[12px] font-semibold">{periodLabelTop}</div>
+                <div className="mt-1 text-[12px]">
+                  ช่วงวันที่ {formatDateBE(model.periodLabel.includes("ถึง") ? model.periodLabel.split("ถึง")[0].trim() : model.selectedDate)}{" "}
+                  {model.periodLabel.includes("ถึง")
+                    ? `ถึง ${formatDateBE(model.periodLabel.split("ถึง")[1]?.trim() || "")}`
+                    : ""}
+                </div>
+                <div className="mt-1 text-[12px]">
+                  โครงการ : {textOrDash(normalized.projectSummary.projectName)}
+                </div>
               </td>
             </tr>
 
             <tr>
-              <TableCell header align="left" className="w-[18%]">
-                สัญญาจ้าง
-              </TableCell>
-              <TableCell align="left" className="w-[32%]">
-                {primitiveOrDash(normalized.contract.contractNo)}
-              </TableCell>
-              <TableCell header align="left" className="w-[18%]">
-                สถานที่ก่อสร้าง
-              </TableCell>
-              <TableCell align="left" className="w-[32%]">
-                {primitiveOrDash(normalized.contract.siteLocation)}
-              </TableCell>
+              <Cell header align="left" className="w-[19%]">สัญญาจ้าง</Cell>
+              <Cell align="left" className="w-[31%]">{textOrDash(normalized.projectSummary.contractNo)}</Cell>
+              <Cell header align="left" className="w-[19%]">สถานที่ก่อสร้าง</Cell>
+              <Cell align="left" className="w-[31%]">{textOrDash(normalized.projectSummary.siteLocation)}</Cell>
             </tr>
 
             <tr>
-              <TableCell header align="left">งวดงาน</TableCell>
-              <TableCell align="left">{primitiveOrDash(normalized.contract.periodNo)}</TableCell>
-              <TableCell header align="left">วงเงินค่าก่อสร้าง</TableCell>
-              <TableCell align="left">{primitiveOrDash(normalized.contract.contractValue)}</TableCell>
+              <Cell header align="left">งวดงาน</Cell>
+              <Cell align="left">{textOrDash(normalized.projectSummary.installmentLabel)}</Cell>
+              <Cell header align="left">วงเงินค่าก่อสร้าง</Cell>
+              <Cell align="left">{textOrDash(normalized.projectSummary.contractValue)}</Cell>
             </tr>
 
             <tr>
-              <TableCell header align="left">เริ่มสัญญา</TableCell>
-              <TableCell align="left">{compactDate(str(normalized.contract.contractStart, "-"))}</TableCell>
-              <TableCell header align="left">ผู้รับจ้าง</TableCell>
-              <TableCell align="left">{primitiveOrDash(normalized.contract.contractorName)}</TableCell>
+              <Cell header align="left">เริ่มสัญญา</Cell>
+              <Cell align="left">{formatDateBE(normalized.projectSummary.contractStart)}</Cell>
+              <Cell header align="left">ผู้รับจ้าง</Cell>
+              <Cell align="left">{textOrDash(normalized.projectSummary.contractorName)}</Cell>
             </tr>
 
             <tr>
-              <TableCell header align="left">สิ้นสุดสัญญา</TableCell>
-              <TableCell align="left">{compactDate(str(normalized.contract.contractEnd, "-"))}</TableCell>
-              <TableCell header align="left">วิธีจัดซื้อจัดจ้าง</TableCell>
-              <TableCell align="left">{primitiveOrDash(normalized.contract.procurementMethod)}</TableCell>
+              <Cell header align="left">สิ้นสุดสัญญา</Cell>
+              <Cell align="left">{formatDateBE(normalized.projectSummary.contractEnd)}</Cell>
+              <Cell header align="left">วิธีจัดซื้อจัดจ้าง</Cell>
+              <Cell align="left">{textOrDash(normalized.projectSummary.procurementMethod)}</Cell>
             </tr>
 
             <SectionTitle>สรุประยะเวลา</SectionTitle>
             <tr>
-              <TableCell header>รายการ</TableCell>
-              <TableCell header>ตามสัญญา</TableCell>
-              <TableCell header>ก่อนหน้านี้</TableCell>
-              <TableCell header>{model.reportType === "WEEKLY" ? "สัปดาห์นี้" : "เดือนนี้"}</TableCell>
-              <TableCell header>สะสม</TableCell>
-              <TableCell header>คงเหลือ</TableCell>
-              <TableCell header>คลาดเคลื่อน</TableCell>
+              <Cell header>รายการ</Cell>
+              <Cell header>ตามสัญญา</Cell>
+              <Cell header>ก่อนหน้า</Cell>
+              <Cell header>{currentPeriodHeading}</Cell>
+              <Cell header>สะสม</Cell>
+              <Cell header>คงเหลือ</Cell>
+              <Cell header>คลาดเคลื่อน</Cell>
+              <Cell header className="hidden">-</Cell>
             </tr>
             <tr>
-              <TableCell className="font-medium">จำนวนวัน</TableCell>
-              <TableCell>{primitiveOrDash(normalized.durationRow.plan)}</TableCell>
-              <TableCell>{primitiveOrDash(normalized.durationRow.before)}</TableCell>
-              <TableCell>{primitiveOrDash(normalized.durationRow.thisPeriod)}</TableCell>
-              <TableCell>{primitiveOrDash(normalized.durationRow.cumulative)}</TableCell>
-              <TableCell>{primitiveOrDash(normalized.durationRow.remaining)}</TableCell>
-              <TableCell>{primitiveOrDash(normalized.durationRow.deviation)}</TableCell>
+              <Cell className="font-medium">จำนวนวัน</Cell>
+              <Cell>{formatInteger(normalized.timeSummary.contractDays)}</Cell>
+              <Cell>{formatInteger(normalized.timeSummary.previousUsedDays)}</Cell>
+              <Cell>{formatInteger(normalized.timeSummary.currentPeriodDays)}</Cell>
+              <Cell>{formatInteger(normalized.timeSummary.accumulatedDays)}</Cell>
+              <Cell>{formatInteger(normalized.timeSummary.remainingDays)}</Cell>
+              <Cell>{formatInteger(normalized.timeSummary.varianceDays)}</Cell>
+              <Cell className="hidden">-</Cell>
             </tr>
 
-            <SectionTitle>
-              ผลงานที่ดำเนินการประจำ{model.reportType === "WEEKLY" ? "สัปดาห์" : "เดือน"}
-            </SectionTitle>
+            <SectionTitle>{workSectionTitle}</SectionTitle>
             <tr>
-              <TableCell header>ลำดับ</TableCell>
-              <TableCell header>รายการงาน</TableCell>
-              <TableCell header>ตำแหน่ง</TableCell>
-              <TableCell header>ปริมาณ</TableCell>
-              <TableCell header>หน่วย</TableCell>
-              <TableCell header>หมายเหตุ</TableCell>
+              <Cell header>ลำดับ</Cell>
+              <Cell header>รายการงาน</Cell>
+              <Cell header>ตำแหน่ง</Cell>
+              <Cell header>ปริมาณ</Cell>
+              <Cell header>หน่วย</Cell>
+              <Cell header colSpan={3}>หมายเหตุ</Cell>
             </tr>
-            {renderWorkRows(normalized.mergedWorkItems)}
+            {normalized.workItems.length ? (
+              normalized.workItems.map((item, index) => (
+                <tr key={item.id}>
+                  <Cell>{index + 1}</Cell>
+                  <Cell align="left">{textOrDash(item.description)}</Cell>
+                  <Cell align="left">{textOrDash(item.location)}</Cell>
+                  <Cell align="right">{item.qty == null ? "-" : formatNumber(item.qty, 2)}</Cell>
+                  <Cell>{textOrDash(item.unit)}</Cell>
+                  <Cell colSpan={3} align="left">{textOrDash(item.remark)}</Cell>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <Cell>1</Cell>
+                <Cell colSpan={7} align="center">ไม่มีรายการงาน</Cell>
+              </tr>
+            )}
 
-            <SectionTitle>ความคิดเห็นเห็นผู้ควบคุมงาน</SectionTitle>
+            <SectionTitle>ความคิดเห็นผู้ควบคุมงาน</SectionTitle>
             <tr>
-              <TableCell colSpan={6} align="left" className="px-3 py-3">
-                {normalized.supervisorComment}
-              </TableCell>
+              <Cell colSpan={8} align="left" className="px-3 py-3">
+                {textOrDash(normalized.comments)}
+              </Cell>
             </tr>
 
             <SectionTitle>ปัญหาและอุปสรรค</SectionTitle>
             <tr>
-              <TableCell header>ลำดับ</TableCell>
-              <TableCell header>หัวข้อ</TableCell>
-              <TableCell header>ผลกระทบ</TableCell>
-              <TableCell header>แนวทางแก้ไข</TableCell>
+              <Cell header>ลำดับ</Cell>
+              <Cell header colSpan={2}>หัวข้อ</Cell>
+              <Cell header colSpan={3}>ผลกระทบ</Cell>
+              <Cell header colSpan={2}>แนวทางแก้ไข</Cell>
             </tr>
-            {renderIssueRows(normalized.issueRows)}
+            {normalized.problems.length ? (
+              normalized.problems.map((item, index) => (
+                <tr key={item.id}>
+                  <Cell>{index + 1}</Cell>
+                  <Cell align="left" colSpan={2}>{textOrDash(item.topic)}</Cell>
+                  <Cell align="left" colSpan={3}>{textOrDash(item.impact)}</Cell>
+                  <Cell align="left" colSpan={2}>{textOrDash(item.solution)}</Cell>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <Cell>1</Cell>
+                <Cell colSpan={7} align="center">ไม่มีปัญหาและอุปสรรค</Cell>
+              </tr>
+            )}
 
             <SectionTitle>ความปลอดภัยในการทำงาน</SectionTitle>
             <tr>
-              <TableCell header>อุบัติเหตุ</TableCell>
-              <TableCell header>บาดเจ็บ</TableCell>
-              <TableCell header>Lost Time</TableCell>
-              <TableCell header>หมายเหตุ</TableCell>
+              <Cell header colSpan={2}>อุบัติเหตุ</Cell>
+              <Cell header colSpan={2}>บาดเจ็บ</Cell>
+              <Cell header colSpan={2}>Lost Time</Cell>
+              <Cell header colSpan={2}>หมายเหตุ</Cell>
             </tr>
             <tr>
-              <TableCell>{primitiveOrDash(normalized.safety.accident)}</TableCell>
-              <TableCell>{primitiveOrDash(normalized.safety.injury)}</TableCell>
-              <TableCell>{primitiveOrDash(normalized.safety.lostTime)}</TableCell>
-              <TableCell align="left">{primitiveOrDash(normalized.safety.remark)}</TableCell>
+              <Cell colSpan={2}>{formatInteger(normalized.safety.accidentCount ?? 0)}</Cell>
+              <Cell colSpan={2}>{formatInteger(normalized.safety.injuredCount ?? 0)}</Cell>
+              <Cell colSpan={2}>{formatInteger(normalized.safety.lostTimeCount ?? 0)}</Cell>
+              <Cell colSpan={2} align="left">{textOrDash(normalized.safety.note)}</Cell>
             </tr>
 
             <SectionTitle>สรุปความก้าวหน้า</SectionTitle>
             <tr>
-              <TableCell header>หมวดงาน</TableCell>
-              <TableCell header>น้ำหนัก (%)</TableCell>
-              <TableCell header>ก่อนหน้า (%)</TableCell>
-              <TableCell header>{model.reportType === "WEEKLY" ? "สัปดาห์นี้ (%)" : "เดือนนี้ (%)"}</TableCell>
-              <TableCell header>สะสม (%)</TableCell>
-              <TableCell header>คงเหลือ (%)</TableCell>
-              <TableCell header>แผน (%)</TableCell>
-              <TableCell header>คลาดเคลื่อน (%)</TableCell>
+              <Cell header>หมวดงาน</Cell>
+              <Cell header>น้ำหนัก (%)</Cell>
+              <Cell header>ก่อนหน้า (%)</Cell>
+              <Cell header>{currentPeriodPercentHeading}</Cell>
+              <Cell header>สะสม (%)</Cell>
+              <Cell header>คงเหลือ (%)</Cell>
+              <Cell header>แผน (%)</Cell>
+              <Cell header>คลาดเคลื่อน (%)</Cell>
             </tr>
-            {renderProgressRows(normalized.progressRows)}
+            {normalized.progress.length ? (
+              <>
+                {normalized.progress.map((item) => (
+                  <tr key={item.id}>
+                    <Cell align="left">{textOrDash(item.category)}</Cell>
+                    <Cell align="right">{formatNumber(item.weightPercent)}</Cell>
+                    <Cell align="right">{formatNumber(item.previousPercent)}</Cell>
+                    <Cell align="right">{formatNumber(item.currentPercent)}</Cell>
+                    <Cell align="right">{formatNumber(item.accumulatedPercent)}</Cell>
+                    <Cell align="right">{formatNumber(item.remainingPercent)}</Cell>
+                    <Cell align="right">{formatNumber(item.plannedPercent)}</Cell>
+                    <Cell align="right">{formatNumber(item.variancePercent)}</Cell>
+                  </tr>
+                ))}
+                <tr>
+                  <Cell className="font-bold">รวม</Cell>
+                  <Cell align="right" className="font-bold">{formatNumber(totalWeight)}</Cell>
+                  <Cell align="right" className="font-bold">{formatNumber(totalPrev)}</Cell>
+                  <Cell align="right" className="font-bold">{formatNumber(totalCurrent)}</Cell>
+                  <Cell align="right" className="font-bold">{formatNumber(totalAccum)}</Cell>
+                  <Cell align="right" className="font-bold">{formatNumber(totalRemain)}</Cell>
+                  <Cell align="right" className="font-bold">-</Cell>
+                  <Cell align="right" className="font-bold">-</Cell>
+                </tr>
+              </>
+            ) : (
+              <tr>
+                <Cell colSpan={8} align="center">ยังไม่มีตารางสรุปความก้าวหน้า</Cell>
+              </tr>
+            )}
 
             <SectionTitle>ผู้ควบคุมงาน / ผู้ลงนาม</SectionTitle>
             <tr>
               <td colSpan={8} className="border border-black bg-white p-0">
-                <SignatureGrid supervisors={normalized.supervisors} />
+                <SignatureGrid items={normalized.supervisors} />
               </td>
             </tr>
 
             <tr>
               <td colSpan={8} className="border border-black bg-white px-3 py-2 text-[11px] text-black">
-                <span className="font-semibold">หมายเหตุ:</span> เอกสารนี้เป็นข้อมูล{" "}
-                {model.reportType === "WEEKLY" ? "Weekly Report" : "Monthly Report"} ที่ถูกสรุปจากระบบและจัดเก็บในฐานข้อมูล
+                <span className="font-semibold">หมายเหตุ:</span>{" "}
+                เอกสารนี้เป็นข้อมูล {model.reportType === "WEEKLY" ? "Weekly Report" : "Monthly Report"} ที่ถูกสรุปจากระบบและจัดเก็บในฐานข้อมูล
               </td>
             </tr>
 
             <tr>
               <td colSpan={8} className="border border-black bg-white px-3 py-2 text-[11px] text-black">
-                วันที่สร้างข้อมูลล่าสุด: {compactDate(model.selectedDate)}
+                วันที่สร้างข้อมูลล่าสุด: {formatDateThai(model.selectedDate)}
               </td>
             </tr>
           </tbody>
@@ -712,11 +920,10 @@ export function SummaryAggregatePreview({
       </div>
 
       {!printMode && !hasStructuredData ? (
-        <MetaFallback
-          projectMeta={normalized.meta}
-          payload={normalized.payload}
-        />
+        <MetaFallback projectMeta={normalized.meta} payload={normalized.payload} />
       ) : null}
     </div>
   );
 }
+
+export default SummaryAggregatePreview;
