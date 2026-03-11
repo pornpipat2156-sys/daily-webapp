@@ -44,7 +44,7 @@ function ExportGlobalStyle() {
 
       @page {
         size: A4 portrait;
-        margin-top: 10mm; 
+        margin-top: 38.1mm;
         margin-right: 10mm;
         margin-bottom: 10mm;
         margin-left: 10mm;
@@ -78,7 +78,7 @@ function ExportGlobalStyle() {
 
       [data-pdf-preview-root="1"] {
         width: 794px !important;
-        margin: 0 auto !important;
+        margin: 0 !important;
         padding: 0 !important;
         background: #ffffff !important;
         overflow: visible !important;
