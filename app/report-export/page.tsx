@@ -14,13 +14,6 @@ import {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const PDF_PAGE_WIDTH_PX = 794;
-const PDF_PAGE_HEIGHT_MM = 297;
-const PDF_MARGIN_TOP_MM = 10;
-const PDF_MARGIN_RIGHT_MM = 10;
-const PDF_MARGIN_BOTTOM_MM = 10;
-const PDF_MARGIN_LEFT_MM = 10;
-
 type SearchParamsShape = Promise<{
   projectId?: string;
   type?: string;
@@ -51,10 +44,10 @@ function ExportGlobalStyle() {
 
       @page {
         size: A4 portrait;
-        margin-top: ${PDF_MARGIN_TOP_MM}mm;
-        margin-right: ${PDF_MARGIN_RIGHT_MM}mm;
-        margin-bottom: ${PDF_MARGIN_BOTTOM_MM}mm;
-        margin-left: ${PDF_MARGIN_LEFT_MM}mm;
+        margin-top: 2mm;
+        margin-right: 10mm;
+        margin-bottom: 1mm;
+        margin-left: 10mm;
       }
 
       * {
@@ -84,8 +77,8 @@ function ExportGlobalStyle() {
       }
 
       [data-pdf-preview-root="1"] {
-        width: ${PDF_PAGE_WIDTH_PX}px !important;
-        margin: 0 auto !important;
+        width: 794px !important;
+        margin: 0 !important;
         padding: 0 !important;
         background: #ffffff !important;
         overflow: visible !important;
@@ -96,7 +89,7 @@ function ExportGlobalStyle() {
         font-family: "Noto Sans Thai", Arial, sans-serif !important;
       }
 
-      /* ปิด preview scale เฉพาะตอน export PDF */
+      /* สำคัญ: ปิด preview scale เฉพาะตอน export PDF */
       [data-pdf-preview-root="1"] [style*="transform: scale("] {
         transform: none !important;
         transform-origin: top left !important;
@@ -116,33 +109,23 @@ function ExportGlobalStyle() {
       /* ทำให้ A4 block ใช้ความกว้างจริงตอน export */
       [data-pdf-preview-root="1"] [style*="width: 794px"],
       [data-pdf-preview-root="1"] [style*="width:794px"] {
-        width: ${PDF_PAGE_WIDTH_PX}px !important;
-        max-width: ${PDF_PAGE_WIDTH_PX}px !important;
+        width: 794px !important;
+        max-width: 794px !important;
       }
 
       img,
       svg,
       canvas {
         max-width: 100%;
-      }
-
-      [data-pdf-preview-root="1"] img,
-      [data-pdf-preview-root="1"] svg,
-      [data-pdf-preview-root="1"] canvas,
-      [data-pdf-preview-root="1"] .pdf-media-block,
-      [data-pdf-preview-root="1"] .issue-card,
-      [data-pdf-preview-root="1"] .signature-card,
-      [data-pdf-preview-root="1"] .pdf-avoid-break,
-      [data-pdf-preview-root="1"] .avoid-break {
-        break-inside: avoid-page !important;
-        page-break-inside: avoid !important;
+        break-inside: avoid-page;
+        page-break-inside: avoid;
       }
 
       [data-pdf-preview-root="1"] table {
         width: 100%;
         border-collapse: collapse;
-        break-inside: avoid-page !important;
-        page-break-inside: avoid !important;
+        break-inside: auto;
+        page-break-inside: auto;
       }
 
       [data-pdf-preview-root="1"] thead {
@@ -170,6 +153,14 @@ function ExportGlobalStyle() {
       [data-pdf-preview-root="1"] .pdf-page-break {
         break-before: page !important;
         page-break-before: always !important;
+      }
+
+      [data-pdf-preview-root="1"] .pdf-avoid-break,
+      [data-pdf-preview-root="1"] .avoid-break,
+      [data-pdf-preview-root="1"] .issue-card,
+      [data-pdf-preview-root="1"] .signature-card {
+        break-inside: avoid-page !important;
+        page-break-inside: avoid !important;
       }
 
       [data-pdf-preview-root="1"] h1,
@@ -206,103 +197,111 @@ function PaginationScript() {
       dangerouslySetInnerHTML={{
         __html: `
 (function () {
-  var PAGE_HEIGHT_MM = ${PDF_PAGE_HEIGHT_MM};
-  var PAGE_TOP_MM = ${PDF_MARGIN_TOP_MM};
-  var PAGE_BOTTOM_MM = ${PDF_MARGIN_BOTTOM_MM};
-
-  function mmToPx(mm) {
-    return (mm / 25.4) * 96;
-  }
-
-  function topWithinRoot(el, root) {
-    var r = el.getBoundingClientRect();
-    var rr = root.getBoundingClientRect();
-    return r.top - rr.top;
-  }
-
-  function heightOf(el) {
-    return el.getBoundingClientRect().height || 0;
-  }
-
-  function clearPageBreaks(root) {
-    root.querySelectorAll('.pdf-page-break').forEach(function (el) {
-      el.classList.remove('pdf-page-break');
-    });
-  }
-
-  function markProtectedRows(root) {
-    root.querySelectorAll('tr').forEach(function (row) {
-      row.classList.add('pdf-avoid-break');
-      row.style.breakInside = 'avoid-page';
-      row.style.pageBreakInside = 'avoid';
-    });
-  }
-
-  function markMediaBlocks(root) {
-    root.querySelectorAll('img, svg, canvas').forEach(function (media) {
-      var parent = media.parentElement;
-      if (parent && parent !== root) {
-        parent.classList.add('pdf-media-block');
-      } else {
-        media.classList.add('pdf-media-block');
-      }
-    });
-  }
-
-  function collectCandidates(root, contentHeight) {
-    var set = new Set();
-
-    root.querySelectorAll('table').forEach(function (table) {
-      var h = heightOf(table);
-      if (h > 0 && h < contentHeight * 0.98) {
-        set.add(table);
-      }
-    });
-
-    root.querySelectorAll('.issue-card, .signature-card, .pdf-media-block, .pdf-avoid-break, .avoid-break').forEach(function (el) {
-      var h = heightOf(el);
-      if (h > 0 && h < contentHeight * 0.98) {
-        set.add(el);
-      }
-    });
-
-    return Array.from(set).sort(function (a, b) {
-      return topWithinRoot(a, root) - topWithinRoot(b, root);
-    });
-  }
-
   function runSmartPagination() {
     var root = document.querySelector('[data-pdf-preview-root="1"]');
     if (!root) return;
 
-    clearPageBreaks(root);
-    markProtectedRows(root);
-    markMediaBlocks(root);
+    root.querySelectorAll('.pdf-page-break').forEach(function (el) {
+      el.classList.remove('pdf-page-break');
+    });
 
-    var CONTENT_HEIGHT = Math.round(mmToPx(PAGE_HEIGHT_MM - PAGE_TOP_MM - PAGE_BOTTOM_MM));
-    var EDGE_GUARD_TOP = 20;
-    var EDGE_GUARD_BOTTOM = 10;
+    var PX_PER_INCH = 96;
+    var A4_HEIGHT_PX = Math.round(11.6929 * PX_PER_INCH);
+    var TOP_MARGIN_PX = Math.round(1.5 * PX_PER_INCH);
+    var OTHER_MARGIN_PX = Math.round((10 / 25.4) * PX_PER_INCH);
+    var CONTENT_HEIGHT = A4_HEIGHT_PX - TOP_MARGIN_PX - OTHER_MARGIN_PX;
 
-    var candidates = collectCandidates(root, CONTENT_HEIGHT);
+    function topWithinRoot(el) {
+      var r = el.getBoundingClientRect();
+      var rr = root.getBoundingClientRect();
+      return r.top - rr.top;
+    }
 
-    for (var pass = 0; pass < 4; pass++) {
+    function shouldAvoidBreak(el) {
+      var text = (el.textContent || "").trim();
+      if (!text) return false;
+
+      return (
+        text.includes("รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว") ||
+        text.includes("WORK PERFORMED") ||
+        text.includes("บันทึกด้านความปลอดภัยในการทำงาน") ||
+        text.includes("รายชื่อผู้ควบคุมงาน") ||
+        text.includes("PROJECT TEAM") ||
+        text.includes("ปัญหา") ||
+        text.includes("อุปสรรค") ||
+        text.includes("Issues") ||
+        text.includes("Obstacles")
+      );
+    }
+
+    function pickBlock(el) {
+      var current = el;
+      while (current && current !== root) {
+        if (
+          current.tagName === "TABLE" ||
+          current.classList.contains("pdf-avoid-break") ||
+          current.classList.contains("avoid-break")
+        ) {
+          return current;
+        }
+
+        var style = window.getComputedStyle(current);
+        var hasBorder =
+          parseFloat(style.borderTopWidth || "0") > 0 ||
+          parseFloat(style.borderRightWidth || "0") > 0 ||
+          parseFloat(style.borderBottomWidth || "0") > 0 ||
+          parseFloat(style.borderLeftWidth || "0") > 0;
+
+        if (hasBorder || style.borderRadius !== "0px") {
+          return current;
+        }
+
+        current = current.parentElement;
+      }
+      return el;
+    }
+
+    root.querySelectorAll("tr").forEach(function (row) {
+      row.classList.add("pdf-avoid-break");
+      row.style.breakInside = "avoid-page";
+      row.style.pageBreakInside = "avoid";
+    });
+
+    var candidateSet = new Set();
+
+    root.querySelectorAll("table").forEach(function (el) {
+      candidateSet.add(el);
+    });
+
+    root.querySelectorAll("div, section, article").forEach(function (el) {
+      if (shouldAvoidBreak(el)) {
+        candidateSet.add(pickBlock(el));
+      }
+    });
+
+    var candidates = Array.from(candidateSet)
+      .filter(function (el) {
+        return el && el !== root && typeof el.getBoundingClientRect === "function";
+      })
+      .sort(function (a, b) {
+        return topWithinRoot(a) - topWithinRoot(b);
+      });
+
+    for (var pass = 0; pass < 3; pass++) {
       var changed = false;
 
       candidates.forEach(function (el) {
-        var height = heightOf(el);
+        var rect = el.getBoundingClientRect();
+        var height = rect.height;
         if (!height) return;
-        if (height >= CONTENT_HEIGHT * 0.98) return;
 
-        var top = topWithinRoot(el, root);
+        var top = topWithinRoot(el);
         var offsetInPage = ((top % CONTENT_HEIGHT) + CONTENT_HEIGHT) % CONTENT_HEIGHT;
         var remaining = CONTENT_HEIGHT - offsetInPage;
 
-        var wouldOverflow = height > (remaining - EDGE_GUARD_BOTTOM);
-        var alreadyNearTop = offsetInPage <= EDGE_GUARD_TOP;
-
-        if (wouldOverflow && !alreadyNearTop) {
-          if (!el.classList.contains('pdf-page-break')) {
-            el.classList.add('pdf-page-break');
+        if (height > remaining && offsetInPage > 24 && height < CONTENT_HEIGHT * 0.95) {
+          if (!el.classList.contains("pdf-page-break")) {
+            el.classList.add("pdf-page-break");
             changed = true;
           }
         }
@@ -314,18 +313,17 @@ function PaginationScript() {
 
   function boot() {
     runSmartPagination();
-    setTimeout(runSmartPagination, 250);
-    setTimeout(runSmartPagination, 700);
-    setTimeout(runSmartPagination, 1200);
+    setTimeout(runSmartPagination, 300);
+    setTimeout(runSmartPagination, 900);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
   } else {
     boot();
   }
 
-  window.addEventListener('load', boot);
+  window.addEventListener("load", boot);
 })();
         `,
       }}
@@ -337,7 +335,7 @@ function MessageBox({ message }: { message: string }) {
   return (
     <div
       style={{
-        width: `${PDF_PAGE_WIDTH_PX}px`,
+        width: "794px",
         margin: "0 auto",
         background: "#ffffff",
         color: "#111827",
@@ -386,7 +384,7 @@ export default async function ReportExportPage({
         <div
           data-pdf-preview-root="1"
           style={{
-            width: `${PDF_PAGE_WIDTH_PX}px`,
+            width: "794px",
             margin: "0 auto",
             padding: 0,
             background: "#ffffff",
@@ -420,7 +418,7 @@ export default async function ReportExportPage({
         <div
           data-pdf-preview-root="1"
           style={{
-            width: `${PDF_PAGE_WIDTH_PX}px`,
+            width: "794px",
             margin: "0 auto",
             padding: 0,
             background: "#ffffff",
@@ -447,7 +445,7 @@ export default async function ReportExportPage({
       <div
         data-pdf-preview-root="1"
         style={{
-          width: `${PDF_PAGE_WIDTH_PX}px`,
+          width: "794px",
           margin: "0 auto",
           padding: 0,
           background: "#ffffff",
