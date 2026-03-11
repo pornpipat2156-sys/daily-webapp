@@ -85,8 +85,8 @@ function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white/95 shadow-sm backdrop-blur-sm transition-colors dark:border-slate-800 dark:bg-slate-950/95">
-      <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800 sm:px-6">
+    <section className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/92 shadow-[0_12px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm transition-colors dark:border-slate-800/80 dark:bg-slate-950/90">
+      <div className="border-b border-slate-200/80 bg-gradient-to-r from-white via-slate-50 to-blue-50/60 px-5 py-4 dark:border-slate-800/80 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900/80 sm:px-6">
         <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
           {title}
         </h2>
@@ -123,11 +123,11 @@ function TypeButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex h-11 items-center justify-center rounded-2xl border px-4 text-sm font-semibold transition",
-        "focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-700",
+        "inline-flex h-11 items-center justify-center rounded-2xl border px-4 text-sm font-semibold transition duration-200",
+        "focus:outline-none focus:ring-2",
         active
-          ? "border-slate-900 bg-slate-900 text-white shadow-sm dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
-          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"
+          ? "border-blue-200 bg-[rgba(124,156,245,0.16)] text-blue-700 shadow-sm focus:ring-blue-200 dark:border-blue-900/60 dark:bg-[rgba(124,156,245,0.20)] dark:text-blue-300 dark:focus:ring-blue-900/60"
+          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900 dark:focus:ring-slate-800"
       )}
     >
       {children}
@@ -145,10 +145,10 @@ function PreviewStateBox({
   return (
     <div
       className={cn(
-        "rounded-3xl border px-6 py-12 text-center text-sm font-medium shadow-sm transition-colors",
+        "rounded-[28px] border px-6 py-12 text-center text-sm font-medium shadow-sm transition-colors",
         tone === "error"
-          ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
-          : "border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
+          ? "border-red-200 bg-red-50/90 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+          : "border-slate-200 bg-white/90 text-slate-600 dark:border-slate-800 dark:bg-slate-950/90 dark:text-slate-400"
       )}
     >
       {children}
@@ -212,6 +212,7 @@ function readFileNameFromDisposition(value: string | null) {
 
 function formatDateTimeThai(iso?: string) {
   if (!iso) return "-";
+
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
 
@@ -228,11 +229,7 @@ function renderInputIssueCommentCell(issue: IssueRowUnified) {
   const comments = Array.isArray(issue?.comments) ? issue.comments : [];
 
   if (!comments.length) {
-    return (
-      <div className="text-sm opacity-60">
-        ยังไม่มีความคิดเห็น
-      </div>
-    );
+    return <div className="text-sm opacity-60">ยังไม่มีความคิดเห็น</div>;
   }
 
   return (
@@ -491,19 +488,27 @@ export default function InputPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900 transition-colors dark:bg-slate-900 dark:text-slate-100">
+    <main className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#f5f7fb_35%,#eef4ff_100%)] text-slate-900 transition-colors dark:bg-[linear-gradient(180deg,#020617_0%,#0f172a_55%,#111827_100%)] dark:text-slate-100">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <section className="rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-5 py-6 shadow-sm transition-colors dark:border-slate-800 dark:from-slate-950 dark:to-slate-900 sm:px-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-            Report Center
-          </p>
-          <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-            Summary & PDF Preview
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600 dark:text-slate-400">
-            เลือกโครงการและเลือกรอบรายงานจากข้อมูลในระบบ เพื่อดู Preview และดาวน์โหลด
-            PDF แบบ A4 โดยตรงจากระบบ
-          </p>
+        <section className="overflow-hidden rounded-[32px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(248,250,252,0.92),rgba(239,246,255,0.95))] px-5 py-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)] backdrop-blur-sm transition-colors dark:border-slate-800/80 dark:bg-[linear-gradient(135deg,rgba(2,6,23,0.95),rgba(15,23,42,0.94),rgba(30,41,59,0.92))] sm:px-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">
+                Report Center
+              </p>
+              <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
+                Summary & PDF Preview
+              </h1>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600 dark:text-slate-400">
+                เลือกโครงการและเลือกรอบรายงานจากข้อมูลในระบบ เพื่อดู Preview และดาวน์โหลด
+                PDF แบบ A4 โดยตรงจากระบบ
+              </p>
+            </div>
+
+            <div className="inline-flex items-center rounded-2xl border border-blue-200 bg-[rgba(124,156,245,0.12)] px-4 py-2 text-sm font-semibold text-blue-700 dark:border-blue-900/60 dark:bg-[rgba(124,156,245,0.16)] dark:text-blue-300">
+              Preview & Export
+            </div>
+          </div>
         </section>
 
         <SectionCard
@@ -517,7 +522,7 @@ export default function InputPage() {
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
                 disabled={loadingProjects || projects.length === 0}
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-700 dark:focus:ring-slate-800 dark:disabled:bg-slate-900"
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-blue-900/60 dark:focus:ring-blue-900/40 dark:disabled:bg-slate-900"
               >
                 {loadingProjects ? (
                   <option>กำลังโหลดโครงการ...</option>
@@ -563,7 +568,7 @@ export default function InputPage() {
                 value={selectedPeriodValue}
                 onChange={(e) => setSelectedPeriodValue(e.target.value)}
                 disabled={!projectId || loadingPeriods || periodOptions.length === 0}
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-700 dark:focus:ring-slate-800 dark:disabled:bg-slate-900"
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-blue-900/60 dark:focus:ring-blue-900/40 dark:disabled:bg-slate-900"
               >
                 {!projectId ? (
                   <option>เลือกโครงการก่อน</option>
@@ -582,7 +587,7 @@ export default function InputPage() {
             </div>
           </div>
 
-          <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition-colors dark:border-slate-800 dark:bg-slate-900/60 lg:flex-row lg:items-center lg:justify-between">
+          <div className="mt-5 flex flex-col gap-4 rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(248,250,252,0.9),rgba(239,246,255,0.82))] p-4 transition-colors dark:border-slate-800/80 dark:bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(30,41,59,0.72))] lg:flex-row lg:items-center lg:justify-between">
             <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
               Daily จะแสดงเฉพาะรายงานที่ผ่านการอนุมัติครบแล้วเท่านั้น ส่วน Weekly และ
               Monthly จะแสดงตามข้อมูลที่มีอยู่ใน DB
@@ -595,7 +600,7 @@ export default function InputPage() {
               className={cn(
                 "inline-flex h-12 items-center justify-center rounded-2xl px-5 text-sm font-semibold transition focus:outline-none focus:ring-2",
                 canExport && !loadingDownload
-                  ? "bg-slate-900 text-white hover:bg-slate-800 focus:ring-slate-300 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 dark:focus:ring-slate-700"
+                  ? "bg-[rgba(124,156,245,0.18)] text-blue-700 hover:bg-[rgba(124,156,245,0.24)] focus:ring-blue-200 dark:bg-[rgba(124,156,245,0.22)] dark:text-blue-300 dark:hover:bg-[rgba(124,156,245,0.28)] dark:focus:ring-blue-900/50"
                   : "cursor-not-allowed bg-slate-200 text-slate-500 focus:ring-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:focus:ring-slate-800"
               )}
             >
@@ -620,8 +625,8 @@ export default function InputPage() {
             </PreviewStateBox>
           ) : "found" in result && result.found === false ? (
             <PreviewStateBox>{result.message || "ไม่พบรายงาน"}</PreviewStateBox>
-                    ) : "renderMode" in result && result.renderMode === "daily" ? (
-            <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white p-1 shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-950 sm:p-2">
+          ) : "renderMode" in result && result.renderMode === "daily" ? (
+            <div className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/96 p-1 shadow-[0_10px_28px_rgba(15,23,42,0.06)] transition-colors dark:border-slate-800/80 dark:bg-slate-950/96 sm:p-2">
               <ReportPreviewForm
                 model={result.dailyModel}
                 renderIssueCommentCell={(issue) =>
@@ -630,7 +635,7 @@ export default function InputPage() {
               />
             </div>
           ) : "renderMode" in result && result.renderMode === "summary" ? (
-            <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white p-1 shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-950 sm:p-2">
+            <div className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/96 p-1 shadow-[0_10px_28px_rgba(15,23,42,0.06)] transition-colors dark:border-slate-800/80 dark:bg-slate-950/96 sm:p-2">
               <SummaryAggregatePreview model={result.summaryModel} />
             </div>
           ) : (
