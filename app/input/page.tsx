@@ -10,6 +10,15 @@ import {
   SummaryAggregatePreview,
   type SummaryDocumentModel,
 } from "@/components/SummaryAggregatePreview";
+import {
+  WeeklyReportForm,
+  type WeeklyProgressItem,
+  type WeeklyProblemItem,
+  type WeeklyReportModel,
+  type WeeklySupervisor,
+  type WeeklyTimeSummary,
+  type WeeklyWorkItem,
+} from "@/components/WeeklyReportForm";
 
 type ProjectRow = {
   id: string;
@@ -85,27 +94,21 @@ function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/92 shadow-[0_12px_40px_rgba(15,23,42,0.06)] backdrop-blur-sm transition-colors dark:border-slate-800/80 dark:bg-slate-950/90">
-      <div className="border-b border-slate-200/80 bg-gradient-to-r from-white via-slate-50 to-blue-50/60 px-5 py-4 dark:border-slate-800/80 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900/80 sm:px-6">
-        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-          {title}
-        </h2>
+    <section className="overflow-hidden rounded-[28px] border border-[#244a86]/70 bg-[radial-gradient(circle_at_top,rgba(18,52,115,0.32),rgba(2,8,23,0.96))] shadow-[0_20px_60px_rgba(2,8,23,0.45)] backdrop-blur">
+      <div className="border-b border-[#244a86]/70 px-6 py-5 md:px-8">
+        <h2 className="text-2xl font-bold tracking-tight text-white">{title}</h2>
         {subtitle ? (
-          <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">
-            {subtitle}
-          </p>
+          <p className="mt-2 text-sm text-slate-200 md:text-base">{subtitle}</p>
         ) : null}
       </div>
-      <div className="px-5 py-5 sm:px-6">{children}</div>
+      <div className="px-4 py-5 md:px-6 md:py-6">{children}</div>
     </section>
   );
 }
 
 function FieldLabel({ children }: { children: ReactNode }) {
   return (
-    <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-      {children}
-    </label>
+    <div className="mb-2 text-sm font-semibold text-slate-200">{children}</div>
   );
 }
 
@@ -123,11 +126,10 @@ function TypeButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex h-11 items-center justify-center rounded-2xl border px-4 text-sm font-semibold transition duration-200",
-        "focus:outline-none focus:ring-2",
+        "h-12 rounded-2xl px-5 text-sm font-semibold transition",
         active
-          ? "border-blue-200 bg-[rgba(124,156,245,0.16)] text-blue-700 shadow-sm focus:ring-blue-200 dark:border-blue-900/60 dark:bg-[rgba(124,156,245,0.20)] dark:text-blue-300 dark:focus:ring-blue-900/60"
-          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900 dark:focus:ring-slate-800"
+          ? "bg-white text-slate-900 shadow-[0_10px_30px_rgba(255,255,255,0.18)]"
+          : "border border-[#244a86]/70 bg-slate-950/40 text-slate-200 hover:bg-slate-900/70"
       )}
     >
       {children}
@@ -145,10 +147,10 @@ function PreviewStateBox({
   return (
     <div
       className={cn(
-        "rounded-[28px] border px-6 py-12 text-center text-sm font-medium shadow-sm transition-colors",
+        "rounded-[24px] border px-5 py-8 text-center text-sm md:text-base",
         tone === "error"
-          ? "border-red-200 bg-red-50/90 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
-          : "border-slate-200 bg-white/90 text-slate-600 dark:border-slate-800 dark:bg-slate-950/90 dark:text-slate-400"
+          ? "border-rose-500/40 bg-rose-500/10 text-rose-200"
+          : "border-[#244a86]/70 bg-slate-950/40 text-slate-300"
       )}
     >
       {children}
@@ -170,7 +172,7 @@ function getEmptyOptionLabel(type: ReportType) {
 
 function getSuggestedFileName(
   type: ReportType,
-  result: Exclude<BrowserResponse, ErrorResponse | NotFoundResponse | null>
+  result: Exclude<BrowserResponse, null | ErrorResponse | NotFoundResponse>
 ) {
   const safeProject =
     "projectName" in result && result.projectName
@@ -178,15 +180,9 @@ function getSuggestedFileName(
       : "Report";
 
   if ("reportType" in result) {
-    if (result.reportType === "DAILY") {
-      return `${safeProject}-DailyReport.pdf`;
-    }
-    if (result.reportType === "WEEKLY") {
-      return `${safeProject}-WeeklyReport.pdf`;
-    }
-    if (result.reportType === "MONTHLY") {
-      return `${safeProject}-MonthlyReport.pdf`;
-    }
+    if (result.reportType === "DAILY") return `${safeProject}-DailyReport.pdf`;
+    if (result.reportType === "WEEKLY") return `${safeProject}-WeeklyReport.pdf`;
+    if (result.reportType === "MONTHLY") return `${safeProject}-MonthlyReport.pdf`;
   }
 
   if (type === "daily") return `${safeProject}-DailyReport.pdf`;
@@ -196,26 +192,17 @@ function getSuggestedFileName(
 
 function readFileNameFromDisposition(value: string | null) {
   if (!value) return null;
-
   const utf8Match = value.match(/filename\*=UTF-8''([^;]+)/i);
-  if (utf8Match?.[1]) {
-    return decodeURIComponent(utf8Match[1]);
-  }
-
+  if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1]);
   const normalMatch = value.match(/filename="?([^"]+)"?/i);
-  if (normalMatch?.[1]) {
-    return normalMatch[1];
-  }
-
+  if (normalMatch?.[1]) return normalMatch[1];
   return null;
 }
 
 function formatDateTimeThai(iso?: string) {
   if (!iso) return "-";
-
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-
   return d.toLocaleString("th-TH", {
     year: "numeric",
     month: "short",
@@ -229,7 +216,7 @@ function renderInputIssueCommentCell(issue: IssueRowUnified) {
   const comments = Array.isArray(issue?.comments) ? issue.comments : [];
 
   if (!comments.length) {
-    return <div className="text-sm opacity-60">ยังไม่มีความคิดเห็น</div>;
+    return <div className="text-slate-500">ยังไม่มีความคิดเห็น</div>;
   }
 
   return (
@@ -244,12 +231,12 @@ function renderInputIssueCommentCell(issue: IssueRowUnified) {
         return (
           <div
             key={comment.id}
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/60"
+            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900/60"
           >
-            <div className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-800 dark:text-slate-100">
+            <div className="whitespace-pre-wrap text-slate-700 dark:text-slate-200">
               {comment.comment || "-"}
             </div>
-            <div className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               {authorName}
               {authorRole ? ` (${authorRole})` : ""} •{" "}
               {formatDateTimeThai(comment.createdAt)}
@@ -259,6 +246,210 @@ function renderInputIssueCommentCell(issue: IssueRowUnified) {
       })}
     </div>
   );
+}
+
+function toArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function toNumber(value: unknown, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function toText(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
+function buildWeeklyModelFromSummary(
+  result: SummaryResponse
+): WeeklyReportModel | null {
+  if (result.reportType !== "WEEKLY") return null;
+
+  const model: any = result.summaryModel ?? {};
+  const meta: any = model.meta ?? model.summary ?? model.header ?? {};
+  const project: any = model.project ?? {};
+  const period: any = model.period ?? {};
+  const timeSummary: any = model.timeSummary ?? model.durationSummary ?? {};
+  const safety: any = model.safety ?? {};
+  const progressSource: any[] = toArray<any>(
+    model.progressByCategory ??
+      model.progressItems ??
+      model.progressSummary ??
+      model.categories
+  );
+  const workSource: any[] = toArray<any>(
+    model.workPerformedWeekly ??
+      model.workItems ??
+      model.mergedWorkItems ??
+      model.items ??
+      model.works
+  );
+  const problemSource: any[] = toArray<any>(
+    model.problemsAndObstacles ?? model.problems ?? model.issues ?? model.obstacles
+  );
+  const supervisorSource: any[] = toArray<any>(
+    model.supervisors ?? model.signatures ?? model.approvals ?? model.reviewers
+  );
+
+  const normalizedWork: WeeklyWorkItem[] = workSource.map((item, index) => ({
+    id: String(item?.id ?? `work-${index + 1}`),
+    description: toText(
+      item?.description ??
+        item?.desc ??
+        item?.title ??
+        item?.workDescription ??
+        item?.name,
+      "-"
+    ),
+    location: toText(item?.location ?? item?.area ?? item?.position, ""),
+    qty:
+      item?.qty == null && item?.quantity == null
+        ? null
+        : toNumber(item?.qty ?? item?.quantity, 0),
+    unit: toText(item?.unit, ""),
+    remark: toText(item?.remark ?? item?.materialDelivered ?? item?.note, ""),
+  }));
+
+  const normalizedProblems: WeeklyProblemItem[] = problemSource.map(
+    (item, index) => ({
+      id: String(item?.id ?? `problem-${index + 1}`),
+      topic: toText(item?.topic ?? item?.title ?? item?.issue ?? item?.problem, "-"),
+      impact: toText(item?.impact ?? item?.effect ?? item?.comment, ""),
+      solution: toText(item?.solution ?? item?.resolution ?? item?.action, ""),
+    })
+  );
+
+  const normalizedProgress: WeeklyProgressItem[] = progressSource.map(
+    (item, index) => ({
+      id: String(item?.id ?? `progress-${index + 1}`),
+      category: toText(
+        item?.category ?? item?.name ?? item?.title ?? item?.workCategory,
+        "-"
+      ),
+      weightPercent: toNumber(item?.weightPercent ?? item?.weight ?? item?.weightPct, 0),
+      previousPercent: toNumber(
+        item?.previousPercent ?? item?.prevPercent ?? item?.beforePercent,
+        0
+      ),
+      weeklyPercent: toNumber(
+        item?.weeklyPercent ?? item?.thisWeekPercent ?? item?.currentPercent,
+        0
+      ),
+      accumulatedPercent: toNumber(
+        item?.accumulatedPercent ?? item?.actualPercent ?? item?.cumulativePercent,
+        0
+      ),
+      remainingPercent: toNumber(
+        item?.remainingPercent ?? item?.remainPercent ?? item?.balancePercent,
+        0
+      ),
+      plannedPercent:
+        item?.plannedPercent == null && item?.planPercent == null
+          ? null
+          : toNumber(item?.plannedPercent ?? item?.planPercent, 0),
+      variancePercent:
+        item?.variancePercent == null && item?.diffPercent == null
+          ? null
+          : toNumber(item?.variancePercent ?? item?.diffPercent, 0),
+      amountTotal:
+        item?.amountTotal == null ? null : toNumber(item?.amountTotal, 0),
+      amountAccumulated:
+        item?.amountAccumulated == null
+          ? null
+          : toNumber(item?.amountAccumulated, 0),
+      amountRemaining:
+        item?.amountRemaining == null ? null : toNumber(item?.amountRemaining, 0),
+    })
+  );
+
+  const normalizedSupervisors: WeeklySupervisor[] = supervisorSource.map((item) => ({
+    name: toText(item?.name ?? item?.fullName, ""),
+    role: toText(item?.role ?? item?.position ?? item?.title, ""),
+  }));
+
+  return {
+    id: result.reportId,
+    projectId: result.projectId,
+    year: toNumber(meta?.year ?? period?.year ?? 0, 0),
+    weekNo: toNumber(meta?.weekNo ?? period?.weekNo ?? 0, 0),
+    startDate: toText(
+      meta?.startDate ?? period?.startDate ?? result.selectedDate,
+      result.selectedDate
+    ),
+    endDate: toText(meta?.endDate ?? period?.endDate ?? result.selectedDate, result.selectedDate),
+    title: toText(
+      model?.documentTitle ??
+        model?.title ??
+        result.documentTitle ??
+        `Weekly Report - ${result.periodLabel}`,
+      `Weekly Report - ${result.periodLabel}`
+    ),
+    summary: {
+      projectName: toText(
+        project?.projectName ?? meta?.projectName ?? result.projectName,
+        result.projectName
+      ),
+      contractNo: toText(meta?.contractNo ?? meta?.contractNumber, "-"),
+      installmentLabel: toText(
+        meta?.installmentLabel ?? meta?.periodNo ?? result.periodLabel,
+        result.periodLabel
+      ),
+      contractorName: toText(meta?.contractorName ?? meta?.contractor, "-"),
+      siteLocation: toText(meta?.siteLocation ?? meta?.location, "-"),
+      contractStart: toText(meta?.contractStart ?? meta?.startContractDate, ""),
+      contractEnd: toText(meta?.contractEnd ?? meta?.endContractDate, ""),
+      contractValue: toText(meta?.contractValue ?? meta?.projectValue, "-"),
+      procurementMethod: toText(meta?.procurementMethod ?? meta?.purchaseMethod, "-"),
+      periodNo: toText(meta?.periodNo, ""),
+    },
+    timeSummary: {
+      contractDays: toNumber(timeSummary?.contractDays ?? timeSummary?.totalDays, 0),
+      previousUsedDays: toNumber(
+        timeSummary?.previousUsedDays ?? timeSummary?.usedDaysBefore,
+        0
+      ),
+      currentWeekDays: toNumber(
+        timeSummary?.currentWeekDays ?? timeSummary?.thisWeekDays,
+        0
+      ),
+      accumulatedDays: toNumber(
+        timeSummary?.accumulatedDays ?? timeSummary?.usedDaysAccumulated,
+        0
+      ),
+      remainingDays: toNumber(
+        timeSummary?.remainingDays ?? timeSummary?.daysRemaining,
+        0
+      ),
+      plannedDays:
+        timeSummary?.plannedDays == null ? null : toNumber(timeSummary?.plannedDays, 0),
+      varianceDays:
+        timeSummary?.varianceDays == null ? null : toNumber(timeSummary?.varianceDays, 0),
+    } satisfies WeeklyTimeSummary,
+    workPerformedWeekly: normalizedWork,
+    comments: toText(
+      model?.comments ??
+        model?.comment ??
+        model?.inspectorComment ??
+        model?.supervisorComment ??
+        "",
+      ""
+    ),
+    problemsAndObstacles: normalizedProblems,
+    safety: {
+      note: toText(safety?.note ?? safety?.remark ?? safety?.summary, ""),
+      accidentCount:
+        safety?.accidentCount == null ? 0 : toNumber(safety?.accidentCount, 0),
+      injuredCount:
+        safety?.injuredCount == null ? 0 : toNumber(safety?.injuredCount, 0),
+      lostTimeCount:
+        safety?.lostTimeCount == null ? 0 : toNumber(safety?.lostTimeCount, 0),
+    },
+    progressByCategory: normalizedProgress,
+    supervisors: normalizedSupervisors,
+    createdAt: toText(model?.createdAt, ""),
+    updatedAt: toText(model?.updatedAt, ""),
+  };
 }
 
 export default function InputPage() {
@@ -324,19 +515,11 @@ export default function InputPage() {
       setLoadingPeriods(true);
 
       try {
-        const qs = new URLSearchParams({
-          projectId,
-          type: reportType,
-        });
-
+        const qs = new URLSearchParams({ projectId, type: reportType });
         const res = await fetch(`/api/report-period-options?${qs.toString()}`, {
           cache: "no-store",
         });
-
-        const json = await res.json().catch(() => ({
-          ok: false,
-          items: [],
-        }));
+        const json = await res.json().catch(() => ({ ok: false, items: [] }));
 
         const items: PeriodOption[] = Array.isArray(json?.items)
           ? json.items.map((item: any) => ({
@@ -433,9 +616,17 @@ export default function InputPage() {
       if (reportType === "weekly") return "WeeklyReport.pdf";
       return "MonthlyReport.pdf";
     }
-
     return getSuggestedFileName(reportType, result);
   }, [canExport, reportType, result]);
+
+  const weeklyPreviewModel = useMemo(() => {
+    if (!result) return null;
+    if (!("ok" in result) || !result.ok) return null;
+    if (!("found" in result) || !result.found) return null;
+    if (!("renderMode" in result) || result.renderMode !== "summary") return null;
+    if (result.reportType !== "WEEKLY") return null;
+    return buildWeeklyModelFromSummary(result);
+  }, [result]);
 
   async function handleDownloadPdf() {
     if (!projectId || !selectedPeriodValue || !canExport || !result) return;
@@ -488,41 +679,20 @@ export default function InputPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#f5f7fb_35%,#eef4ff_100%)] text-slate-900 transition-colors dark:bg-[linear-gradient(180deg,#020617_0%,#0f172a_55%,#111827_100%)] dark:text-slate-100">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <section className="overflow-hidden rounded-[32px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(248,250,252,0.92),rgba(239,246,255,0.95))] px-5 py-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)] backdrop-blur-sm transition-colors dark:border-slate-800/80 dark:bg-[linear-gradient(135deg,rgba(2,6,23,0.95),rgba(15,23,42,0.94),rgba(30,41,59,0.92))] sm:px-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">
-                Report Center
-              </p>
-              <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-                Summary & PDF Preview
-              </h1>
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600 dark:text-slate-400">
-                เลือกโครงการและเลือกรอบรายงานจากข้อมูลในระบบ เพื่อดู Preview และดาวน์โหลด
-                PDF แบบ A4 โดยตรงจากระบบ
-              </p>
-            </div>
-
-            <div className="inline-flex items-center rounded-2xl border border-blue-200 bg-[rgba(124,156,245,0.12)] px-4 py-2 text-sm font-semibold text-blue-700 dark:border-blue-900/60 dark:bg-[rgba(124,156,245,0.16)] dark:text-blue-300">
-              Preview & Export
-            </div>
-          </div>
-        </section>
-
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(37,99,235,0.16),transparent_28%),linear-gradient(180deg,#020817,#071226_38%,#020817)] px-4 py-5 md:px-6">
+      <div className="mx-auto max-w-7xl space-y-6">
         <SectionCard
-          title="ตัวเลือกการแสดงผล"
-          subtitle="ตั้งค่าการเลือกโครงการ ประเภทรายงาน และรอบเอกสารก่อนแสดง Preview"
+          title="Report Center"
+          subtitle="เลือกโครงการและเลือกรอบรายงานจากข้อมูลในระบบ เพื่อดู Preview และดาวน์โหลด PDF แบบ A4 โดยตรงจากระบบ"
         >
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr_auto]">
             <div>
               <FieldLabel>โครงการ</FieldLabel>
               <select
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
                 disabled={loadingProjects || projects.length === 0}
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-blue-900/60 dark:focus:ring-blue-900/40 dark:disabled:bg-slate-900"
+                className="h-12 w-full rounded-2xl border border-[#244a86]/70 bg-slate-950/60 px-4 text-sm font-medium text-slate-100 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-950/30"
               >
                 {loadingProjects ? (
                   <option>กำลังโหลดโครงการ...</option>
@@ -540,7 +710,7 @@ export default function InputPage() {
 
             <div>
               <FieldLabel>ประเภทรายงาน</FieldLabel>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid h-12 grid-cols-3 gap-2">
                 <TypeButton
                   active={reportType === "daily"}
                   onClick={() => setReportType("daily")}
@@ -568,7 +738,7 @@ export default function InputPage() {
                 value={selectedPeriodValue}
                 onChange={(e) => setSelectedPeriodValue(e.target.value)}
                 disabled={!projectId || loadingPeriods || periodOptions.length === 0}
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-blue-900/60 dark:focus:ring-blue-900/40 dark:disabled:bg-slate-900"
+                className="h-12 w-full rounded-2xl border border-[#244a86]/70 bg-slate-950/60 px-4 text-sm font-medium text-slate-100 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-950/30"
               >
                 {!projectId ? (
                   <option>เลือกโครงการก่อน</option>
@@ -585,27 +755,22 @@ export default function InputPage() {
                 )}
               </select>
             </div>
+
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={!canExport || loadingDownload}
+                className="h-12 w-full rounded-2xl bg-white px-5 text-sm font-bold text-slate-900 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 xl:w-auto"
+              >
+                {loadingDownload ? "กำลังสร้าง PDF..." : "ดาวน์โหลด PDF"}
+              </button>
+            </div>
           </div>
 
-          <div className="mt-5 flex flex-col gap-4 rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(248,250,252,0.9),rgba(239,246,255,0.82))] p-4 transition-colors dark:border-slate-800/80 dark:bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(30,41,59,0.72))] lg:flex-row lg:items-center lg:justify-between">
-            <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
-              Daily จะแสดงเฉพาะรายงานที่ผ่านการอนุมัติครบแล้วเท่านั้น ส่วน Weekly และ
-              Monthly จะแสดงตามข้อมูลที่มีอยู่ใน DB
-            </p>
-
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={!canExport || loadingDownload}
-              className={cn(
-                "inline-flex h-12 items-center justify-center rounded-2xl px-5 text-sm font-semibold transition focus:outline-none focus:ring-2",
-                canExport && !loadingDownload
-                  ? "bg-[rgba(124,156,245,0.18)] text-blue-700 hover:bg-[rgba(124,156,245,0.24)] focus:ring-blue-200 dark:bg-[rgba(124,156,245,0.22)] dark:text-blue-300 dark:hover:bg-[rgba(124,156,245,0.28)] dark:focus:ring-blue-900/50"
-                  : "cursor-not-allowed bg-slate-200 text-slate-500 focus:ring-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:focus:ring-slate-800"
-              )}
-            >
-              {loadingDownload ? "กำลังสร้าง PDF..." : "ดาวน์โหลด PDF"}
-            </button>
+          <div className="mt-4 rounded-2xl border border-[#244a86]/60 bg-slate-950/35 px-4 py-3 text-sm text-slate-300">
+            Daily จะแสดงเฉพาะรายงานที่ผ่านการอนุมัติครบแล้วเท่านั้น ส่วน Weekly และ
+            Monthly จะแสดงตามข้อมูลที่มีอยู่ใน DB
           </div>
         </SectionCard>
 
@@ -626,18 +791,16 @@ export default function InputPage() {
           ) : "found" in result && result.found === false ? (
             <PreviewStateBox>{result.message || "ไม่พบรายงาน"}</PreviewStateBox>
           ) : "renderMode" in result && result.renderMode === "daily" ? (
-            <div className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/96 p-1 shadow-[0_10px_28px_rgba(15,23,42,0.06)] transition-colors dark:border-slate-800/80 dark:bg-slate-950/96 sm:p-2">
-              <ReportPreviewForm
-                model={result.dailyModel}
-                renderIssueCommentCell={(issue) =>
-                  renderInputIssueCommentCell(issue)
-                }
-              />
-            </div>
+            <ReportPreviewForm
+              model={result.dailyModel}
+              renderIssueCommentCell={renderInputIssueCommentCell}
+            />
+          ) : "renderMode" in result &&
+            result.renderMode === "summary" &&
+            result.reportType === "WEEKLY" ? (
+            <WeeklyReportForm model={weeklyPreviewModel} />
           ) : "renderMode" in result && result.renderMode === "summary" ? (
-            <div className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/96 p-1 shadow-[0_10px_28px_rgba(15,23,42,0.06)] transition-colors dark:border-slate-800/80 dark:bg-slate-950/96 sm:p-2">
-              <SummaryAggregatePreview model={result.summaryModel} />
-            </div>
+            <SummaryAggregatePreview model={result.summaryModel} />
           ) : (
             <PreviewStateBox>ไม่สามารถแสดง Preview ได้</PreviewStateBox>
           )}
