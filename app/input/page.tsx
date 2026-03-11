@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ReportPreviewForm,
+  type IssueRowUnified,
   type ReportRenderModel,
 } from "@/components/ReportPreviewReadonly";
 import {
@@ -81,28 +82,28 @@ function SectionCard({
 }: {
   title: string;
   subtitle?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_50px_rgba(148,163,184,0.14)] backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
-      <div className="mb-4">
+    <section className="rounded-3xl border border-slate-200 bg-white/95 shadow-sm backdrop-blur-sm transition-colors dark:border-slate-800 dark:bg-slate-950/95">
+      <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800 sm:px-6">
         <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
           {title}
         </h2>
         {subtitle ? (
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">
             {subtitle}
           </p>
         ) : null}
       </div>
-      {children}
+      <div className="px-5 py-5 sm:px-6">{children}</div>
     </section>
   );
 }
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
+function FieldLabel({ children }: { children: ReactNode }) {
   return (
-    <label className="mb-2 block text-sm font-medium text-slate-600 dark:text-slate-300">
+    <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
       {children}
     </label>
   );
@@ -115,21 +116,43 @@ function TypeButton({
 }: {
   active: boolean;
   onClick: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex h-11 items-center justify-center rounded-2xl px-4 text-sm font-semibold transition",
+        "inline-flex h-11 items-center justify-center rounded-2xl border px-4 text-sm font-semibold transition",
+        "focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-700",
         active
-          ? "bg-slate-900 text-white shadow-[0_10px_30px_rgba(15,23,42,0.20)] dark:bg-slate-100 dark:text-slate-900"
-          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+          ? "border-slate-900 bg-slate-900 text-white shadow-sm dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
+          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"
       )}
     >
       {children}
     </button>
+  );
+}
+
+function PreviewStateBox({
+  children,
+  tone = "neutral",
+}: {
+  children: ReactNode;
+  tone?: "neutral" | "error";
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-3xl border px-6 py-12 text-center text-sm font-medium shadow-sm transition-colors",
+        tone === "error"
+          ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+          : "border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -147,7 +170,7 @@ function getEmptyOptionLabel(type: ReportType) {
 
 function getSuggestedFileName(
   type: ReportType,
-  result: Exclude<BrowserResponse, null>
+  result: Exclude<BrowserResponse, ErrorResponse | NotFoundResponse | null>
 ) {
   const safeProject =
     "projectName" in result && result.projectName
@@ -185,6 +208,60 @@ function readFileNameFromDisposition(value: string | null) {
   }
 
   return null;
+}
+
+function formatDateTimeThai(iso?: string) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+
+  return d.toLocaleString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function renderInputIssueCommentCell(issue: IssueRowUnified) {
+  const comments = Array.isArray(issue?.comments) ? issue.comments : [];
+
+  if (!comments.length) {
+    return (
+      <div className="text-sm opacity-60">
+        ยังไม่มีความคิดเห็น
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {comments.map((comment) => {
+        const authorName =
+          comment.author?.name?.trim() ||
+          comment.author?.email?.trim() ||
+          "ผู้แสดงความคิดเห็น";
+        const authorRole = comment.author?.role?.trim() || "";
+
+        return (
+          <div
+            key={comment.id}
+            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/60"
+          >
+            <div className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-800 dark:text-slate-100">
+              {comment.comment || "-"}
+            </div>
+            <div className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+              {authorName}
+              {authorRole ? ` (${authorRole})` : ""} •{" "}
+              {formatDateTimeThai(comment.createdAt)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function InputPage() {
@@ -304,7 +381,6 @@ export default function InputPage() {
 
     async function loadPreview() {
       setResult(null);
-
       if (!projectId || !selectedPeriodValue) return;
 
       setLoadingPreview(true);
@@ -384,6 +460,7 @@ export default function InputPage() {
 
       if (!res.ok) {
         const contentType = res.headers.get("Content-Type") || "";
+
         if (contentType.includes("application/json")) {
           const errJson = await res.json().catch(() => null);
           throw new Error(errJson?.message || "ดาวน์โหลด PDF ไม่สำเร็จ");
@@ -395,7 +472,6 @@ export default function InputPage() {
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-
       const dispositionName = readFileNameFromDisposition(
         res.headers.get("Content-Disposition")
       );
@@ -406,7 +482,6 @@ export default function InputPage() {
       document.body.appendChild(a);
       a.click();
       a.remove();
-
       URL.revokeObjectURL(url);
     } catch (e: any) {
       alert(String(e?.message || e || "ดาวน์โหลด PDF ไม่สำเร็จ"));
@@ -416,149 +491,161 @@ export default function InputPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6">
-      <div className="mb-6 rounded-[32px] border border-slate-200/80 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-6 shadow-[0_20px_60px_rgba(148,163,184,0.18)] dark:border-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-          Report Center
-        </p>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-          Summary & PDF Preview
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-          เลือกโครงการและเลือกรอบรายงานจากข้อมูลในระบบ เพื่อดู Preview และดาวน์โหลด
-          PDF แบบ A4 โดยตรงจากระบบ
-        </p>
-      </div>
+    <main className="min-h-screen bg-slate-50 text-slate-900 transition-colors dark:bg-slate-900 dark:text-slate-100">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+        <section className="rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-5 py-6 shadow-sm transition-colors dark:border-slate-800 dark:from-slate-950 dark:to-slate-900 sm:px-6">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+            Report Center
+          </p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
+            Summary & PDF Preview
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600 dark:text-slate-400">
+            เลือกโครงการและเลือกรอบรายงานจากข้อมูลในระบบ เพื่อดู Preview และดาวน์โหลด
+            PDF แบบ A4 โดยตรงจากระบบ
+          </p>
+        </section>
 
-      <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
-        <div className="space-y-6">
-          <SectionCard
-            title="ตัวกรองรายงาน"
-            subtitle="เลือกโครงการ ประเภทรายงาน และรอบที่ต้องการแสดงผล"
-          >
-            <div className="space-y-5">
-              <div>
-                <FieldLabel>โครงการ</FieldLabel>
-                <select
-                  value={projectId}
-                  onChange={(e) => setProjectId(e.target.value)}
-                  disabled={loadingProjects || projects.length === 0}
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-700 dark:focus:ring-slate-800"
-                >
-                  {loadingProjects ? (
-                    <option>กำลังโหลดโครงการ...</option>
-                  ) : projects.length === 0 ? (
-                    <option>ไม่พบโครงการ</option>
-                  ) : (
-                    projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.projectName}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <FieldLabel>ประเภทรายงาน</FieldLabel>
-                <div className="grid grid-cols-3 gap-2">
-                  <TypeButton
-                    active={reportType === "daily"}
-                    onClick={() => setReportType("daily")}
-                  >
-                    Daily
-                  </TypeButton>
-                  <TypeButton
-                    active={reportType === "weekly"}
-                    onClick={() => setReportType("weekly")}
-                  >
-                    Weekly
-                  </TypeButton>
-                  <TypeButton
-                    active={reportType === "monthly"}
-                    onClick={() => setReportType("monthly")}
-                  >
-                    Monthly
-                  </TypeButton>
-                </div>
-              </div>
-
-              <div>
-                <FieldLabel>{getPeriodLabel(reportType)}</FieldLabel>
-                <select
-                  value={selectedPeriodValue}
-                  onChange={(e) => setSelectedPeriodValue(e.target.value)}
-                  disabled={!projectId || loadingPeriods || periodOptions.length === 0}
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-700 dark:focus:ring-slate-800"
-                >
-                  {!projectId ? (
-                    <option>เลือกโครงการก่อน</option>
-                  ) : loadingPeriods ? (
-                    <option>กำลังโหลดรายการ...</option>
-                  ) : periodOptions.length === 0 ? (
-                    <option>{getEmptyOptionLabel(reportType)}</option>
-                  ) : (
-                    periodOptions.map((item) => (
-                      <option key={item.id} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
-                Daily จะแสดงเฉพาะรายงานที่ผ่านการอนุมัติครบแล้วเท่านั้น ส่วน Weekly
-                และ Monthly จะแสดงตามข้อมูลที่มีอยู่ใน DB
-              </div>
-
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                disabled={!canExport || loadingDownload}
-                className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(15,23,42,0.22)] transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+        <SectionCard
+          title="ตัวเลือกการแสดงผล"
+          subtitle="ตั้งค่าการเลือกโครงการ ประเภทรายงาน และรอบเอกสารก่อนแสดง Preview"
+        >
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+            <div>
+              <FieldLabel>โครงการ</FieldLabel>
+              <select
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                disabled={loadingProjects || projects.length === 0}
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-700 dark:focus:ring-slate-800 dark:disabled:bg-slate-900"
               >
-                {loadingDownload ? "กำลังสร้าง PDF..." : "ดาวน์โหลด PDF"}
-              </button>
+                {loadingProjects ? (
+                  <option>กำลังโหลดโครงการ...</option>
+                ) : projects.length === 0 ? (
+                  <option>ไม่พบโครงการ</option>
+                ) : (
+                  projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.projectName}
+                    </option>
+                  ))
+                )}
+              </select>
             </div>
-          </SectionCard>
-        </div>
+
+            <div>
+              <FieldLabel>ประเภทรายงาน</FieldLabel>
+              <div className="grid grid-cols-3 gap-2">
+                <TypeButton
+                  active={reportType === "daily"}
+                  onClick={() => setReportType("daily")}
+                >
+                  Daily
+                </TypeButton>
+                <TypeButton
+                  active={reportType === "weekly"}
+                  onClick={() => setReportType("weekly")}
+                >
+                  Weekly
+                </TypeButton>
+                <TypeButton
+                  active={reportType === "monthly"}
+                  onClick={() => setReportType("monthly")}
+                >
+                  Monthly
+                </TypeButton>
+              </div>
+            </div>
+
+            <div>
+              <FieldLabel>{getPeriodLabel(reportType)}</FieldLabel>
+              <select
+                value={selectedPeriodValue}
+                onChange={(e) => setSelectedPeriodValue(e.target.value)}
+                disabled={!projectId || loadingPeriods || periodOptions.length === 0}
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-700 dark:focus:ring-slate-800 dark:disabled:bg-slate-900"
+              >
+                {!projectId ? (
+                  <option>เลือกโครงการก่อน</option>
+                ) : loadingPeriods ? (
+                  <option>กำลังโหลดรายการ...</option>
+                ) : periodOptions.length === 0 ? (
+                  <option>{getEmptyOptionLabel(reportType)}</option>
+                ) : (
+                  periodOptions.map((item) => (
+                    <option key={item.id} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition-colors dark:border-slate-800 dark:bg-slate-900/60 lg:flex-row lg:items-center lg:justify-between">
+            <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
+              Daily จะแสดงเฉพาะรายงานที่ผ่านการอนุมัติครบแล้วเท่านั้น ส่วน Weekly และ
+              Monthly จะแสดงตามข้อมูลที่มีอยู่ใน DB
+            </p>
+
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={!canExport || loadingDownload}
+              className={cn(
+                "inline-flex h-12 items-center justify-center rounded-2xl px-5 text-sm font-semibold transition focus:outline-none focus:ring-2",
+                canExport && !loadingDownload
+                  ? "bg-slate-900 text-white hover:bg-slate-800 focus:ring-slate-300 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 dark:focus:ring-slate-700"
+                  : "cursor-not-allowed bg-slate-200 text-slate-500 focus:ring-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:focus:ring-slate-800"
+              )}
+            >
+              {loadingDownload ? "กำลังสร้าง PDF..." : "ดาวน์โหลด PDF"}
+            </button>
+          </div>
+        </SectionCard>
 
         <SectionCard
           title="Preview"
-          subtitle="แสดงผลข้อมูลแบบ A4 ตามรายงานที่เลือก"
+          subtitle="ตรวจสอบเอกสารก่อนดาวน์โหลด เพื่อให้ตรงกับข้อมูลจริงในระบบ"
         >
           {!projectId ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
-              กรุณาเลือกโครงการก่อน
-            </div>
+            <PreviewStateBox>กรุณาเลือกโครงการก่อน</PreviewStateBox>
           ) : loadingPreview ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
-              กำลังโหลด Preview...
-            </div>
+            <PreviewStateBox>กำลังโหลด Preview...</PreviewStateBox>
           ) : !result ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
-              ยังไม่มีข้อมูลสำหรับแสดงผล
-            </div>
+            <PreviewStateBox>ยังไม่มีข้อมูลสำหรับแสดงผล</PreviewStateBox>
           ) : "ok" in result && result.ok === false ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-10 text-center text-sm text-rose-600 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
+            <PreviewStateBox tone="error">
               {result.message || "เกิดข้อผิดพลาด"}
-            </div>
+            </PreviewStateBox>
           ) : "found" in result && result.found === false ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-10 text-center text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
-              {result.message || "ไม่พบรายงาน"}
-            </div>
+            <PreviewStateBox>{result.message || "ไม่พบรายงาน"}</PreviewStateBox>
           ) : "renderMode" in result && result.renderMode === "daily" ? (
-            <ReportPreviewForm model={result.dailyModel} />
-          ) : "renderMode" in result && result.renderMode === "summary" ? (
-            <SummaryAggregatePreview model={result.summaryModel} />
-          ) : (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
-              ไม่สามารถแสดง Preview ได้
+            <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-950">
+              <div className="overflow-x-auto">
+                <div className="min-w-[820px]">
+                  <ReportPreviewForm
+                    model={result.dailyModel}
+                    renderIssueCommentCell={(issue) =>
+                      renderInputIssueCommentCell(issue)
+                    }
+                  />
+                </div>
+              </div>
             </div>
+          ) : "renderMode" in result && result.renderMode === "summary" ? (
+            <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-950">
+              <div className="overflow-x-auto">
+                <div className="min-w-[820px]">
+                  <SummaryAggregatePreview model={result.summaryModel} />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <PreviewStateBox>ไม่สามารถแสดง Preview ได้</PreviewStateBox>
           )}
         </SectionCard>
       </div>
-    </div>
+    </main>
   );
 }
