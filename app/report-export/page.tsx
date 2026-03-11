@@ -16,9 +16,9 @@ export const revalidate = 0;
 
 const PDF_PAGE_WIDTH_PX = 794;
 const PDF_PAGE_HEIGHT_MM = 297;
-const PDF_MARGIN_TOP_MM = 2;
+const PDF_MARGIN_TOP_MM = 10;
 const PDF_MARGIN_RIGHT_MM = 10;
-const PDF_MARGIN_BOTTOM_MM = 1;
+const PDF_MARGIN_BOTTOM_MM = 10;
 const PDF_MARGIN_LEFT_MM = 10;
 
 type SearchParamsShape = Promise<{
@@ -85,7 +85,7 @@ function ExportGlobalStyle() {
 
       [data-pdf-preview-root="1"] {
         width: ${PDF_PAGE_WIDTH_PX}px !important;
-        margin: 0 !important;
+        margin: 0 auto !important;
         padding: 0 !important;
         background: #ffffff !important;
         overflow: visible !important;
@@ -125,7 +125,6 @@ function ExportGlobalStyle() {
         page-break-inside: avoid !important;
       }
 
-      /* ตารางยาวสามารถไหลข้ามหน้าได้ แต่ห้ามตัดกลางแถว */
       [data-pdf-preview-root="1"] table {
         width: 100%;
         border-collapse: collapse;
@@ -159,7 +158,6 @@ function ExportGlobalStyle() {
         vertical-align: top;
       }
 
-      /* ใช้เมื่อ script ต้องการบังคับตัดหน้าแบบชัดเจน */
       [data-pdf-preview-root="1"] .pdf-page-break {
         break-before: page !important;
         page-break-before: always !important;
@@ -220,14 +218,17 @@ function PaginationScript() {
   }
 
   function topWithinRoot(el, root) {
-    var r = el.getBoundingClientRect();
-    var rr = root.getBoundingClientRect();
-    return r.top - rr.top;
+    var rect = el.getBoundingClientRect();
+    var rootRect = root.getBoundingClientRect();
+    return rect.top - rootRect.top;
   }
 
   function heightOf(el) {
-    var rect = el.getBoundingClientRect();
-    return rect.height || 0;
+    return el.getBoundingClientRect().height || 0;
+  }
+
+  function contentHeightPx() {
+    return Math.round(mmToPx(PAGE_HEIGHT_MM - PAGE_MARGIN_TOP_MM - PAGE_MARGIN_BOTTOM_MM));
   }
 
   function clearDynamicClasses(root) {
@@ -247,8 +248,7 @@ function PaginationScript() {
   function markMediaBlocks(root) {
     root.querySelectorAll("img, svg, canvas").forEach(function (media) {
       var block =
-        media.closest(".issue-card, .signature-card, figure, .image-wrapper, td, div, section, article") ||
-        media;
+        media.closest(".issue-card, .signature-card, figure, td, div") || media;
 
       if (block && block !== root) {
         block.classList.add("pdf-media-block");
@@ -256,77 +256,81 @@ function PaginationScript() {
     });
   }
 
-  function markWholeTablesThatShouldStayTogether(root, contentHeight) {
+  function offsetInPage(top, pageContentHeight) {
+    return ((top % pageContentHeight) + pageContentHeight) % pageContentHeight;
+  }
+
+  function maybeBreakWholeBlock(el, root, pageContentHeight) {
+    var TOP_GUARD = 12;
+    var BOTTOM_GUARD = 8;
+
+    var h = heightOf(el);
+    if (!h) return;
+    if (h >= pageContentHeight * 0.98) return;
+
+    var top = topWithinRoot(el, root);
+    var offset = offsetInPage(top, pageContentHeight);
+    var remaining = pageContentHeight - offset;
+
+    var wouldOverflow = h > (remaining - BOTTOM_GUARD);
+    var alreadyAtTop = offset <= TOP_GUARD;
+
+    if (wouldOverflow && !alreadyAtTop) {
+      el.classList.add("pdf-page-break");
+    }
+  }
+
+  function markShortTablesAsWholeBlocks(root, pageContentHeight) {
     root.querySelectorAll("table").forEach(function (table) {
       var rows = Array.from(table.querySelectorAll("tr"));
-      var rowCount = rows.length;
-      var height = heightOf(table);
+      var tableHeight = heightOf(table);
 
-      /* ตารางสั้น เช่น WORK PERFORMED ให้ย้ายเป็นทั้งก้อน */
-      if (rowCount > 0 && rowCount <= 6 && height > 0 && height < contentHeight * 0.92) {
+      if (!rows.length || !tableHeight) return;
+
+      if (rows.length <= 6 && tableHeight < pageContentHeight * 0.92) {
         table.classList.add("pdf-keep-block");
       }
     });
   }
 
-  function applyBreakBeforeWholeBlocks(root, contentHeight) {
-    var TOP_GUARD = 12;
-    var BOTTOM_GUARD = 8;
-
+  function breakWholeBlocks(root, pageContentHeight) {
     var blocks = Array.from(
       root.querySelectorAll("table.pdf-keep-block, .issue-card, .signature-card, .pdf-media-block")
-    )
-      .filter(function (el) {
-        return el && el !== root;
-      })
-      .sort(function (a, b) {
-        return topWithinRoot(a, root) - topWithinRoot(b, root);
-      });
+    ).sort(function (a, b) {
+      return topWithinRoot(a, root) - topWithinRoot(b, root);
+    });
 
     blocks.forEach(function (el) {
-      var height = heightOf(el);
-      if (!height) return;
-      if (height >= contentHeight * 0.98) return;
-
-      var top = topWithinRoot(el, root);
-      var offsetInPage = ((top % contentHeight) + contentHeight) % contentHeight;
-      var remaining = contentHeight - offsetInPage;
-
-      var wouldOverflow = height > (remaining - BOTTOM_GUARD);
-      var alreadyAtTop = offsetInPage <= TOP_GUARD;
-
-      if (wouldOverflow && !alreadyAtTop) {
-        el.classList.add("pdf-page-break");
-      }
+      maybeBreakWholeBlock(el, root, pageContentHeight);
     });
   }
 
-  function paginateLongTablesByRow(root, contentHeight) {
+  function breakLongTablesByRow(root, pageContentHeight) {
     var TOP_GUARD = 12;
     var BOTTOM_GUARD = 8;
 
     root.querySelectorAll("table").forEach(function (table) {
+      if (table.classList.contains("pdf-keep-block")) return;
+
       var rows = Array.from(table.querySelectorAll("tr"));
       var tableHeight = heightOf(table);
 
-      /* ถ้าตารางสั้น/ถูก keep ทั้งก้อนแล้ว ไม่ต้องไปตัดเป็นรายแถว */
-      if (table.classList.contains("pdf-keep-block")) return;
-      if (!rows.length) return;
-      if (!tableHeight || tableHeight < contentHeight * 0.55) return;
+      if (!rows.length || !tableHeight) return;
+      if (tableHeight < pageContentHeight * 0.55) return;
 
       rows.forEach(function (row, index) {
         if (index === 0) return;
 
         var rowHeight = heightOf(row);
         if (!rowHeight) return;
-        if (rowHeight >= contentHeight * 0.98) return;
+        if (rowHeight >= pageContentHeight * 0.98) return;
 
         var top = topWithinRoot(row, root);
-        var offsetInPage = ((top % contentHeight) + contentHeight) % contentHeight;
-        var remaining = contentHeight - offsetInPage;
+        var offset = offsetInPage(top, pageContentHeight);
+        var remaining = pageContentHeight - offset;
 
         var wouldOverflow = rowHeight > (remaining - BOTTOM_GUARD);
-        var alreadyAtTop = offsetInPage <= TOP_GUARD;
+        var alreadyAtTop = offset <= TOP_GUARD;
 
         if (wouldOverflow && !alreadyAtTop) {
           row.classList.add("pdf-page-break");
@@ -342,13 +346,11 @@ function PaginationScript() {
     clearDynamicClasses(root);
     markMediaBlocks(root);
 
-    var CONTENT_HEIGHT = Math.round(
-      mmToPx(PAGE_HEIGHT_MM - PAGE_MARGIN_TOP_MM - PAGE_MARGIN_BOTTOM_MM)
-    );
+    var pageContentHeight = contentHeightPx();
 
-    markWholeTablesThatShouldStayTogether(root, CONTENT_HEIGHT);
-    applyBreakBeforeWholeBlocks(root, CONTENT_HEIGHT);
-    paginateLongTablesByRow(root, CONTENT_HEIGHT);
+    markShortTablesAsWholeBlocks(root, pageContentHeight);
+    breakWholeBlocks(root, pageContentHeight);
+    breakLongTablesByRow(root, pageContentHeight);
   }
 
   function boot() {
