@@ -56,506 +56,385 @@ function asNumber(value: unknown, fallback = 0) {
   return fallback;
 }
 
-function firstDefined<T>(...values: unknown[]): T | undefined {
+function firstNonEmpty(...values: unknown[]) {
   for (const value of values) {
     if (value == null) continue;
     if (typeof value === "string" && value.trim() === "") continue;
-    return value as T;
+    return value;
   }
   return undefined;
 }
 
-function getByAliases(record: AnyRecord | null | undefined, aliases: string[]) {
-  if (!record) return undefined;
-
-  for (const alias of aliases) {
-    if (alias in record) return record[alias];
-  }
-
-  const lowerEntries = Object.entries(record).map(([k, v]) => [k.toLowerCase(), v] as const);
-  for (const alias of aliases) {
-    const found = lowerEntries.find(([k]) => k === alias.toLowerCase());
-    if (found) return found[1];
-  }
-
-  return undefined;
+function uniqueLower(values: string[]) {
+  return [...new Set(values.map((v) => v.toLowerCase()))];
 }
 
-function parsePeriodRange(periodLabel: string, fallbackDate: string) {
+function findValueDeep(
+  input: unknown,
+  aliases: string[],
+  maxDepth = 8,
+  seen = new WeakSet<object>()
+): unknown {
+  const normalizedAliases = uniqueLower(aliases);
+
+  function walk(value: unknown, depth: number): unknown {
+    if (depth > maxDepth || value == null) return undefined;
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = walk(item, depth + 1);
+        if (found !== undefined) return found;
+      }
+      return undefined;
+    }
+
+    if (typeof value !== "object") return undefined;
+
+    const record = value as AnyRecord;
+    if (seen.has(record)) return undefined;
+    seen.add(record);
+
+    for (const [key, val] of Object.entries(record)) {
+      if (normalizedAliases.includes(key.toLowerCase())) {
+        if (val !== undefined && val !== null && !(typeof val === "string" && val.trim() === "")) {
+          return val;
+        }
+      }
+    }
+
+    for (const child of Object.values(record)) {
+      const found = walk(child, depth + 1);
+      if (found !== undefined) return found;
+    }
+
+    return undefined;
+  }
+
+  return walk(input, 0);
+}
+
+function findArrayDeep(input: unknown, aliases: string[], maxDepth = 8): AnyRecord[] {
+  const found = findValueDeep(input, aliases, maxDepth);
+  return Array.isArray(found) ? (found as AnyRecord[]) : [];
+}
+
+function parsePeriodRangeFromLabel(periodLabel: string, fallbackDate: string) {
   const label = asString(periodLabel);
   if (!label) {
-    return {
-      startDate: fallbackDate || "",
-      endDate: fallbackDate || "",
-    };
+    return { startDate: fallbackDate || "", endDate: fallbackDate || "" };
   }
 
   const parts = label.split("ถึง").map((item) => item.trim()).filter(Boolean);
   if (parts.length >= 2) {
-    return {
-      startDate: parts[0],
-      endDate: parts[1],
-    };
+    return { startDate: parts[0], endDate: parts[1] };
   }
 
-  return {
-    startDate: label,
-    endDate: label,
-  };
+  return { startDate: label, endDate: label };
 }
 
-function makeWeeklyWorkItems(payload: AnyRecord): WeeklyWorkItem[] {
-  const rows = toArray<AnyRecord>(
-    firstDefined(
-      getByAliases(payload, ["workPerformedWeekly", "workPerformedMonthly", "mergedWorkItems", "workItems", "works"])
-    )
-  );
+function makeWeeklyWorkItems(root: unknown): WeeklyWorkItem[] {
+  const rows = findArrayDeep(root, [
+    "workPerformedWeekly",
+    "workPerformedMonthly",
+    "mergedWorkItems",
+    "workItems",
+    "works",
+    "items",
+  ]);
 
-  return rows.map((row, index) => ({
-    id: asString(firstDefined(row.id, row.code), `work-${index + 1}`),
-    description: asString(
-      firstDefined(
-        getByAliases(row, ["description", "desc", "workName", "item", "title", "name"])
-      ),
-      "-"
-    ),
-    qty: (() => {
-      const raw = firstDefined(getByAliases(row, ["qty", "quantity", "amount"]));
-      if (raw == null || raw === "") return null;
-      const parsed = asNumber(raw, Number.NaN);
-      return Number.isFinite(parsed) ? parsed : null;
-    })(),
-    unit: (() => {
-      const value = asString(getByAliases(row, ["unit"]), "");
-      return value || null;
-    })(),
-    location: (() => {
-      const value = asString(getByAliases(row, ["location", "position", "area"]), "");
-      return value || null;
-    })(),
-    remark: (() => {
-      const value = asString(
-        getByAliases(row, ["remark", "remarks", "note", "materialDelivered"]),
-        ""
+  return rows
+    .map((row, index) => {
+      const description = asString(
+        firstNonEmpty(
+          findValueDeep(row, ["description", "desc", "workName", "item", "title", "name"])
+        ),
+        "-"
       );
-      return value || null;
-    })(),
-  }));
+
+      const qtyRaw = firstNonEmpty(findValueDeep(row, ["qty", "quantity", "amount"]));
+      const qtyParsed = qtyRaw == null || qtyRaw === "" ? null : asNumber(qtyRaw, Number.NaN);
+
+      const unit = asString(findValueDeep(row, ["unit"]), "");
+      const location = asString(findValueDeep(row, ["location", "position", "area"]), "");
+      const remark = asString(findValueDeep(row, ["remark", "remarks", "note", "materialDelivered"]), "");
+
+      return {
+        id: asString(firstNonEmpty(row.id, row.code), `work-${index + 1}`),
+        description,
+        qty: Number.isFinite(qtyParsed as number) ? (qtyParsed as number) : null,
+        unit: unit || null,
+        location: location || null,
+        remark: remark || null,
+      };
+    })
+    .filter((row) => row.description !== "-" || row.qty != null || row.unit || row.location || row.remark);
 }
 
-function makeWeeklyProblems(payload: AnyRecord): WeeklyProblemItem[] {
-  const rows = toArray<AnyRecord>(
-    firstDefined(
-      getByAliases(payload, ["problemsAndObstacles", "issues", "issueSummary", "obstacles"])
-    )
-  );
+function makeWeeklyProblems(root: unknown): WeeklyProblemItem[] {
+  const rows = findArrayDeep(root, [
+    "problemsAndObstacles",
+    "issues",
+    "issueSummary",
+    "obstacles",
+    "problems",
+  ]);
 
-  return rows.map((row, index) => ({
-    id: asString(firstDefined(row.id, row.code), `problem-${index + 1}`),
-    topic: asString(
-      firstDefined(getByAliases(row, ["topic", "title", "problem", "detail"])),
-      "-"
-    ),
-    impact: (() => {
-      const value = asString(getByAliases(row, ["impact", "effect", "result"]), "");
-      return value || null;
-    })(),
-    solution: (() => {
-      const value = asString(getByAliases(row, ["solution", "fix", "resolution", "action"]), "");
-      return value || null;
-    })(),
-  }));
+  return rows
+    .map((row, index) => {
+      const topic = asString(
+        firstNonEmpty(findValueDeep(row, ["topic", "title", "problem", "detail"])),
+        "-"
+      );
+      const impact = asString(findValueDeep(row, ["impact", "effect", "result"]), "");
+      const solution = asString(findValueDeep(row, ["solution", "fix", "resolution", "action"]), "");
+
+      return {
+        id: asString(firstNonEmpty(row.id, row.code), `problem-${index + 1}`),
+        topic,
+        impact: impact || null,
+        solution: solution || null,
+      };
+    })
+    .filter((row) => row.topic !== "-" || row.impact || row.solution);
 }
 
-function makeWeeklyProgress(payload: AnyRecord, reportType: SummaryReportType): WeeklyProgressItem[] {
-  const rows = toArray<AnyRecord>(
-    firstDefined(
-      getByAliases(payload, ["progressByCategory", "progressItems", "progressRows", "progress"]),
-      getByAliases(toRecord(getByAliases(payload, ["progressSummary", "progressTable"])), ["items", "rows"])
-    )
-  );
+function makeWeeklyProgress(root: unknown, reportType: SummaryReportType): WeeklyProgressItem[] {
+  const rows =
+    findArrayDeep(root, ["progressByCategory", "progressItems", "progressRows"]) ||
+    findArrayDeep(root, ["items", "rows"]);
 
-  return rows.map((row, index) => {
-    const currentPercent =
-      reportType === "MONTHLY"
-        ? firstDefined(
-            getByAliases(row, ["monthlyPercent", "currentPercent", "thisMonth", "thisPeriod"]),
-            getByAliases(row, ["weeklyPercent", "thisWeek"])
-          )
-        : firstDefined(
-            getByAliases(row, ["weeklyPercent", "currentPercent", "thisWeek", "thisPeriod"]),
-            getByAliases(row, ["monthlyPercent", "thisMonth"])
-          );
+  return rows
+    .map((row, index) => {
+      const currentRaw =
+        reportType === "MONTHLY"
+          ? firstNonEmpty(
+              findValueDeep(row, ["monthlyPercent", "currentPercent", "thisMonth", "thisPeriod"]),
+              findValueDeep(row, ["weeklyPercent", "thisWeek"])
+            )
+          : firstNonEmpty(
+              findValueDeep(row, ["weeklyPercent", "currentPercent", "thisWeek", "thisPeriod"]),
+              findValueDeep(row, ["monthlyPercent", "thisMonth"])
+            );
 
-    return {
-      id: asString(firstDefined(row.id, row.code), `progress-${index + 1}`),
-      category: asString(
-        firstDefined(getByAliases(row, ["category", "name", "section", "workType", "title"])),
-        `หมวดงาน ${index + 1}`
-      ),
-      weightPercent: asNumber(
-        getByAliases(row, ["weightPercent", "weight", "weightPct", "weightPercentage"]),
-        0
-      ),
-      previousPercent: asNumber(
-        getByAliases(row, ["previousPercent", "before", "previous", "beforePercent"]),
-        0
-      ),
-      weeklyPercent: asNumber(currentPercent, 0),
-      accumulatedPercent: asNumber(
-        getByAliases(row, ["accumulatedPercent", "cumulativePercent", "cumulative", "accumulated"]),
-        0
-      ),
-      remainingPercent: asNumber(
-        getByAliases(row, ["remainingPercent", "remaining", "balance"]),
-        0
-      ),
-      plannedPercent: (() => {
-        const raw = getByAliases(row, ["plannedPercent", "planPercent", "plan", "planned"]);
-        if (raw == null || raw === "") return null;
-        const parsed = asNumber(raw, Number.NaN);
-        return Number.isFinite(parsed) ? parsed : null;
-      })(),
-      variancePercent: (() => {
-        const raw = getByAliases(row, ["variancePercent", "deviationPercent", "deviation", "variance", "delay"]);
-        if (raw == null || raw === "") return null;
-        const parsed = asNumber(raw, Number.NaN);
-        return Number.isFinite(parsed) ? parsed : null;
-      })(),
-      amountTotal: (() => {
-        const raw = getByAliases(row, ["amountTotal", "totalAmount"]);
-        if (raw == null || raw === "") return null;
-        const parsed = asNumber(raw, Number.NaN);
-        return Number.isFinite(parsed) ? parsed : null;
-      })(),
-      amountAccumulated: (() => {
-        const raw = getByAliases(row, ["amountAccumulated", "accumulatedAmount"]);
-        if (raw == null || raw === "") return null;
-        const parsed = asNumber(raw, Number.NaN);
-        return Number.isFinite(parsed) ? parsed : null;
-      })(),
-      amountRemaining: (() => {
-        const raw = getByAliases(row, ["amountRemaining", "remainingAmount"]);
-        if (raw == null || raw === "") return null;
-        const parsed = asNumber(raw, Number.NaN);
-        return Number.isFinite(parsed) ? parsed : null;
-      })(),
-    };
-  });
+      const plannedRaw = firstNonEmpty(findValueDeep(row, ["plannedPercent", "planPercent", "plan", "planned"]));
+      const varianceRaw = firstNonEmpty(
+        findValueDeep(row, ["variancePercent", "deviationPercent", "deviation", "variance", "delay"])
+      );
+      const amountTotalRaw = firstNonEmpty(findValueDeep(row, ["amountTotal", "totalAmount"]));
+      const amountAccumRaw = firstNonEmpty(findValueDeep(row, ["amountAccumulated", "accumulatedAmount"]));
+      const amountRemainRaw = firstNonEmpty(findValueDeep(row, ["amountRemaining", "remainingAmount"]));
+
+      return {
+        id: asString(firstNonEmpty(row.id, row.code), `progress-${index + 1}`),
+        category: asString(
+          firstNonEmpty(findValueDeep(row, ["category", "name", "section", "workType", "title"])),
+          `หมวดงาน ${index + 1}`
+        ),
+        weightPercent: asNumber(findValueDeep(row, ["weightPercent", "weight", "weightPct", "weightPercentage"]), 0),
+        previousPercent: asNumber(findValueDeep(row, ["previousPercent", "before", "previous", "beforePercent"]), 0),
+        weeklyPercent: asNumber(currentRaw, 0),
+        accumulatedPercent: asNumber(
+          findValueDeep(row, ["accumulatedPercent", "cumulativePercent", "cumulative", "accumulated"]),
+          0
+        ),
+        remainingPercent: asNumber(findValueDeep(row, ["remainingPercent", "remaining", "balance"]), 0),
+        plannedPercent:
+          plannedRaw == null || plannedRaw === ""
+            ? null
+            : Number.isFinite(asNumber(plannedRaw, Number.NaN))
+            ? asNumber(plannedRaw, 0)
+            : null,
+        variancePercent:
+          varianceRaw == null || varianceRaw === ""
+            ? null
+            : Number.isFinite(asNumber(varianceRaw, Number.NaN))
+            ? asNumber(varianceRaw, 0)
+            : null,
+        amountTotal:
+          amountTotalRaw == null || amountTotalRaw === ""
+            ? null
+            : Number.isFinite(asNumber(amountTotalRaw, Number.NaN))
+            ? asNumber(amountTotalRaw, 0)
+            : null,
+        amountAccumulated:
+          amountAccumRaw == null || amountAccumRaw === ""
+            ? null
+            : Number.isFinite(asNumber(amountAccumRaw, Number.NaN))
+            ? asNumber(amountAccumRaw, 0)
+            : null,
+        amountRemaining:
+          amountRemainRaw == null || amountRemainRaw === ""
+            ? null
+            : Number.isFinite(asNumber(amountRemainRaw, Number.NaN))
+            ? asNumber(amountRemainRaw, 0)
+            : null,
+      };
+    })
+    .filter((row) => row.category || row.weightPercent || row.previousPercent || row.weeklyPercent || row.accumulatedPercent);
 }
 
-function makeWeeklySupervisors(payload: AnyRecord, meta: AnyRecord): WeeklySupervisor[] {
-  const rows = toArray<AnyRecord>(
-    firstDefined(
-      getByAliases(payload, ["supervisors", "approvedBy", "signers"]),
-      getByAliases(meta, ["supervisors", "approvedBy", "signers"])
-    )
-  );
+function makeWeeklySupervisors(root: unknown): WeeklySupervisor[] {
+  const rows = findArrayDeep(root, ["supervisors", "approvedBy", "signers"]);
 
   return rows
     .map((row) => ({
-      name: asString(row.name, ""),
-      role: asString(row.role, ""),
+      name: asString(findValueDeep(row, ["name"]), ""),
+      role: asString(findValueDeep(row, ["role"]), ""),
     }))
     .filter((row) => row.name || row.role);
 }
 
-function makeWeeklyTimeSummary(payload: AnyRecord, reportType: SummaryReportType): WeeklyTimeSummary {
-  const timeSummary =
-    toRecord(
-      firstDefined(
-        getByAliases(payload, ["timeSummary", "durationSummary", "scheduleSummary"]),
-        getByAliases(payload, ["summary"])
-      )
-    ) || {};
-
-  const currentKeyValue =
+function makeWeeklyTimeSummary(root: unknown, reportType: SummaryReportType): WeeklyTimeSummary {
+  const currentRaw =
     reportType === "MONTHLY"
-      ? firstDefined(
-          getByAliases(timeSummary, ["currentMonthDays", "thisMonth", "thisPeriod", "current"]),
-          getByAliases(timeSummary, ["currentWeekDays", "thisWeek"])
+      ? firstNonEmpty(
+          findValueDeep(root, ["currentMonthDays", "thisMonth", "thisPeriod", "current"]),
+          findValueDeep(root, ["currentWeekDays", "thisWeek"])
         )
-      : firstDefined(
-          getByAliases(timeSummary, ["currentWeekDays", "thisWeek", "thisPeriod", "current"]),
-          getByAliases(timeSummary, ["currentMonthDays", "thisMonth"])
+      : firstNonEmpty(
+          findValueDeep(root, ["currentWeekDays", "thisWeek", "thisPeriod", "current"]),
+          findValueDeep(root, ["currentMonthDays", "thisMonth"])
         );
 
+  const plannedRaw = firstNonEmpty(findValueDeep(root, ["plannedDays", "planDays"]));
+  const varianceRaw = firstNonEmpty(findValueDeep(root, ["varianceDays", "deviation", "variance", "delay"]));
+
   return {
-    contractDays: asNumber(
-      firstDefined(
-        getByAliases(timeSummary, ["contractDays", "accordingToContract", "plan", "total"])
-      ),
-      0
-    ),
-    previousUsedDays: asNumber(
-      firstDefined(
-        getByAliases(timeSummary, ["previousUsedDays", "beforeThisWeek", "before", "previous"])
-      ),
-      0
-    ),
-    currentWeekDays: asNumber(currentKeyValue, 0),
-    accumulatedDays: asNumber(
-      firstDefined(getByAliases(timeSummary, ["accumulatedDays", "cumulative", "accumulated"])),
-      0
-    ),
-    remainingDays: asNumber(
-      firstDefined(getByAliases(timeSummary, ["remainingDays", "remaining", "balance"])),
-      0
-    ),
-    plannedDays: (() => {
-      const raw = firstDefined(getByAliases(timeSummary, ["plannedDays", "planDays"]));
-      if (raw == null || raw === "") return null;
-      const parsed = asNumber(raw, Number.NaN);
-      return Number.isFinite(parsed) ? parsed : null;
-    })(),
-    varianceDays: (() => {
-      const raw = firstDefined(
-        getByAliases(timeSummary, ["varianceDays", "deviation", "variance", "delay"])
-      );
-      if (raw == null || raw === "") return null;
-      const parsed = asNumber(raw, Number.NaN);
-      return Number.isFinite(parsed) ? parsed : null;
-    })(),
+    contractDays: asNumber(findValueDeep(root, ["contractDays", "accordingToContract", "plan", "total"]), 0),
+    previousUsedDays: asNumber(findValueDeep(root, ["previousUsedDays", "beforeThisWeek", "before", "previous"]), 0),
+    currentWeekDays: asNumber(currentRaw, 0),
+    accumulatedDays: asNumber(findValueDeep(root, ["accumulatedDays", "cumulative", "accumulated"]), 0),
+    remainingDays: asNumber(findValueDeep(root, ["remainingDays", "remaining", "balance"]), 0),
+    plannedDays:
+      plannedRaw == null || plannedRaw === ""
+        ? null
+        : Number.isFinite(asNumber(plannedRaw, Number.NaN))
+        ? asNumber(plannedRaw, 0)
+        : null,
+    varianceDays:
+      varianceRaw == null || varianceRaw === ""
+        ? null
+        : Number.isFinite(asNumber(varianceRaw, Number.NaN))
+        ? asNumber(varianceRaw, 0)
+        : null,
   };
+}
+
+function buildInstallmentLabel(root: unknown, reportType: SummaryReportType) {
+  const explicit = asString(
+    firstNonEmpty(
+      findValueDeep(root, ["installmentLabel"]),
+      findValueDeep(root, ["periodNo"])
+    ),
+    ""
+  );
+
+  if (explicit) return explicit;
+
+  if (reportType === "MONTHLY") {
+    const monthNo = asNumber(findValueDeep(root, ["monthNo", "month"]), 0);
+    return monthNo > 0 ? `เดือนที่ ${monthNo}` : "-";
+  }
+
+  const weekNo = asNumber(findValueDeep(root, ["weekNo", "week", "weekNumber"]), 0);
+  return weekNo > 0 ? `สัปดาห์ที่ ${weekNo}` : "-";
 }
 
 function adaptSummaryToWeeklyModel(model: SummaryDocumentModel): WeeklyReportModel | null {
   const payload = toRecord(model.payload) || {};
   const meta = toRecord(model.projectMeta) || {};
-  const summary =
-    toRecord(
-      firstDefined(
-        getByAliases(payload, ["summary", "projectSummary", "weeklySummary", "monthlySummary"]),
-        payload
-      )
-    ) || {};
+  const root = { payload, meta };
 
-  const existingStructured =
-    getByAliases(payload, ["summary"]) &&
-    getByAliases(payload, ["timeSummary"]) &&
-    (getByAliases(payload, ["workPerformedWeekly"]) || getByAliases(payload, ["workPerformedMonthly"]));
+  const fallbackRange = parsePeriodRangeFromLabel(model.periodLabel, model.selectedDate);
 
-  const parsedRange = parsePeriodRange(model.periodLabel, model.selectedDate);
-
-  const weekNo = asNumber(
-    firstDefined(
-      getByAliases(payload, ["weekNo", "week", "weekNumber"]),
-      getByAliases(summary, ["weekNo", "week", "weekNumber"])
+  const startDate = asString(
+    firstNonEmpty(
+      findValueDeep(root, ["startDate", "weekStart", "periodStart", "fromDate"]),
+      fallbackRange.startDate,
+      model.selectedDate
     ),
-    0
+    model.selectedDate
   );
 
-  const year = asNumber(
-    firstDefined(
-      getByAliases(payload, ["year"]),
-      getByAliases(summary, ["year"])
+  const endDate = asString(
+    firstNonEmpty(
+      findValueDeep(root, ["endDate", "weekEnd", "periodEnd", "toDate"]),
+      fallbackRange.endDate,
+      model.selectedDate
     ),
-    new Date().getFullYear()
+    model.selectedDate
   );
 
-  const structuredModel: WeeklyReportModel = {
+  const weekNo = asNumber(findValueDeep(root, ["weekNo", "week", "weekNumber"]), 0);
+  const year = asNumber(findValueDeep(root, ["year"]), new Date().getFullYear());
+
+  return {
     id: asString(
-      firstDefined(
-        getByAliases(payload, ["id", "reportId"]),
+      firstNonEmpty(
+        findValueDeep(root, ["id", "reportId"]),
         `${model.reportType}-${model.selectedDate || "preview"}`
       )
     ),
-    projectId: asString(firstDefined(getByAliases(payload, ["projectId"]), getByAliases(meta, ["projectId"])), ""),
+    projectId: asString(firstNonEmpty(findValueDeep(root, ["projectId"])), ""),
     year,
     weekNo,
-    startDate: asString(
-      firstDefined(
-        getByAliases(payload, ["startDate"]),
-        parsedRange.startDate,
-        model.selectedDate
-      ),
-      model.selectedDate
-    ),
-    endDate: asString(
-      firstDefined(
-        getByAliases(payload, ["endDate"]),
-        parsedRange.endDate,
-        model.selectedDate
-      ),
-      model.selectedDate
-    ),
-    title: asString(
-      firstDefined(
-        getByAliases(payload, ["title"]),
-        model.title,
-        model.documentTitle
-      ),
-      model.documentTitle
-    ),
+    startDate,
+    endDate,
+    title: asString(firstNonEmpty(findValueDeep(root, ["title"]), model.title, model.documentTitle), model.documentTitle),
     summary: {
       projectName: asString(
-        firstDefined(
-          getByAliases(summary, ["projectName"]),
-          getByAliases(payload, ["projectName"]),
-          getByAliases(meta, ["projectName"]),
+        firstNonEmpty(
+          findValueDeep(root, ["projectName"]),
           model.projectName
         ),
         "-"
       ),
-      contractNo: asString(
-        firstDefined(
-          getByAliases(summary, ["contractNo", "contractNumber"]),
-          getByAliases(payload, ["contractNo", "contractNumber"]),
-          getByAliases(meta, ["contractNo", "contractNumber"])
-        ),
-        "-"
-      ),
-      installmentLabel: asString(
-        firstDefined(
-          getByAliases(summary, ["installmentLabel"]),
-          getByAliases(payload, ["installmentLabel"]),
-          getByAliases(meta, ["periodNo"]),
-          getByAliases(payload, ["periodNo"]),
-          model.reportType === "MONTHLY"
-            ? getByAliases(payload, ["month", "monthNo"])
-            : getByAliases(payload, ["weekNo"])
-        ),
-        "-"
-      ),
-      contractorName: asString(
-        firstDefined(
-          getByAliases(summary, ["contractorName", "contractor"]),
-          getByAliases(payload, ["contractorName", "contractor"]),
-          getByAliases(meta, ["contractorName", "contractor"])
-        ),
-        "-"
-      ),
-      siteLocation: asString(
-        firstDefined(
-          getByAliases(summary, ["siteLocation", "location"]),
-          getByAliases(payload, ["siteLocation", "location"]),
-          getByAliases(meta, ["siteLocation", "location"])
-        ),
-        "-"
-      ),
-      contractStart: asString(
-        firstDefined(
-          getByAliases(summary, ["contractStart", "startDate"]),
-          getByAliases(payload, ["contractStart"]),
-          getByAliases(meta, ["contractStart", "startDate"])
-        ),
-        "-"
-      ),
-      contractEnd: asString(
-        firstDefined(
-          getByAliases(summary, ["contractEnd", "endDate"]),
-          getByAliases(payload, ["contractEnd"]),
-          getByAliases(meta, ["contractEnd", "endDate"])
-        ),
-        "-"
-      ),
-      contractValue: asString(
-        firstDefined(
-          getByAliases(summary, ["contractValue", "budget", "projectValue"]),
-          getByAliases(payload, ["contractValue", "budget", "projectValue"]),
-          getByAliases(meta, ["contractValue", "budget", "projectValue"])
-        ),
-        "-"
-      ),
-      procurementMethod: asString(
-        firstDefined(
-          getByAliases(summary, ["procurementMethod", "purchaseMethod"]),
-          getByAliases(payload, ["procurementMethod", "purchaseMethod"]),
-          getByAliases(meta, ["procurementMethod", "purchaseMethod"])
-        ),
-        "-"
-      ),
-      periodNo: asString(
-        firstDefined(
-          getByAliases(summary, ["periodNo"]),
-          getByAliases(payload, ["periodNo"]),
-          getByAliases(meta, ["periodNo"])
-        ),
-        ""
-      ) || undefined,
+      contractNo: asString(firstNonEmpty(findValueDeep(root, ["contractNo", "contractNumber"])), "-"),
+      installmentLabel: buildInstallmentLabel(root, model.reportType),
+      contractorName: asString(firstNonEmpty(findValueDeep(root, ["contractorName", "contractor"])), "-"),
+      siteLocation: asString(firstNonEmpty(findValueDeep(root, ["siteLocation", "location"])), "-"),
+      contractStart: asString(firstNonEmpty(findValueDeep(root, ["contractStart", "contractStartDate"])), "-"),
+      contractEnd: asString(firstNonEmpty(findValueDeep(root, ["contractEnd", "contractEndDate"])), "-"),
+      contractValue: asString(firstNonEmpty(findValueDeep(root, ["contractValue", "budget", "projectValue"])), "-"),
+      procurementMethod: asString(firstNonEmpty(findValueDeep(root, ["procurementMethod", "purchaseMethod"])), "-"),
+      periodNo: asString(firstNonEmpty(findValueDeep(root, ["periodNo"])), "") || undefined,
     },
-    timeSummary: existingStructured
-      ? (getByAliases(payload, ["timeSummary"]) as WeeklyTimeSummary)
-      : makeWeeklyTimeSummary(payload, model.reportType),
-    workPerformedWeekly: existingStructured
-      ? (firstDefined(
-          getByAliases(payload, ["workPerformedWeekly"]),
-          getByAliases(payload, ["workPerformedMonthly"])
-        ) as WeeklyWorkItem[])
-      : makeWeeklyWorkItems(payload),
+    timeSummary: makeWeeklyTimeSummary(root, model.reportType),
+    workPerformedWeekly: makeWeeklyWorkItems(root),
     comments: asString(
-      firstDefined(
-        getByAliases(payload, ["comments", "comment", "supervisorComment", "controllerComment"]),
+      firstNonEmpty(
+        findValueDeep(root, ["comments", "comment", "supervisorComment", "controllerComment"]),
         model.summary
       ),
       "-"
     ),
-    problemsAndObstacles: existingStructured
-      ? (firstDefined(
-          getByAliases(payload, ["problemsAndObstacles"]),
-          getByAliases(payload, ["issues"])
-        ) as WeeklyProblemItem[])
-      : makeWeeklyProblems(payload),
+    problemsAndObstacles: makeWeeklyProblems(root),
     safety: {
-      note: asString(
-        firstDefined(
-          getByAliases(toRecord(getByAliases(payload, ["safety", "safetySummary", "safetyStats"])), ["note", "remark", "remarks"]),
-          getByAliases(payload, ["safetyNote", "safetyRemark"])
-        ),
-        "-"
-      ),
+      note: asString(firstNonEmpty(findValueDeep(root, ["safetyNote", "safetyRemark", "note", "remark", "remarks"])), "-"),
       accidentCount: (() => {
-        const safety = toRecord(getByAliases(payload, ["safety", "safetySummary", "safetyStats"])) || {};
-        const raw = firstDefined(
-          getByAliases(safety, ["accidentCount", "accident", "accidents"]),
-          getByAliases(payload, ["accidentCount", "accident"])
-        );
+        const raw = firstNonEmpty(findValueDeep(root, ["accidentCount", "accident", "accidents"]));
         if (raw == null || raw === "") return null;
         const parsed = asNumber(raw, Number.NaN);
         return Number.isFinite(parsed) ? parsed : null;
       })(),
       injuredCount: (() => {
-        const safety = toRecord(getByAliases(payload, ["safety", "safetySummary", "safetyStats"])) || {};
-        const raw = firstDefined(
-          getByAliases(safety, ["injuredCount", "injuryCount", "injury", "injuries"]),
-          getByAliases(payload, ["injuredCount", "injuryCount", "injury"])
-        );
+        const raw = firstNonEmpty(findValueDeep(root, ["injuredCount", "injuryCount", "injury", "injuries"]));
         if (raw == null || raw === "") return null;
         const parsed = asNumber(raw, Number.NaN);
         return Number.isFinite(parsed) ? parsed : null;
       })(),
       lostTimeCount: (() => {
-        const safety = toRecord(getByAliases(payload, ["safety", "safetySummary", "safetyStats"])) || {};
-        const raw = firstDefined(
-          getByAliases(safety, ["lostTimeCount", "lostTime", "losttime"]),
-          getByAliases(payload, ["lostTimeCount", "lostTime"])
-        );
+        const raw = firstNonEmpty(findValueDeep(root, ["lostTimeCount", "lostTime", "losttime"]));
         if (raw == null || raw === "") return null;
         const parsed = asNumber(raw, Number.NaN);
         return Number.isFinite(parsed) ? parsed : null;
       })(),
     },
-    progressByCategory: existingStructured
-      ? ((getByAliases(payload, ["progressByCategory"]) as WeeklyProgressItem[]) || [])
-      : makeWeeklyProgress(payload, model.reportType),
-    supervisors: existingStructured
-      ? (((getByAliases(payload, ["supervisors"]) as WeeklySupervisor[]) || []).filter(
-          (item) => item?.name || item?.role
-        ))
-      : makeWeeklySupervisors(payload, meta),
-    createdAt: asString(firstDefined(getByAliases(payload, ["createdAt"])), "") || undefined,
-    updatedAt: asString(firstDefined(getByAliases(payload, ["updatedAt"])), "") || undefined,
+    progressByCategory: makeWeeklyProgress(root, model.reportType),
+    supervisors: makeWeeklySupervisors(root),
+    createdAt: asString(firstNonEmpty(findValueDeep(root, ["createdAt"])), "") || undefined,
+    updatedAt: asString(firstNonEmpty(findValueDeep(root, ["updatedAt"])), "") || undefined,
   };
-
-  return structuredModel;
-}
-
-function prettyLabel(key: string) {
-  return String(key || "")
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function formatPrimitive(value: unknown) {
@@ -599,6 +478,8 @@ export function SummaryAggregatePreview({
     return Boolean(
       weeklyModel.summary.projectName !== "-" ||
         weeklyModel.summary.contractNo !== "-" ||
+        weeklyModel.summary.contractorName !== "-" ||
+        weeklyModel.summary.siteLocation !== "-" ||
         weeklyModel.workPerformedWeekly.length ||
         weeklyModel.problemsAndObstacles.length ||
         weeklyModel.progressByCategory.length ||
@@ -613,9 +494,9 @@ export function SummaryAggregatePreview({
         <WeeklyReportForm model={weeklyModel} />
         {!printMode && !hasStructuredData ? (
           <div className="mt-4 rounded-[24px] border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-            <div className="text-sm font-semibold">ไม่พบ field ที่ map ได้ครบจาก payload ใน DB</div>
+            <div className="text-sm font-semibold">ยัง map field จาก DB ไม่ได้เพียงพอ</div>
             <div className="mt-1 text-xs opacity-80">
-              ด้านล่างคือข้อมูลดิบที่ API ส่งมา เพื่อใช้ตรวจ key จริงของ Weekly/Monthly payload
+              ด้านล่างคือข้อมูลดิบจาก API เพื่อเช็ก key จริงของ payload/projectMeta
             </div>
             <div className="mt-4 grid gap-3">
               <DebugCard label="projectMeta" value={model.projectMeta || {}} />
@@ -627,11 +508,6 @@ export function SummaryAggregatePreview({
     );
   }
 
-  const payloadEntries = Object.entries(model.payload || {});
-  const metaEntries = Object.entries(model.projectMeta || {}).filter(
-    ([k, v]) => k !== "supervisors" && v != null && String(v).trim() !== ""
-  );
-
   return (
     <div
       className={cn(
@@ -640,73 +516,9 @@ export function SummaryAggregatePreview({
           "max-w-none rounded-none border-0 bg-white p-0 text-slate-900 shadow-none dark:border-0 dark:bg-white dark:text-slate-900"
       )}
     >
-      <div className="border-b border-slate-200 pb-5 dark:border-slate-800">
-        <div className="text-center">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">
-            {model.reportType} Report
-          </div>
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight">
-            {model.documentTitle || "Report Preview"}
-          </h1>
-          <div className="mt-3 space-y-1 text-sm text-slate-600 dark:text-slate-300">
-            <div>โครงการ: {model.projectName || "-"}</div>
-            <div>ช่วงรายงาน: {model.periodLabel || "-"}</div>
-            <div>อ้างอิงวันที่เลือก: {model.selectedDate || "-"}</div>
-          </div>
-        </div>
+      <div className="text-sm text-slate-600 dark:text-slate-300">
+        ไม่รองรับ preview ประเภทนี้
       </div>
-
-      {model.summary ? (
-        <section className="mt-6">
-          <DebugCard label="summary" value={model.summary} />
-        </section>
-      ) : null}
-
-      {metaEntries.length > 0 ? (
-        <section className="mt-6">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            Project Information
-          </h2>
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            {metaEntries.map(([k, v]) => (
-              <DebugCard key={k} label={prettyLabel(k)} value={v} />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {model.sourceReportIds?.length ? (
-        <section className="mt-6">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            Source Reports
-          </h2>
-          <div className="mt-3 grid gap-2">
-            {model.sourceReportIds.map((id) => (
-              <div
-                key={id}
-                className="rounded-xl border border-slate-200/80 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-700/80 dark:bg-slate-900 dark:text-slate-200"
-              >
-                {id}
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="mt-6">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Preview Data</h2>
-        {payloadEntries.length === 0 ? (
-          <div className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
-            ไม่พบ payload สำหรับแสดงผล
-          </div>
-        ) : (
-          <div className="mt-3 grid gap-3">
-            {payloadEntries.map(([k, v]) => (
-              <DebugCard key={k} label={prettyLabel(k)} value={v} />
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   );
 }
