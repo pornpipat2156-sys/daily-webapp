@@ -852,6 +852,9 @@ export function WeeklyReportForm({ model, loading, error }: Props) {
                       </tr>
                       <tr>
                         <td className="cell">
+                            <pre style={{ fontSize: 12, whiteSpace: "pre-wrap", padding: 8 }}>
+                            {JSON.stringify(supervisors, null, 2)}
+                            </pre>
                           <SignatureGrid items={supervisors} />
                         </td>
                       </tr>
