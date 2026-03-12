@@ -24,16 +24,30 @@ export type SummaryDocumentModel = {
   title?: string | null;
   summary?: string | null;
   sourceReportIds?: string[];
-  projectMeta?: AnyRecord | null;
-  payload?: AnyRecord | null;
+  projectMeta?: AnyRecord | string | null;
+  payload?: AnyRecord | string | null;
 };
 
 function toRecord(value: unknown): AnyRecord | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  if (!value) return null;
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as AnyRecord;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof value !== "object" || Array.isArray(value)) return null;
   return value as AnyRecord;
 }
 
-function toArray<T = AnyRecord>(value: unknown): T[] {
+function toArray<T = unknown>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
@@ -45,19 +59,54 @@ function asString(value: unknown, fallback = ""): string {
 
 function asNumber(value: unknown, fallback = 0): number {
   if (typeof value === "number" && Number.isFinite(value)) return value;
+
   if (typeof value === "string") {
-    const parsed = Number(value.replace(/,/g, "").trim());
+    const cleaned = value.replace(/,/g, "").trim();
+    if (!cleaned) return fallback;
+    const parsed = Number(cleaned);
     if (Number.isFinite(parsed)) return parsed;
   }
+
   return fallback;
 }
 
-function pickProjectMetaFromPayload(model: SummaryDocumentModel): AnyRecord {
-  const payload = toRecord(model.payload) || {};
-  const payloadProjectMeta = toRecord(payload.projectMeta) || {};
-  const modelProjectMeta = toRecord(model.projectMeta) || {};
+function pickPayload(model: SummaryDocumentModel): AnyRecord {
+  return toRecord(model.payload) || {};
+}
 
-  return Object.keys(payloadProjectMeta).length > 0 ? payloadProjectMeta : modelProjectMeta;
+function pickProjectMeta(model: SummaryDocumentModel, payload: AnyRecord): AnyRecord {
+  const payloadProjectMeta = toRecord(payload.projectMeta) || {};
+  const rootProjectMeta = toRecord(model.projectMeta) || {};
+
+  if (Object.keys(payloadProjectMeta).length > 0) return payloadProjectMeta;
+  return rootProjectMeta;
+}
+
+function parsePeriodRangeFromLabel(periodLabel: string, fallbackDate: string) {
+  const label = asString(periodLabel);
+  if (!label) {
+    return {
+      startDate: fallbackDate || "",
+      endDate: fallbackDate || "",
+    };
+  }
+
+  const parts = label
+    .split("ถึง")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (parts.length >= 2) {
+    return {
+      startDate: parts[0],
+      endDate: parts[1],
+    };
+  }
+
+  return {
+    startDate: label,
+    endDate: label,
+  };
 }
 
 function mapWorkPerformedWeekly(payload: AnyRecord): WeeklyWorkItem[] {
@@ -66,7 +115,10 @@ function mapWorkPerformedWeekly(payload: AnyRecord): WeeklyWorkItem[] {
   return rows.map((row, index) => ({
     id: asString(row.id, `work-${index + 1}`),
     description: asString(row.description, "-"),
-    qty: row.qtyTotal == null || row.qtyTotal === "" ? null : asNumber(row.qtyTotal, 0),
+    qty:
+      row.qtyTotal == null || String(row.qtyTotal).trim() === ""
+        ? null
+        : asNumber(row.qtyTotal, 0),
     unit: asString(row.unit, "") || null,
     location: asString(row.location, "") || null,
     remark: asString(row.materialDelivered, "") || null,
@@ -74,17 +126,17 @@ function mapWorkPerformedWeekly(payload: AnyRecord): WeeklyWorkItem[] {
 }
 
 function mapProblemsAndObstacles(payload: AnyRecord): WeeklyProblemItem[] {
-  const rows = toArray<string>(payload.normalizedIssues);
+  const rows = toArray(payload.normalizedIssues);
 
-  return rows.map((topic, index) => ({
+  return rows.map((item, index) => ({
     id: `issue-${index + 1}`,
-    topic: asString(topic, "-"),
+    topic: asString(item, "-"),
     impact: null,
     solution: null,
   }));
 }
 
-function mapTimeSummaryDirect(payload: AnyRecord): WeeklyTimeSummary {
+function mapTimeSummary(payload: AnyRecord): WeeklyTimeSummary {
   const timeSummary = toRecord(payload.timeSummary);
 
   if (!timeSummary) {
@@ -106,17 +158,17 @@ function mapTimeSummaryDirect(payload: AnyRecord): WeeklyTimeSummary {
     accumulatedDays: asNumber(timeSummary.accumulatedDays, 0),
     remainingDays: asNumber(timeSummary.remainingDays, 0),
     plannedDays:
-      timeSummary.plannedDays == null || timeSummary.plannedDays === ""
+      timeSummary.plannedDays == null || String(timeSummary.plannedDays).trim() === ""
         ? null
         : asNumber(timeSummary.plannedDays, 0),
     varianceDays:
-      timeSummary.varianceDays == null || timeSummary.varianceDays === ""
+      timeSummary.varianceDays == null || String(timeSummary.varianceDays).trim() === ""
         ? null
         : asNumber(timeSummary.varianceDays, 0),
   };
 }
 
-function mapProgressByCategoryDirect(payload: AnyRecord): WeeklyProgressItem[] {
+function mapProgressByCategory(payload: AnyRecord): WeeklyProgressItem[] {
   const rows = toArray<AnyRecord>(payload.progressByCategory);
 
   return rows.map((row, index) => ({
@@ -128,29 +180,29 @@ function mapProgressByCategoryDirect(payload: AnyRecord): WeeklyProgressItem[] {
     accumulatedPercent: asNumber(row.accumulatedPercent, 0),
     remainingPercent: asNumber(row.remainingPercent, 0),
     plannedPercent:
-      row.plannedPercent == null || row.plannedPercent === ""
+      row.plannedPercent == null || String(row.plannedPercent).trim() === ""
         ? null
         : asNumber(row.plannedPercent, 0),
     variancePercent:
-      row.variancePercent == null || row.variancePercent === ""
+      row.variancePercent == null || String(row.variancePercent).trim() === ""
         ? null
         : asNumber(row.variancePercent, 0),
     amountTotal:
-      row.amountTotal == null || row.amountTotal === ""
+      row.amountTotal == null || String(row.amountTotal).trim() === ""
         ? null
         : asNumber(row.amountTotal, 0),
     amountAccumulated:
-      row.amountAccumulated == null || row.amountAccumulated === ""
+      row.amountAccumulated == null || String(row.amountAccumulated).trim() === ""
         ? null
         : asNumber(row.amountAccumulated, 0),
     amountRemaining:
-      row.amountRemaining == null || row.amountRemaining === ""
+      row.amountRemaining == null || String(row.amountRemaining).trim() === ""
         ? null
         : asNumber(row.amountRemaining, 0),
   }));
 }
 
-function mapSupervisorsDirect(payload: AnyRecord): WeeklySupervisor[] {
+function mapSupervisors(payload: AnyRecord): WeeklySupervisor[] {
   const rows = toArray<AnyRecord>(payload.supervisors);
 
   return rows
@@ -166,37 +218,39 @@ function buildWeeklyModel(model: SummaryDocumentModel): WeeklyReportModel | null
     return null;
   }
 
-  const payload = toRecord(model.payload) || {};
-  const projectMeta = pickProjectMetaFromPayload(model);
+  const payload = pickPayload(model);
+  const projectMeta = pickProjectMeta(model, payload);
+  const fallbackRange = parsePeriodRangeFromLabel(model.periodLabel, model.selectedDate);
 
   const weekNo = asNumber(payload.weekNo, 0);
-  const startDate = asString(payload.dateStart, model.selectedDate || "");
-  const endDate = asString(payload.dateEnd, model.selectedDate || "");
-
-  const summary = {
-    projectName: asString(projectMeta.projectName, "-"),
-    contractNo: asString(projectMeta.contractNo, "-"),
-    installmentLabel: asString(projectMeta.periodNo, "-"),
-    contractorName: asString(projectMeta.contractorName, "-"),
-    siteLocation: asString(projectMeta.siteLocation, "-"),
-    contractStart: asString(projectMeta.contractStart, "-"),
-    contractEnd: asString(projectMeta.contractEnd, "-"),
-    contractValue: asString(projectMeta.contractValue, "-"),
-    procurementMethod: asString(projectMeta.procurementMethod, "-"),
-    periodNo: asString(projectMeta.periodNo, "") || undefined,
-  };
+  const startDate = asString(payload.dateStart, fallbackRange.startDate || model.selectedDate || "");
+  const endDate = asString(payload.dateEnd, fallbackRange.endDate || model.selectedDate || "");
 
   // DIRECT WEEKLY PREVIEW BUILD
   const weeklyModel: WeeklyReportModel = {
     id: asString(payload.id, `${model.reportType}-${model.selectedDate || "preview"}`),
     projectId: asString(payload.projectId, ""),
-    year: asNumber(payload.year, new Date().getFullYear()),
+    year: asNumber(
+      payload.year,
+      new Date(model.selectedDate || Date.now()).getFullYear()
+    ),
     weekNo,
     startDate,
     endDate,
     title: asString(model.title || model.documentTitle, model.documentTitle),
-    summary,
-    timeSummary: mapTimeSummaryDirect(payload),
+    summary: {
+      projectName: asString(projectMeta.projectName, "-"),
+      contractNo: asString(projectMeta.contractNo, "-"),
+      installmentLabel: asString(projectMeta.periodNo, "-"),
+      contractorName: asString(projectMeta.contractorName, "-"),
+      siteLocation: asString(projectMeta.siteLocation, "-"),
+      contractStart: asString(projectMeta.contractStart, "-"),
+      contractEnd: asString(projectMeta.contractEnd, "-"),
+      contractValue: asString(projectMeta.contractValue, "-"),
+      procurementMethod: asString(projectMeta.procurementMethod, "-"),
+      periodNo: asString(projectMeta.periodNo, "") || undefined,
+    },
+    timeSummary: mapTimeSummary(payload),
     workPerformedWeekly: mapWorkPerformedWeekly(payload),
     comments: asString(model.summary, "-"),
     problemsAndObstacles: mapProblemsAndObstacles(payload),
@@ -206,8 +260,8 @@ function buildWeeklyModel(model: SummaryDocumentModel): WeeklyReportModel | null
       injuredCount: 0,
       lostTimeCount: 0,
     },
-    progressByCategory: mapProgressByCategoryDirect(payload),
-    supervisors: mapSupervisorsDirect(payload),
+    progressByCategory: mapProgressByCategory(payload),
+    supervisors: mapSupervisors(payload),
     createdAt: asString(payload.createdAt, "") || undefined,
     updatedAt: asString(payload.updatedAt, "") || undefined,
   };
@@ -217,7 +271,6 @@ function buildWeeklyModel(model: SummaryDocumentModel): WeeklyReportModel | null
 
 export function SummaryAggregatePreview({
   model,
-  printMode = false,
 }: {
   model: SummaryDocumentModel;
   printMode?: boolean;
@@ -229,12 +282,7 @@ export function SummaryAggregatePreview({
   }
 
   return (
-    <div
-      className={[
-        "rounded-2xl border border-dashed border-slate-300 bg-white/80 p-6 text-sm text-slate-500",
-        printMode ? "shadow-none" : "shadow-sm",
-      ].join(" ")}
-    >
+    <div className="rounded-2xl border border-dashed border-slate-300 bg-white/80 p-6 text-sm text-slate-500 shadow-sm">
       ไม่รองรับ preview ประเภทนี้
     </div>
   );
