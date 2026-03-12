@@ -152,8 +152,14 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 function SignatureGrid({ items }: { items: WeeklySupervisor[] }) {
-  const clean = (items || []).filter((x) => x?.name?.trim() || x?.role?.trim());
-  const rows = chunk(clean, 3);
+  const clean = (items || [])
+    .map((item) => ({
+      name: String(item?.name ?? "").trim(),
+      role: String(item?.role ?? "").trim(),
+    }))
+    .filter((item) => item.name || item.role);
+
+  const rows = chunk(clean, 5);
 
   if (!rows.length) {
     return (
@@ -185,6 +191,8 @@ function SignatureGrid({ items }: { items: WeeklySupervisor[] }) {
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "flex-end",
+                      alignItems: "center",
+                      textAlign: "center",
                     }}
                   >
                     <div>ลงชื่อ ................................</div>

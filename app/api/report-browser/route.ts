@@ -426,6 +426,8 @@ export async function GET(req: NextRequest) {
           summary: true,
           payload: true,
           sourceReportIds: true,
+          createdAt: true,
+          updatedAt: true,
           project: {
             select: {
               name: true,
@@ -465,6 +467,8 @@ export async function GET(req: NextRequest) {
           sourceReportIds: report.sourceReportIds || [],
           projectMeta: record(report.project?.meta),
           payload: record(report.payload),
+          createdAt: report.createdAt.toISOString(),
+          updatedAt: report.updatedAt.toISOString(),
         },
       });
     }
