@@ -94,11 +94,15 @@ function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-[28px] border border-[#244a86]/70 bg-[radial-gradient(circle_at_top,rgba(18,52,115,0.32),rgba(2,8,23,0.96))] shadow-[0_20px_60px_rgba(2,8,23,0.45)] backdrop-blur">
-      <div className="border-b border-[#244a86]/70 px-6 py-5 md:px-8">
-        <h2 className="text-2xl font-bold tracking-tight text-white">{title}</h2>
+    <section className="soft-card-strong overflow-hidden">
+      <div className="border-b border-border px-6 py-5 md:px-8">
+        <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+          {title}
+        </h2>
         {subtitle ? (
-          <p className="mt-2 text-sm text-slate-200 md:text-base">{subtitle}</p>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 md:text-base">
+            {subtitle}
+          </p>
         ) : null}
       </div>
       <div className="px-4 py-5 md:px-6 md:py-6">{children}</div>
@@ -108,7 +112,9 @@ function SectionCard({
 
 function FieldLabel({ children }: { children: ReactNode }) {
   return (
-    <div className="mb-2 text-sm font-semibold text-slate-200">{children}</div>
+    <div className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+      {children}
+    </div>
   );
 }
 
@@ -126,10 +132,10 @@ function TypeButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "h-12 rounded-2xl px-5 text-sm font-semibold transition",
+        "soft-btn h-12 rounded-2xl border px-5 text-sm font-semibold transition",
         active
-          ? "bg-white text-slate-900 shadow-[0_10px_30px_rgba(255,255,255,0.18)]"
-          : "border border-[#244a86]/70 bg-slate-950/40 text-slate-200 hover:bg-slate-900/70"
+          ? "border-primary/30 bg-[linear-gradient(135deg,rgba(124,156,245,0.18),rgba(121,217,199,0.16))] text-slate-900 shadow-[0_12px_30px_rgba(124,156,245,0.16)] dark:text-white"
+          : "border-border/80 bg-white/80 text-slate-700 hover:border-primary/30 hover:bg-white dark:bg-slate-900/60 dark:text-slate-200"
       )}
     >
       {children}
@@ -149,8 +155,8 @@ function PreviewStateBox({
       className={cn(
         "rounded-[24px] border px-5 py-8 text-center text-sm md:text-base",
         tone === "error"
-          ? "border-rose-500/40 bg-rose-500/10 text-rose-200"
-          : "border-[#244a86]/70 bg-slate-950/40 text-slate-300"
+          ? "border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200"
+          : "border-border bg-muted/70 text-slate-600 dark:bg-slate-900/50 dark:text-slate-300"
       )}
     >
       {children}
@@ -230,12 +236,12 @@ function renderInputIssueCommentCell(issue: IssueRowUnified) {
         return (
           <div
             key={comment.id}
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900/60"
+            className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm text-slate-700"
           >
-            <div className="whitespace-pre-wrap text-slate-700 dark:text-slate-200">
+            <div className="whitespace-pre-wrap leading-6">
               {comment.comment || "-"}
             </div>
-            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <div className="mt-1 text-xs text-slate-500">
               {authorName}
               {authorRole ? ` (${authorRole})` : ""} •{" "}
               {formatDateTimeThai(comment.createdAt)}
@@ -247,7 +253,7 @@ function renderInputIssueCommentCell(issue: IssueRowUnified) {
   );
 }
 
-function toArray<T>(value: unknown): T[] {
+function toArray<T = Record<string, unknown>>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
@@ -290,37 +296,34 @@ function buildWeeklyModelFromSummary(
   if (result.reportType !== "WEEKLY") return null;
 
   const model = (result.summaryModel ?? {}) as Record<string, unknown>;
-
   const payload = toRecord(model.payload) ?? {};
-
-const modelProjectMeta = toRecord(model.projectMeta) ?? {};
-const payloadProjectMeta = toRecord(payload.projectMeta) ?? {};
-
-const projectMeta = {
-  ...modelProjectMeta,
-  ...payloadProjectMeta,
-};
+  const modelProjectMeta = toRecord(model.projectMeta) ?? {};
+  const payloadProjectMeta = toRecord(payload.projectMeta) ?? {};
+  const projectMeta = {
+    ...modelProjectMeta,
+    ...payloadProjectMeta,
+  };
 
   const timeSummary = toRecord(payload.timeSummary) ?? {};
   const safety = toRecord(payload.safety) ?? {};
+  const workSource = toArray<Record<string, unknown>>(payload.mergedWorkItems);
+  const problemSource = toArray(payload.normalizedIssues);
+  const progressSource = toArray<Record<string, unknown>>(
+    payload.progressByCategory
+  );
+  const supervisorSource = toArray<Record<string, unknown>>(payload.supervisors);
+  const projectSupervisorSource = toArray<Record<string, unknown>>(
+    payloadProjectMeta.supervisors ?? modelProjectMeta.supervisors
+  );
 
-    const workSource = toArray<Record<string, unknown>>(payload.mergedWorkItems);
-    const problemSource = toArray<unknown>(payload.normalizedIssues);
-    const progressSource = toArray<Record<string, unknown>>(payload.progressByCategory);
-    const supervisorSource = toArray<Record<string, unknown>>(payload.supervisors);
-
-const projectSupervisorSource = toArray<Record<string, unknown>>(
-  payloadProjectMeta.supervisors ?? modelProjectMeta.supervisors
-);
-
-const normalizedSupervisors: WeeklySupervisor[] = (
-  supervisorSource.length > 0 ? supervisorSource : projectSupervisorSource
-)
-  .map((item) => ({
-    name: toText(item.name, ""),
-    role: toText(item.role, "ผู้ควบคุมงาน"),
-  }))
-  .filter((item) => item.name || item.role);
+  const normalizedSupervisors: WeeklySupervisor[] = (
+    supervisorSource.length > 0 ? supervisorSource : projectSupervisorSource
+  )
+    .map((item) => ({
+      name: toText(item.name, ""),
+      role: toText(item.role, "ผู้ควบคุมงาน"),
+    }))
+    .filter((item) => item.name || item.role);
 
   const normalizedWork: WeeklyWorkItem[] = workSource.map((item, index) => ({
     id: String(item.id ?? `work-${index + 1}`),
@@ -334,42 +337,49 @@ const normalizedSupervisors: WeeklySupervisor[] = (
     remark: toText(item.materialDelivered, ""),
   }));
 
-  const normalizedProblems: WeeklyProblemItem[] = problemSource.map((item, index) => ({
-    id: `problem-${index + 1}`,
-    topic: toText(item, "-"),
-    impact: "",
-    solution: "",
-  }));
+  const normalizedProblems: WeeklyProblemItem[] = problemSource.map(
+    (item, index) => ({
+      id: `problem-${index + 1}`,
+      topic: toText(item, "-"),
+      impact: "",
+      solution: "",
+    })
+  );
 
-  const normalizedProgress: WeeklyProgressItem[] = progressSource.map((item, index) => ({
-    id: String(item.id ?? `progress-${index + 1}`),
-    category: toText(item.category, `หมวดงาน ${index + 1}`),
-    weightPercent: toNumber(item.weightPercent, 0),
-    previousPercent: toNumber(item.previousPercent, 0),
-    weeklyPercent: toNumber(item.weeklyPercent, 0),
-    accumulatedPercent: toNumber(item.accumulatedPercent, 0),
-    remainingPercent: toNumber(item.remainingPercent, 0),
-    plannedPercent:
-      item.plannedPercent == null || String(item.plannedPercent).trim() === ""
-        ? null
-        : toNumber(item.plannedPercent, 0),
-    variancePercent:
-      item.variancePercent == null || String(item.variancePercent).trim() === ""
-        ? null
-        : toNumber(item.variancePercent, 0),
-    amountTotal:
-      item.amountTotal == null || String(item.amountTotal).trim() === ""
-        ? null
-        : toNumber(item.amountTotal, 0),
-    amountAccumulated:
-      item.amountAccumulated == null || String(item.amountAccumulated).trim() === ""
-        ? null
-        : toNumber(item.amountAccumulated, 0),
-    amountRemaining:
-      item.amountRemaining == null || String(item.amountRemaining).trim() === ""
-        ? null
-        : toNumber(item.amountRemaining, 0),
-  }));
+  const normalizedProgress: WeeklyProgressItem[] = progressSource.map(
+    (item, index) => ({
+      id: String(item.id ?? `progress-${index + 1}`),
+      category: toText(item.category, `หมวดงาน ${index + 1}`),
+      weightPercent: toNumber(item.weightPercent, 0),
+      previousPercent: toNumber(item.previousPercent, 0),
+      weeklyPercent: toNumber(item.weeklyPercent, 0),
+      accumulatedPercent: toNumber(item.accumulatedPercent, 0),
+      remainingPercent: toNumber(item.remainingPercent, 0),
+      plannedPercent:
+        item.plannedPercent == null || String(item.plannedPercent).trim() === ""
+          ? null
+          : toNumber(item.plannedPercent, 0),
+      variancePercent:
+        item.variancePercent == null ||
+        String(item.variancePercent).trim() === ""
+          ? null
+          : toNumber(item.variancePercent, 0),
+      amountTotal:
+        item.amountTotal == null || String(item.amountTotal).trim() === ""
+          ? null
+          : toNumber(item.amountTotal, 0),
+      amountAccumulated:
+        item.amountAccumulated == null ||
+        String(item.amountAccumulated).trim() === ""
+          ? null
+          : toNumber(item.amountAccumulated, 0),
+      amountRemaining:
+        item.amountRemaining == null ||
+        String(item.amountRemaining).trim() === ""
+          ? null
+          : toNumber(item.amountRemaining, 0),
+    })
+  );
 
   const payloadDateStart = toText(payload.dateStart, "");
   const payloadDateEnd = toText(payload.dateEnd, "");
@@ -378,7 +388,6 @@ const normalizedSupervisors: WeeklySupervisor[] = (
       ? new Date(payloadDateStart).getFullYear()
       : new Date(result.selectedDate).getFullYear();
 
-  // DIRECT WEEKLY INPUT PREVIEW BUILD
   return {
     id: result.reportId,
     projectId: result.projectId,
@@ -411,11 +420,13 @@ const normalizedSupervisors: WeeklySupervisor[] = (
       accumulatedDays: toNumber(timeSummary.accumulatedDays, 0),
       remainingDays: toNumber(timeSummary.remainingDays, 0),
       plannedDays:
-        timeSummary.plannedDays == null || String(timeSummary.plannedDays).trim() === ""
+        timeSummary.plannedDays == null ||
+        String(timeSummary.plannedDays).trim() === ""
           ? null
           : toNumber(timeSummary.plannedDays, 0),
       varianceDays:
-        timeSummary.varianceDays == null || String(timeSummary.varianceDays).trim() === ""
+        timeSummary.varianceDays == null ||
+        String(timeSummary.varianceDays).trim() === ""
           ? null
           : toNumber(timeSummary.varianceDays, 0),
     } satisfies WeeklyTimeSummary,
@@ -456,7 +467,6 @@ export default function InputPage() {
       try {
         const res = await fetch("/api/projects", { cache: "no-store" });
         const json = await res.json().catch(() => []);
-
         const list: ProjectRow[] = Array.isArray(json)
           ? json.map((item: any) => ({
               id: String(item?.id ?? ""),
@@ -544,6 +554,7 @@ export default function InputPage() {
 
     async function loadPreview() {
       setResult(null);
+
       if (!projectId || !selectedPeriodValue) return;
 
       setLoadingPreview(true);
@@ -599,6 +610,7 @@ export default function InputPage() {
       if (reportType === "weekly") return "WeeklyReport.pdf";
       return "MonthlyReport.pdf";
     }
+
     return getSuggestedFileName(reportType, result);
   }, [canExport, reportType, result]);
 
@@ -608,6 +620,7 @@ export default function InputPage() {
     if (!("found" in result) || !result.found) return null;
     if (!("renderMode" in result) || result.renderMode !== "summary") return null;
     if (result.reportType !== "WEEKLY") return null;
+
     return buildWeeklyModelFromSummary(result);
   }, [result]);
 
@@ -662,7 +675,7 @@ export default function InputPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(37,99,235,0.16),transparent_28%),linear-gradient(180deg,#020817,#071226_38%,#020817)] px-4 py-5 md:px-6">
+    <main className="min-h-screen px-4 py-5 md:px-6">
       <div className="mx-auto max-w-7xl space-y-6">
         <SectionCard
           title="Report Center"
@@ -675,7 +688,7 @@ export default function InputPage() {
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
                 disabled={loadingProjects || projects.length === 0}
-                className="h-12 w-full rounded-2xl border border-[#244a86]/70 bg-slate-950/60 px-4 text-sm font-medium text-slate-100 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-950/30"
+                className="soft-input h-12 w-full px-4 text-sm font-medium text-slate-800 outline-none transition disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-100"
               >
                 {loadingProjects ? (
                   <option>กำลังโหลดโครงการ...</option>
@@ -721,7 +734,7 @@ export default function InputPage() {
                 value={selectedPeriodValue}
                 onChange={(e) => setSelectedPeriodValue(e.target.value)}
                 disabled={!projectId || loadingPeriods || periodOptions.length === 0}
-                className="h-12 w-full rounded-2xl border border-[#244a86]/70 bg-slate-950/60 px-4 text-sm font-medium text-slate-100 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-950/30"
+                className="soft-input h-12 w-full px-4 text-sm font-medium text-slate-800 outline-none transition disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-100"
               >
                 {!projectId ? (
                   <option>เลือกโครงการก่อน</option>
@@ -744,14 +757,14 @@ export default function InputPage() {
                 type="button"
                 onClick={handleDownloadPdf}
                 disabled={!canExport || loadingDownload}
-                className="h-12 w-full rounded-2xl bg-white px-5 text-sm font-bold text-slate-900 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 xl:w-auto"
+                className="soft-btn h-12 w-full rounded-2xl border border-primary/30 bg-[linear-gradient(135deg,rgba(124,156,245,0.18),rgba(121,217,199,0.16))] px-5 text-sm font-bold text-slate-900 shadow-[0_12px_30px_rgba(124,156,245,0.16)] transition hover:border-primary/40 hover:bg-[linear-gradient(135deg,rgba(124,156,245,0.24),rgba(121,217,199,0.22))] disabled:cursor-not-allowed disabled:opacity-50 dark:text-white xl:w-auto"
               >
                 {loadingDownload ? "กำลังสร้าง PDF..." : "ดาวน์โหลด PDF"}
               </button>
             </div>
           </div>
 
-          <div className="mt-4 rounded-2xl border border-[#244a86]/60 bg-slate-950/35 px-4 py-3 text-sm text-slate-300">
+          <div className="mt-4 rounded-2xl border border-border bg-muted/70 px-4 py-3 text-sm text-slate-600 dark:bg-slate-900/50 dark:text-slate-300">
             Daily จะแสดงเฉพาะรายงานที่ผ่านการอนุมัติครบแล้วเท่านั้น ส่วน Weekly และ
             Monthly จะแสดงตามข้อมูลที่มีอยู่ใน DB
           </div>
