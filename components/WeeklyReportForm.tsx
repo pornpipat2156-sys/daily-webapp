@@ -156,85 +156,55 @@ function SignatureGrid({ items }: { items: WeeklySupervisor[] }) {
   const rows = chunk(clean, 3);
 
   if (!rows.length) {
-    return <div style={{ padding: "12px 16px" }}>ยังไม่มีข้อมูลผู้ลงนาม</div>;
+    return (
+      <table>
+        <tbody>
+          <tr>
+            <td className="cellCenter">ยังไม่มีข้อมูลผู้ลงนาม</td>
+          </tr>
+        </tbody>
+      </table>
+    );
   }
 
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-      <tbody>
-        {rows.map((row, ri) => (
-          <tr key={`signature-row-${ri}`}>
-            {row.map((it, i) => (
-              <td
-                key={`${it.name}-${i}`}
-                style={{
-                  width: `${100 / 3}%`,
-                  border: "1px solid #111",
-                  padding: "20px 12px 16px",
-                  textAlign: "center",
-                  verticalAlign: "top",
-                  height: 140,
-                }}
-              >
-                <div style={{ marginTop: 30, marginBottom: 10 }}>
-                  ลงชื่อ ................................
-                </div>
-                <div style={{ fontWeight: 700 }}>({it.name || "-"})</div>
-                <div>{it.role || " "}</div>
-              </td>
-            ))}
-            {Array.from({ length: Math.max(0, 3 - row.length) }).map((_, emptyIndex) => (
-              <td
-                key={`empty-${ri}-${emptyIndex}`}
-                style={{
-                  width: `${100 / 3}%`,
-                  border: "1px solid #111",
-                  padding: "20px 12px 16px",
-                  textAlign: "center",
-                  verticalAlign: "top",
-                  height: 140,
-                }}
-              />
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="space-y-2">
+      {rows.map((row, ri) => (
+        <table key={ri}>
+          <tbody>
+            <tr>
+              {row.map((it, i) => (
+                <td
+                  key={`${it.name}-${it.role}-${i}`}
+                  className="cellCenter"
+                  style={{ width: `${100 / row.length}%` }}
+                >
+                  <div
+                    style={{
+                      minHeight: 72,
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "flex-end",
+                    }}
+                  >
+                    <div>ลงชื่อ ................................</div>
+                    <div className="mt-2">({it.name || "-"})</div>
+                    <div className="mt-1">{it.role || " "}</div>
+                  </div>
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      ))}
+    </div>
   );
-}
-
-function cellStyle(extra?: React.CSSProperties): React.CSSProperties {
-  return {
-    border: "1px solid #111",
-    padding: "6px 8px",
-    verticalAlign: "middle",
-    ...extra,
-  };
-}
-
-function headerCellStyle(extra?: React.CSSProperties): React.CSSProperties {
-  return {
-    ...cellStyle(extra),
-    fontWeight: 700,
-    textAlign: "center",
-    background: "#eef3ee",
-  };
-}
-
-function sectionBarStyle(): React.CSSProperties {
-  return {
-    border: "1px solid #111",
-    padding: "8px 10px",
-    fontWeight: 700,
-    textAlign: "center",
-    background: "#dce8d8",
-    fontSize: 16,
-  };
 }
 
 export function WeeklyReportForm({ model, loading, error }: Props) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const scaledRef = useRef<HTMLDivElement | null>(null);
+
   const [scale, setScale] = useState(1);
   const [frameWidth, setFrameWidth] = useState(A4_WIDTH);
   const [frameHeight, setFrameHeight] = useState(A4_MIN_HEIGHT);
@@ -244,25 +214,21 @@ export function WeeklyReportForm({ model, loading, error }: Props) {
       (sum, item) => sum + Number(item.weightPercent || 0),
       0
     ) ?? 0;
-
   const totalPrev =
     model?.progressByCategory?.reduce(
       (sum, item) => sum + Number(item.previousPercent || 0),
       0
     ) ?? 0;
-
   const totalWeekly =
     model?.progressByCategory?.reduce(
       (sum, item) => sum + Number(item.weeklyPercent || 0),
       0
     ) ?? 0;
-
   const totalAccum =
     model?.progressByCategory?.reduce(
       (sum, item) => sum + Number(item.accumulatedPercent || 0),
       0
     ) ?? 0;
-
   const totalRemain =
     model?.progressByCategory?.reduce(
       (sum, item) => sum + Number(item.remainingPercent || 0),
@@ -273,6 +239,7 @@ export function WeeklyReportForm({ model, loading, error }: Props) {
     () => () => {
       const wrap = wrapRef.current;
       if (!wrap) return;
+
       const available = Math.max(280, wrap.clientWidth - PREVIEW_PADDING * 2);
       const nextScale = Math.min(1, available / A4_WIDTH);
       setScale(nextScale);
@@ -283,6 +250,7 @@ export function WeeklyReportForm({ model, loading, error }: Props) {
 
   useEffect(() => {
     updateScale();
+
     const wrap = wrapRef.current;
     if (!wrap) return;
 
@@ -318,15 +286,27 @@ export function WeeklyReportForm({ model, loading, error }: Props) {
   }, [model, scale]);
 
   if (loading) {
-    return <div>กำลังโหลด Weekly report...</div>;
+    return (
+      <div className="rounded-[28px] border border-white/10 bg-slate-950/50 p-6 text-slate-200">
+        กำลังโหลด Weekly report...
+      </div>
+    );
   }
 
   if (error) {
-    return <div>{error}</div>;
+    return (
+      <div className="rounded-[28px] border border-rose-500/30 bg-rose-500/10 p-6 text-rose-200">
+        {error}
+      </div>
+    );
   }
 
   if (!model) {
-    return <div>กรุณาเลือกโครงการและรายงานประจำสัปดาห์</div>;
+    return (
+      <div className="rounded-[28px] border border-white/10 bg-slate-950/50 p-6 text-slate-300">
+        กรุณาเลือกโครงการและรายงานประจำสัปดาห์
+      </div>
+    );
   }
 
   const pm = model.summary;
@@ -337,361 +317,570 @@ export function WeeklyReportForm({ model, loading, error }: Props) {
   const supervisors = model.supervisors || [];
 
   return (
-    <div ref={wrapRef} style={{ width: "100%", overflowX: "auto", padding: PREVIEW_PADDING }}>
-      <div
-        style={{
-          width: frameWidth,
-          minHeight: frameHeight,
-          margin: "0 auto",
-          position: "relative",
-        }}
-      >
-        <div
-          ref={scaledRef}
-          style={{
-            width: A4_WIDTH,
-            transform: `scale(${scale})`,
-            transformOrigin: "top left",
-            background: "#fff",
-            color: "#111",
-            borderRadius: 16,
-            border: "4px solid #111",
-            padding: 18,
-            boxSizing: "border-box",
-            fontFamily: "Tahoma, Arial, sans-serif",
-          }}
-        >
+    <>
+      <style jsx>{`
+        .previewWrap {
+          width: 100%;
+          overflow: hidden;
+          padding: 0;
+        }
+
+        .previewCenter {
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          align-items: flex-start;
+        }
+
+        .previewFrame {
+          position: relative;
+          max-width: 100%;
+        }
+
+        .previewScaled {
+          transform-origin: top left;
+          will-change: transform;
+        }
+
+        .a4 {
+          background: #ffffff;
+          color: #111111;
+          border: 2px solid #111111;
+          border-radius: 14px;
+          padding: 14px;
+          font-size: 13px;
+          line-height: 1.2;
+          box-sizing: border-box;
+        }
+
+        .box {
+          border: 2px solid #111111;
+          border-radius: 12px;
+          overflow: hidden;
+        }
+
+        .cell {
+          border: 1.5px solid #111111;
+          padding: 6px 8px;
+          vertical-align: top;
+        }
+
+        .cellCenter {
+          border: 1.5px solid #111111;
+          padding: 6px 8px;
+          text-align: center;
+          vertical-align: middle;
+        }
+
+        .titleBar {
+          background: #eadcf6;
+          font-weight: 700;
+        }
+
+        .sectionBar {
+          background: #dff2df;
+          font-weight: 700;
+          text-align: center;
+        }
+
+        .subBar {
+          background: #f4e8d4;
+          font-weight: 700;
+          text-align: center;
+        }
+
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+        }
+
+        th,
+        td {
+          overflow-wrap: break-word;
+          word-break: break-word;
+        }
+
+        .hMain {
+          font-weight: 800;
+          font-size: 18px;
+          letter-spacing: 0.2px;
+        }
+
+        .hSub {
+          font-weight: 600;
+          font-size: 13px;
+        }
+
+        .mini th,
+        .mini td {
+          border: 1.5px solid #111111;
+          padding: 4px 6px;
+          font-size: 10px;
+          line-height: 1.05;
+        }
+
+        .mini th {
+          text-align: center;
+          vertical-align: middle;
+          font-weight: 700;
+        }
+
+        .mini td {
+          vertical-align: top;
+        }
+
+        .mini .c {
+          text-align: center;
+          vertical-align: middle;
+        }
+
+        .wrapText {
+          word-break: break-word;
+          overflow-wrap: anywhere;
+        }
+
+        .multiline {
+          white-space: pre-wrap;
+        }
+      `}</style>
+
+      <div ref={wrapRef} className="previewWrap">
+        <div className="previewCenter">
           <div
+            className="previewFrame"
             style={{
-              border: "2px solid #111",
-              borderRadius: 14,
-              overflow: "hidden",
+              width: frameWidth,
+              height: frameHeight,
             }}
           >
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <tbody>
-                <tr>
-                  <td
-                    style={{
-                      ...cellStyle({
-                        textAlign: "center",
-                        padding: "16px 12px",
-                        fontWeight: 700,
-                        fontSize: 22,
-                      }),
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
-                      <Image
-                        src="/logo.png"
-                        alt="Company Logo"
-                        width={48}
-                        height={48}
-                        unoptimized
-                      />
-                      <div>
-                        <div>รายงานการควบคุมงานก่อสร้างประจำสัปดาห์ (WEEKLY REPORT)</div>
-                        <div style={{ fontSize: 18, marginTop: 4 }}>สัปดาห์ที่ {model.weekNo}</div>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
+            <div
+              ref={scaledRef}
+              className="previewScaled"
+              style={{
+                width: A4_WIDTH,
+                transform: `scale(${scale}) translateZ(0)`,
+              }}
+            >
+              <div className="a4">
+                <div className="box">
+                  <table>
+                    <colgroup>
+                      <col style={{ width: "19%" }} />
+                      <col style={{ width: "81%" }} />
+                    </colgroup>
+                    <tbody>
+                      <tr>
+                        <td className="cellCenter">
+                          <div className="mx-auto flex h-[110px] w-[110px] items-center justify-center overflow-hidden rounded-full border-2 border-black bg-white">
+                            <Image
+                              src="/logo.png"
+                              alt="Company Logo"
+                              width={110}
+                              height={110}
+                              className="h-full w-full object-contain"
+                              priority
+                            />
+                          </div>
+                        </td>
+                        <td className="cellCenter titleBar">
+                          <div className="hMain">
+                            รายงานการควบคุมงานก่อสร้างประจำสัปดาห์ (WEEKLY REPORT)
+                          </div>
+                          <div className="mt-1 hSub">สัปดาห์ที่ {model.weekNo}</div>
+                          <div className="mt-1 hSub">
+                            ช่วงวันที่ {formatDateBE(model.startDate)} ถึง{" "}
+                            {formatDateBE(model.endDate)}
+                          </div>
+                          <div className="mt-1 hSub">
+                            โครงการ : {textOrDash(pm.projectName)}
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-                <tr>
-                  <td style={cellStyle({ textAlign: "center", fontWeight: 700 })}>
-                    ช่วงวันที่ {formatDateBE(model.startDate)} ถึง {formatDateBE(model.endDate)}
-                  </td>
-                </tr>
+                  <table>
+                    <colgroup>
+                      <col style={{ width: "19%" }} />
+                      <col style={{ width: "31%" }} />
+                      <col style={{ width: "19%" }} />
+                      <col style={{ width: "31%" }} />
+                    </colgroup>
+                    <tbody>
+                      <tr>
+                        <td className="cell">สัญญาจ้าง</td>
+                        <td className="cell">{textOrDash(pm.contractNo)}</td>
+                        <td className="cell">สถานที่ก่อสร้าง</td>
+                        <td className="cell">{textOrDash(pm.siteLocation)}</td>
+                      </tr>
+                      <tr>
+                        <td className="cell">งวดงาน</td>
+                        <td className="cell">{textOrDash(pm.installmentLabel)}</td>
+                        <td className="cell">วงเงินค่าก่อสร้าง</td>
+                        <td className="cell">{textOrDash(pm.contractValue)}</td>
+                      </tr>
+                      <tr>
+                        <td className="cell">เริ่มสัญญา</td>
+                        <td className="cell">{formatDateBE(pm.contractStart)}</td>
+                        <td className="cell">ผู้รับจ้าง</td>
+                        <td className="cell">{textOrDash(pm.contractorName)}</td>
+                      </tr>
+                      <tr>
+                        <td className="cell">สิ้นสุดสัญญา</td>
+                        <td className="cell">{formatDateBE(pm.contractEnd)}</td>
+                        <td className="cell">วิธีจัดซื้อจัดจ้าง</td>
+                        <td className="cell">{textOrDash(pm.procurementMethod)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-                <tr>
-                  <td style={cellStyle()}>
-                    โครงการ : {textOrDash(pm.projectName)}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={cellStyle()}>
-                    สัญญาจ้าง {textOrDash(pm.contractNo)} สถานที่ก่อสร้าง {textOrDash(pm.siteLocation)}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={cellStyle()}>
-                    งวดงาน {textOrDash(pm.installmentLabel)} วงเงินค่าก่อสร้าง {textOrDash(pm.contractValue)}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={cellStyle()}>
-                    เริ่มสัญญา {formatDateBE(pm.contractStart)} ผู้รับจ้าง {textOrDash(pm.contractorName)}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={cellStyle()}>
-                    สิ้นสุดสัญญา {formatDateBE(pm.contractEnd)} วิธีจัดซื้อจัดจ้าง {textOrDash(pm.procurementMethod)}
-                  </td>
-                </tr>
+                  <table>
+                    <tbody>
+                      <tr>
+                        <td className="cellCenter sectionBar">สรุประยะเวลา</td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-                <tr>
-                  <td style={sectionBarStyle()}>สรุประยะเวลา</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: 0 }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                      <thead>
-                        <tr>
-                          <th style={headerCellStyle()}>รายการ</th>
-                          <th style={headerCellStyle()}>ตามสัญญา</th>
-                          <th style={headerCellStyle()}>ก่อนหน้า</th>
-                          <th style={headerCellStyle()}>สัปดาห์นี้</th>
-                          <th style={headerCellStyle()}>สะสม</th>
-                          <th style={headerCellStyle()}>คงเหลือ</th>
-                          <th style={headerCellStyle()}>คลาดเคลื่อน</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td style={cellStyle({ textAlign: "center", fontWeight: 700 })}>จำนวนวัน</td>
-                          <td style={cellStyle({ textAlign: "center" })}>{formatInteger(ts.contractDays)}</td>
-                          <td style={cellStyle({ textAlign: "center" })}>{formatInteger(ts.previousUsedDays)}</td>
-                          <td style={cellStyle({ textAlign: "center" })}>{formatInteger(ts.currentWeekDays)}</td>
-                          <td style={cellStyle({ textAlign: "center" })}>{formatInteger(ts.accumulatedDays)}</td>
-                          <td style={cellStyle({ textAlign: "center" })}>{formatInteger(ts.remainingDays)}</td>
-                          <td style={cellStyle({ textAlign: "center" })}>{formatInteger(ts.varianceDays ?? null)}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </td>
-                </tr>
+                  <table>
+                    <colgroup>
+                      <col style={{ width: "20%" }} />
+                      <col style={{ width: "13.333%" }} />
+                      <col style={{ width: "13.333%" }} />
+                      <col style={{ width: "13.333%" }} />
+                      <col style={{ width: "13.333%" }} />
+                      <col style={{ width: "13.333%" }} />
+                      <col style={{ width: "13.333%" }} />
+                    </colgroup>
+                    <tbody>
+                      <tr>
+                        <td className="cellCenter subBar">รายการ</td>
+                        <td className="cellCenter subBar">ตามสัญญา</td>
+                        <td className="cellCenter subBar">ก่อนหน้า</td>
+                        <td className="cellCenter subBar">สัปดาห์นี้</td>
+                        <td className="cellCenter subBar">สะสม</td>
+                        <td className="cellCenter subBar">คงเหลือ</td>
+                        <td className="cellCenter subBar">คลาดเคลื่อน</td>
+                      </tr>
+                      <tr>
+                        <td className="cell">จำนวนวัน</td>
+                        <td className="cellCenter">{formatInteger(ts.contractDays)}</td>
+                        <td className="cellCenter">
+                          {formatInteger(ts.previousUsedDays)}
+                        </td>
+                        <td className="cellCenter">
+                          {formatInteger(ts.currentWeekDays)}
+                        </td>
+                        <td className="cellCenter">
+                          {formatInteger(ts.accumulatedDays)}
+                        </td>
+                        <td className="cellCenter">
+                          {formatInteger(ts.remainingDays)}
+                        </td>
+                        <td className="cellCenter">
+                          {formatInteger(ts.varianceDays ?? null)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-                <tr>
-                  <td style={sectionBarStyle()}>ผลงานที่ดำเนินการประจำสัปดาห์</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: 0 }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                      <thead>
-                        <tr>
-                          <th style={headerCellStyle({ width: 70 })}>ลำดับ</th>
-                          <th style={headerCellStyle()}>รายการงาน</th>
-                          <th style={headerCellStyle()}>ตำแหน่ง</th>
-                          <th style={headerCellStyle()}>ปริมาณ</th>
-                          <th style={headerCellStyle()}>หน่วย</th>
-                          <th style={headerCellStyle()}>หมายเหตุ</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {workItems.length ? (
-                          workItems.map((item, index) => (
-                            <tr key={item.id || `work-${index}`}>
-                              <td style={cellStyle({ textAlign: "center" })}>{index + 1}</td>
-                              <td style={cellStyle()}>{textOrDash(item.description)}</td>
-                              <td style={cellStyle()}>{textOrDash(item.location)}</td>
-                              <td style={cellStyle({ textAlign: "right" })}>
-                                {item.qty == null ? "-" : formatNumber(item.qty, 2)}
-                              </td>
-                              <td style={cellStyle({ textAlign: "center" })}>{textOrDash(item.unit)}</td>
-                              <td style={cellStyle()}>{textOrDash(item.remark)}</td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td style={cellStyle({ textAlign: "center" })} colSpan={6}>
-                              ไม่มีรายการงาน
+                  <table>
+                    <tbody>
+                      <tr>
+                        <td className="cellCenter sectionBar">
+                          ผลงานที่ดำเนินการประจำสัปดาห์
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <table className="mini">
+                    <colgroup>
+                      <col style={{ width: "6%" }} />
+                      <col style={{ width: "39%" }} />
+                      <col style={{ width: "19%" }} />
+                      <col style={{ width: "12%" }} />
+                      <col style={{ width: "10%" }} />
+                      <col style={{ width: "14%" }} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>ลำดับ</th>
+                        <th>รายการงาน</th>
+                        <th>ตำแหน่ง</th>
+                        <th>ปริมาณ</th>
+                        <th>หน่วย</th>
+                        <th>หมายเหตุ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {workItems.length ? (
+                        workItems.map((item, index) => (
+                          <tr key={item.id}>
+                            <td className="c">{index + 1}</td>
+                            <td className="wrapText">
+                              {textOrDash(item.description)}
+                            </td>
+                            <td className="wrapText">
+                              {textOrDash(item.location)}
+                            </td>
+                            <td className="c">
+                              {item.qty == null ? "-" : formatNumber(item.qty, 2)}
+                            </td>
+                            <td className="c">{textOrDash(item.unit)}</td>
+                            <td className="wrapText">
+                              {textOrDash(item.remark)}
                             </td>
                           </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </td>
-                </tr>
-
-                <tr>
-                  <td style={sectionBarStyle()}>ความคิดเห็นผู้ควบคุมงาน</td>
-                </tr>
-                <tr>
-                  <td
-                    style={cellStyle({
-                      height: "3in",
-                      minHeight: "3in",
-                      verticalAlign: "top",
-                    })}
-                  >
-                    &nbsp;
-                  </td>
-                </tr>
-
-                <tr>
-                  <td style={sectionBarStyle()}>ปัญหาและอุปสรรค</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: 0 }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                      <thead>
+                        ))
+                      ) : (
                         <tr>
-                          <th style={headerCellStyle({ width: 70 })}>ลำดับ</th>
-                          <th style={headerCellStyle()}>หัวข้อ</th>
-                          <th style={headerCellStyle()}>ผลกระทบ</th>
-                          <th style={headerCellStyle()}>แนวทางแก้ไข</th>
+                          <td colSpan={6} className="c">
+                            ไม่มีรายการงาน
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {problems.length ? (
-                          problems.map((item, index) => (
-                            <tr key={item.id || `problem-${index}`}>
-                              <td style={cellStyle({ textAlign: "center" })}>{index + 1}</td>
-                              <td style={cellStyle()}>{textOrDash(item.topic)}</td>
-                              <td style={cellStyle()}>{textOrDash(item.impact)}</td>
-                              <td style={cellStyle()}>{textOrDash(item.solution)}</td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td style={cellStyle({ textAlign: "center" })} colSpan={4}>
-                              ไม่มีปัญหาและอุปสรรค
-                            </td>
+                      )}
+                    </tbody>
+                  </table>
+
+                  <table>
+                    <tbody>
+                      <tr>
+                        <td className="cellCenter sectionBar">
+                          ความคิดเห็นผู้ควบคุมงาน
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="cell multiline" 
+                        style={{ 
+                            height: "70mm",
+                            minHeight: "70mm",
+                            verticalAlign: "top",
+                         }}>
+                            &nbsp;
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <table>
+                    <tbody>
+                      <tr>
+                        <td className="cellCenter sectionBar">ปัญหาและอุปสรรค</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <table className="mini">
+                    <colgroup>
+                      <col style={{ width: "6%" }} />
+                      <col style={{ width: "34%" }} />
+                      <col style={{ width: "30%" }} />
+                      <col style={{ width: "30%" }} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>ลำดับ</th>
+                        <th>หัวข้อ</th>
+                        <th>ผลกระทบ</th>
+                        <th>แนวทางแก้ไข</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {problems.length ? (
+                        problems.map((item, index) => (
+                          <tr key={item.id}>
+                            <td className="c">{index + 1}</td>
+                            <td className="wrapText">{textOrDash(item.topic)}</td>
+                            <td className="wrapText">{textOrDash(item.impact)}</td>
+                            <td className="wrapText">{textOrDash(item.solution)}</td>
                           </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </td>
-                </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4} className="c">
+                            ไม่มีปัญหาและอุปสรรค
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
 
-                <tr>
-                  <td style={sectionBarStyle()}>ความปลอดภัยในการทำงาน</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: 0 }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                      <thead>
-                        <tr>
-                          <th style={headerCellStyle()}>อุบัติเหตุ</th>
-                          <th style={headerCellStyle()}>บาดเจ็บ</th>
-                          <th style={headerCellStyle()}>Lost Time</th>
-                          <th style={headerCellStyle()}>หมายเหตุ</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td style={cellStyle({ textAlign: "center" })}>
-                            {formatInteger(model.safety.accidentCount ?? 0)}
-                          </td>
-                          <td style={cellStyle({ textAlign: "center" })}>
-                            {formatInteger(model.safety.injuredCount ?? 0)}
-                          </td>
-                          <td style={cellStyle({ textAlign: "center" })}>
-                            {formatInteger(model.safety.lostTimeCount ?? 0)}
-                          </td>
-                          <td style={cellStyle()}>{textOrDash(model.safety.note)}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </td>
-                </tr>
+                  <table>
+                    <tbody>
+                      <tr>
+                        <td className="cellCenter sectionBar">
+                          ความปลอดภัยในการทำงาน
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-                <tr>
-                  <td style={sectionBarStyle()}>สรุปความก้าวหน้า</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: 0 }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                      <thead>
-                        <tr>
-                          <th style={headerCellStyle()}>หมวดงาน</th>
-                          <th style={headerCellStyle()}>น้ำหนัก (%)</th>
-                          <th style={headerCellStyle()}>ก่อนหน้า (%)</th>
-                          <th style={headerCellStyle()}>สัปดาห์นี้ (%)</th>
-                          <th style={headerCellStyle()}>สะสม (%)</th>
-                          <th style={headerCellStyle()}>คงเหลือ (%)</th>
-                          <th style={headerCellStyle()}>แผน (%)</th>
-                          <th style={headerCellStyle()}>คลาดเคลื่อน (%)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {progress.length ? (
-                          <>
-                            {progress.map((item) => (
-                              <tr key={item.id}>
-                                <td style={cellStyle()}>{textOrDash(item.category)}</td>
-                                <td style={cellStyle({ textAlign: "right" })}>
-                                  {formatNumber(item.weightPercent)}
-                                </td>
-                                <td style={cellStyle({ textAlign: "right" })}>
-                                  {formatNumber(item.previousPercent)}
-                                </td>
-                                <td style={cellStyle({ textAlign: "right" })}>
-                                  {formatNumber(item.weeklyPercent)}
-                                </td>
-                                <td style={cellStyle({ textAlign: "right" })}>
-                                  {formatNumber(item.accumulatedPercent)}
-                                </td>
-                                <td style={cellStyle({ textAlign: "right" })}>
-                                  {formatNumber(item.remainingPercent)}
-                                </td>
-                                <td style={cellStyle({ textAlign: "right" })}>
-                                  {formatNumber(item.plannedPercent ?? null)}
-                                </td>
-                                <td style={cellStyle({ textAlign: "right" })}>
-                                  {formatNumber(item.variancePercent ?? null)}
-                                </td>
-                              </tr>
-                            ))}
-                            <tr>
-                              <td style={cellStyle({ fontWeight: 700, textAlign: "center" })}>รวม</td>
-                              <td style={cellStyle({ textAlign: "right", fontWeight: 700 })}>
-                                {formatNumber(totalWeight)}
+                  <table>
+                    <colgroup>
+                      <col style={{ width: "25%" }} />
+                      <col style={{ width: "25%" }} />
+                      <col style={{ width: "25%" }} />
+                      <col style={{ width: "25%" }} />
+                    </colgroup>
+                    <tbody>
+                      <tr>
+                        <td className="cellCenter subBar">อุบัติเหตุ</td>
+                        <td className="cellCenter subBar">บาดเจ็บ</td>
+                        <td className="cellCenter subBar">Lost Time</td>
+                        <td className="cellCenter subBar">หมายเหตุ</td>
+                      </tr>
+                      <tr>
+                        <td className="cellCenter">
+                          {formatInteger(model.safety.accidentCount ?? 0)}
+                        </td>
+                        <td className="cellCenter">
+                          {formatInteger(model.safety.injuredCount ?? 0)}
+                        </td>
+                        <td className="cellCenter">
+                          {formatInteger(model.safety.lostTimeCount ?? 0)}
+                        </td>
+                        <td className="cell multiline">
+                          {textOrDash(model.safety.note)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <table>
+                    <tbody>
+                      <tr>
+                        <td className="cellCenter sectionBar">สรุปความก้าวหน้า</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <table className="mini">
+                    <colgroup>
+                      <col style={{ width: "24%" }} />
+                      <col style={{ width: "10%" }} />
+                      <col style={{ width: "10%" }} />
+                      <col style={{ width: "10%" }} />
+                      <col style={{ width: "10%" }} />
+                      <col style={{ width: "10%" }} />
+                      <col style={{ width: "10%" }} />
+                      <col style={{ width: "16%" }} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>หมวดงาน</th>
+                        <th>น้ำหนัก (%)</th>
+                        <th>ก่อนหน้า (%)</th>
+                        <th>สัปดาห์นี้ (%)</th>
+                        <th>สะสม (%)</th>
+                        <th>คงเหลือ (%)</th>
+                        <th>แผน (%)</th>
+                        <th>คลาดเคลื่อน (%)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {progress.length ? (
+                        <>
+                          {progress.map((item) => (
+                            <tr key={item.id}>
+                              <td className="wrapText">
+                                {textOrDash(item.category)}
                               </td>
-                              <td style={cellStyle({ textAlign: "right", fontWeight: 700 })}>
-                                {formatNumber(totalPrev)}
+                              <td className="c">
+                                {formatNumber(item.weightPercent)}
                               </td>
-                              <td style={cellStyle({ textAlign: "right", fontWeight: 700 })}>
-                                {formatNumber(totalWeekly)}
+                              <td className="c">
+                                {formatNumber(item.previousPercent)}
                               </td>
-                              <td style={cellStyle({ textAlign: "right", fontWeight: 700 })}>
-                                {formatNumber(totalAccum)}
+                              <td className="c">
+                                {formatNumber(item.weeklyPercent)}
                               </td>
-                              <td style={cellStyle({ textAlign: "right", fontWeight: 700 })}>
-                                {formatNumber(totalRemain)}
+                              <td className="c">
+                                {formatNumber(item.accumulatedPercent)}
                               </td>
-                              <td style={cellStyle({ textAlign: "center", fontWeight: 700 })}>-</td>
-                              <td style={cellStyle({ textAlign: "center", fontWeight: 700 })}>-</td>
+                              <td className="c">
+                                {formatNumber(item.remainingPercent)}
+                              </td>
+                              <td className="c">
+                                {formatNumber(item.plannedPercent ?? null)}
+                              </td>
+                              <td className="c">
+                                {formatNumber(item.variancePercent ?? null)}
+                              </td>
                             </tr>
-                          </>
-                        ) : (
+                          ))}
                           <tr>
-                            <td style={cellStyle({ textAlign: "center" })} colSpan={8}>
-                              ยังไม่มีตารางสรุปความก้าวหน้า
+                            <td className="c">
+                              <strong>รวม</strong>
                             </td>
+                            <td className="c">
+                              <strong>{formatNumber(totalWeight)}</strong>
+                            </td>
+                            <td className="c">
+                              <strong>{formatNumber(totalPrev)}</strong>
+                            </td>
+                            <td className="c">
+                              <strong>{formatNumber(totalWeekly)}</strong>
+                            </td>
+                            <td className="c">
+                              <strong>{formatNumber(totalAccum)}</strong>
+                            </td>
+                            <td className="c">
+                              <strong>{formatNumber(totalRemain)}</strong>
+                            </td>
+                            <td className="c">-</td>
+                            <td className="c">-</td>
                           </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </td>
-                </tr>
+                        </>
+                      ) : (
+                        <tr>
+                          <td colSpan={8} className="c">
+                            ยังไม่มีตารางสรุปความก้าวหน้า
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
 
-                <tr>
-                  <td style={sectionBarStyle()}>ผู้ควบคุมงาน / ผู้ลงนาม</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: 0 }}>
-                    <SignatureGrid items={supervisors} />
-                  </td>
-                </tr>
+                  <table>
+                    <tbody>
+                      <tr>
+                        <td className="cellCenter sectionBar">
+                          ผู้ควบคุมงาน / ผู้ลงนาม
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="cell">
+                          <SignatureGrid items={supervisors} />
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-                <tr>
-                  <td style={cellStyle({ fontWeight: 700 })}>
-                    หมายเหตุ: เอกสารนี้เป็นข้อมูล Weekly Report ที่ถูกสรุปจากระบบและจัดเก็บในฐานข้อมูล
-                  </td>
-                </tr>
-                <tr>
-                  <td style={cellStyle()}>
-                    วันที่สร้างข้อมูลล่าสุด:{" "}
-                    {model.createdAt ? formatDateThai(model.createdAt) : "-"}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  <table>
+                    <tbody>
+                      <tr>
+                        <td className="cell">
+                          <strong>หมายเหตุ:</strong>{" "}
+                          เอกสารนี้เป็นข้อมูล Weekly Report ที่ถูกสรุปจากระบบและจัดเก็บในฐานข้อมูล
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="cell">
+                          วันที่สร้างข้อมูลล่าสุด:{" "}
+                          {model.updatedAt ? formatDateThai(model.updatedAt) : "-"}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
