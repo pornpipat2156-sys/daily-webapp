@@ -306,19 +306,17 @@ function buildWeeklyModelFromSummary(
     const progressSource = toArray<Record<string, unknown>>(payload.progressByCategory);
     const supervisorSource = toArray<Record<string, unknown>>(payload.supervisors);
 
-    const projectSupervisorNames = toArray<unknown>(projectMeta.supervisors)
-      .map((item) => toText(item, ""))
-      .filter(Boolean);
+const projectSupervisorSource = toArray<Record<string, unknown>>(projectMeta.supervisors);
 
-    const normalizedSupervisors: WeeklySupervisor[] = (
-      supervisorSource.length > 0
-        ? supervisorSource.map((item) => ({
-            name: toText(item.name, ""),
-            role: toText(item.role, "ผู้ควบคุมงาน"),
-          }))
-    : projectSupervisorNames.map((name) => ({
-        name,
-        role: "ผู้ควบคุมงาน",
+const normalizedSupervisors: WeeklySupervisor[] = (
+  supervisorSource.length > 0
+    ? supervisorSource.map((item) => ({
+        name: toText(item.name, ""),
+        role: toText(item.role, "ผู้ควบคุมงาน"),
+      }))
+    : projectSupervisorSource.map((item) => ({
+        name: toText(item.name, ""),
+        role: toText(item.role, "ผู้ควบคุมงาน"),
       }))
 ).filter((item) => item.name || item.role);
 
