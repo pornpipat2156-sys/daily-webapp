@@ -652,8 +652,13 @@ export function WeeklyReportForm({ model, loading, error }: Props) {
                         </td>
                       </tr>
                       <tr>
-                        <td className="cell multiline" style={{ minHeight: 84 }}>
-                          {textOrDash(model.comments)}
+                        <td className="cell multiline" 
+                        style={{ 
+                            height: "3inch",
+                            minHeight: "3inch",
+                            verticalAlign: "top",
+                         }}>
+                            &nbsp;
                         </td>
                       </tr>
                     </tbody>
