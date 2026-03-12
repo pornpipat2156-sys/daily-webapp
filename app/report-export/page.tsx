@@ -119,8 +119,8 @@ function buildWeeklyModelFromSummaryForExport(
   const supervisorSource = toArray<Record<string, unknown>>(payload.supervisors);
 
   const projectSupervisorNames = toArray<unknown>(projectMeta.supervisors)
-  .map((item) => toText(item, ""))
-  .filter(Boolean);
+    .map((item) => toText(item, ""))
+    .filter(Boolean);
 
   const normalizedSupervisors: WeeklySupervisor[] = (
     supervisorSource.length > 0
