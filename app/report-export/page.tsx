@@ -119,20 +119,17 @@ function buildWeeklyModelFromSummaryForExport(
   const supervisorSource = toArray<Record<string, unknown>>(payload.supervisors);
 
 const projectSupervisorSource = toArray<Record<string, unknown>>(
-  projectMeta?.supervisors
+  projectMeta.supervisors
 );
 
 const normalizedSupervisors: WeeklySupervisor[] = (
-  supervisorSource.length > 0
-    ? supervisorSource.map((item) => ({
-        name: toText(item.name, ""),
-        role: toText(item.role, "ผู้ควบคุมงาน"),
-      }))
-    : projectSupervisorSource.map((item) => ({
-        name: toText(item.name, ""),
-        role: toText(item.role, "ผู้ควบคุมงาน"),
-      }))
-).filter((item) => item.name || item.role);
+  supervisorSource.length > 0 ? supervisorSource : projectSupervisorSource
+)
+  .map((item) => ({
+    name: toText(item.name, ""),
+    role: toText(item.role, "ผู้ควบคุมงาน"),
+  }))
+  .filter((item) => item.name || item.role);
 
   const normalizedWork: WeeklyWorkItem[] = workSource.map((item, index) => ({
     id: String(item.id ?? `work-${index + 1}`),
