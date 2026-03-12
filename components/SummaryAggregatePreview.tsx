@@ -78,16 +78,16 @@ function pickProjectMeta(model: SummaryDocumentModel, payload: AnyRecord): AnyRe
   const payloadProjectMeta = toRecord(payload.projectMeta) || {};
   const rootProjectMeta = toRecord(model.projectMeta) || {};
 
-  if (Object.keys(payloadProjectMeta).length > 0) return payloadProjectMeta;
-  return rootProjectMeta;
+  return Object.keys(payloadProjectMeta).length > 0 ? payloadProjectMeta : rootProjectMeta;
 }
 
-function parsePeriodRangeFromLabel(periodLabel: string, fallbackDate: string) {
+function parseDateRangeFallback(periodLabel: string, selectedDate: string) {
   const label = asString(periodLabel);
+
   if (!label) {
     return {
-      startDate: fallbackDate || "",
-      endDate: fallbackDate || "",
+      startDate: selectedDate || "",
+      endDate: selectedDate || "",
     };
   }
 
@@ -104,8 +104,8 @@ function parsePeriodRangeFromLabel(periodLabel: string, fallbackDate: string) {
   }
 
   return {
-    startDate: label,
-    endDate: label,
+    startDate: selectedDate || label,
+    endDate: selectedDate || label,
   };
 }
 
@@ -114,7 +114,7 @@ function mapWorkPerformedWeekly(payload: AnyRecord): WeeklyWorkItem[] {
 
   return rows.map((row, index) => ({
     id: asString(row.id, `work-${index + 1}`),
-    description: asString(row.description, "-"),
+    description: asString(row.desc, "-"),
     qty:
       row.qtyTotal == null || String(row.qtyTotal).trim() === ""
         ? null
@@ -220,20 +220,19 @@ function buildWeeklyModel(model: SummaryDocumentModel): WeeklyReportModel | null
 
   const payload = pickPayload(model);
   const projectMeta = pickProjectMeta(model, payload);
-  const fallbackRange = parsePeriodRangeFromLabel(model.periodLabel, model.selectedDate);
+  const fallbackRange = parseDateRangeFallback(model.periodLabel, model.selectedDate);
 
   const weekNo = asNumber(payload.weekNo, 0);
-  const startDate = asString(payload.dateStart, fallbackRange.startDate || model.selectedDate || "");
-  const endDate = asString(payload.dateEnd, fallbackRange.endDate || model.selectedDate || "");
+  const startDate = asString(payload.dateStart, fallbackRange.startDate);
+  const endDate = asString(payload.dateEnd, fallbackRange.endDate);
+  const yearSource = asString(payload.dateStart, model.selectedDate || "");
+  const resolvedYear = yearSource ? new Date(yearSource).getFullYear() : new Date().getFullYear();
 
   // DIRECT WEEKLY PREVIEW BUILD
   const weeklyModel: WeeklyReportModel = {
     id: asString(payload.id, `${model.reportType}-${model.selectedDate || "preview"}`),
     projectId: asString(payload.projectId, ""),
-    year: asNumber(
-      payload.year,
-      new Date(model.selectedDate || Date.now()).getFullYear()
-    ),
+    year: asNumber(payload.year, Number.isFinite(resolvedYear) ? resolvedYear : new Date().getFullYear()),
     weekNo,
     startDate,
     endDate,
