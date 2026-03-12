@@ -13,6 +13,9 @@ type Supervisor = {
   role: string;
 };
 
+const APP_TIME_ZONE = "Asia/Bangkok";
+const THAI_UTC_OFFSET_HOURS = 7;
+
 function str(v: unknown, fallback = "") {
   const s = String(v ?? "").trim();
   return s || fallback;
@@ -36,12 +39,41 @@ function arrayOfObjects<T extends Record<string, unknown>>(v: unknown): T[] {
   return v.filter((x) => x && typeof x === "object" && !Array.isArray(x)) as T[];
 }
 
-function toDateOnlyUtc(dateStr: string) {
+function parseDateOnly(dateStr: string) {
   const s = str(dateStr);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+
   const [y, m, d] = s.split("-").map(Number);
   if (!y || !m || !d) return null;
-  return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+
+  return { year: y, month: m, day: d };
+}
+
+function toDateOnlyUtc(dateStr: string) {
+  const parsed = parseDateOnly(dateStr);
+  if (!parsed) return null;
+
+  return new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day, 0, 0, 0, 0));
+}
+
+function toBangkokDayRangeUtc(dateStr: string) {
+  const parsed = parseDateOnly(dateStr);
+  if (!parsed) return null;
+
+  const start = new Date(
+    Date.UTC(
+      parsed.year,
+      parsed.month - 1,
+      parsed.day,
+      -THAI_UTC_OFFSET_HOURS,
+      0,
+      0,
+      0
+    )
+  );
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+
+  return { start, end };
 }
 
 function toEndOfDayUtc(date: Date) {
@@ -86,6 +118,7 @@ function normalizeSupervisors(raw: unknown): Supervisor[] {
           role: str(o.role),
         };
       }
+
       return {
         name: str(item),
         role: "",
@@ -115,15 +148,34 @@ function normalizeProjectMeta(projectName: string, metaRaw: unknown) {
   };
 }
 
-function formatDateOnly(date: Date) {
+function formatDateOnlyUtc(date: Date) {
   const y = date.getUTCFullYear();
   const m = String(date.getUTCMonth() + 1).padStart(2, "0");
   const d = String(date.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 
+function formatDateOnlyInTimeZone(date: Date, timeZone = APP_TIME_ZONE) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const year = parts.find((p) => p.type === "year")?.value ?? "";
+  const month = parts.find((p) => p.type === "month")?.value ?? "";
+  const day = parts.find((p) => p.type === "day")?.value ?? "";
+
+  if (!year || !month || !day) {
+    return formatDateOnlyUtc(date);
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
 function getWeekRangeLabel(startDate: Date, endDate: Date) {
-  return `${formatDateOnly(startDate)} ถึง ${formatDateOnly(endDate)}`;
+  return `${formatDateOnlyUtc(startDate)} ถึง ${formatDateOnlyUtc(endDate)}`;
 }
 
 function getMonthLabel(year: number, month: number) {
@@ -193,21 +245,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, message: "invalid type" }, { status: 400 });
   }
 
-  const selectedDate = toDateOnlyUtc(dateStr);
-  if (!selectedDate) {
-    return NextResponse.json({ ok: false, message: "invalid date" }, { status: 400 });
-  }
-
   try {
     if (type === "daily") {
-      const selectedDateEnd = toEndOfDayUtc(selectedDate);
+      const bangkokRange = toBangkokDayRangeUtc(dateStr);
+      if (!bangkokRange) {
+        return NextResponse.json({ ok: false, message: "invalid date" }, { status: 400 });
+      }
 
       const report = await prisma.dailyReport.findFirst({
         where: {
           projectId,
           date: {
-            gte: selectedDate,
-            lte: selectedDateEnd,
+            gte: bangkokRange.start,
+            lte: bangkokRange.end,
           },
         },
         orderBy: { date: "desc" },
@@ -352,42 +402,42 @@ export async function GET(req: NextRequest) {
       };
 
       const dailyModel = {
-  date: formatDateOnly(report.date),
-  projectName: str(report.project?.name, "-"),
-  projectMeta: resolvedProjectMeta,
-  contractors: arrayOfObjects(payload.contractors),
-  subContractors: arrayOfObjects(payload.subContractors),
-  majorEquipment: arrayOfObjects(payload.majorEquipment),
-  workPerformed: arrayOfObjects(payload.workPerformed),
-  issues: report.issues.map((it) => ({
-    id: it.id,
-    detail: str(it.detail),
-    imageUrl: str(it.imageUrl),
-    comments: (it.comments || []).map((c) => ({
-      id: c.id,
-      comment: str(c.comment),
-      createdAt: c.createdAt.toISOString(),
-      author: c.author
-        ? {
-            name: c.author.name ?? null,
-            email: c.author.email ?? null,
-            role: c.author.role ?? null,
-          }
-        : null,
-    })),
-  })),
-  safetyNote: str(payload.safetyNote),
-  tempMaxC: nullableNum(payload.tempMaxC),
-  tempMinC: nullableNum(payload.tempMinC),
-  hasOvertime: Boolean(payload.hasOvertime),
-  supervisors,
-  dayNo,
-  totalDays,
-  periodIndex,
-  installmentCount,
-  weekIndex,
-  totalWeeks,
-};
+        date: formatDateOnlyInTimeZone(report.date),
+        projectName: str(report.project?.name, "-"),
+        projectMeta: resolvedProjectMeta,
+        contractors: arrayOfObjects(payload.contractors),
+        subContractors: arrayOfObjects(payload.subContractors),
+        majorEquipment: arrayOfObjects(payload.majorEquipment),
+        workPerformed: arrayOfObjects(payload.workPerformed),
+        issues: report.issues.map((it) => ({
+          id: it.id,
+          detail: str(it.detail),
+          imageUrl: str(it.imageUrl),
+          comments: (it.comments || []).map((c) => ({
+            id: c.id,
+            comment: str(c.comment),
+            createdAt: c.createdAt.toISOString(),
+            author: c.author
+              ? {
+                  name: c.author.name ?? null,
+                  email: c.author.email ?? null,
+                  role: c.author.role ?? null,
+                }
+              : null,
+          })),
+        })),
+        safetyNote: str(payload.safetyNote),
+        tempMaxC: nullableNum(payload.tempMaxC),
+        tempMinC: nullableNum(payload.tempMinC),
+        hasOvertime: Boolean(payload.hasOvertime),
+        supervisors,
+        dayNo,
+        totalDays,
+        periodIndex,
+        installmentCount,
+        weekIndex,
+        totalWeeks,
+      };
 
       return NextResponse.json({
         ok: true,
@@ -398,10 +448,15 @@ export async function GET(req: NextRequest) {
         documentTitle: "Daily Report Preview",
         projectId: report.projectId,
         projectName: str(report.project?.name, "-"),
-        selectedDate: formatDateOnly(selectedDate),
-        periodLabel: formatDateOnly(selectedDate),
+        selectedDate: dateStr,
+        periodLabel: dateStr,
         dailyModel,
       });
+    }
+
+    const selectedDate = toDateOnlyUtc(dateStr);
+    if (!selectedDate) {
+      return NextResponse.json({ ok: false, message: "invalid date" }, { status: 400 });
     }
 
     if (type === "weekly") {
@@ -453,14 +508,14 @@ export async function GET(req: NextRequest) {
         documentTitle: `Weekly Report - Week ${report.weekNo}`,
         projectId: report.projectId,
         projectName: str(report.project?.name, "-"),
-        selectedDate: formatDateOnly(selectedDate),
+        selectedDate: formatDateOnlyUtc(selectedDate),
         periodLabel: getWeekRangeLabel(report.startDate, report.endDate),
         summaryModel: {
           reportType: "WEEKLY",
           documentTitle: `Weekly Report - Week ${report.weekNo}`,
           projectName: str(report.project?.name, "-"),
           periodLabel: getWeekRangeLabel(report.startDate, report.endDate),
-          selectedDate: formatDateOnly(selectedDate),
+          selectedDate: formatDateOnlyUtc(selectedDate),
           title: report.title ?? null,
           summary: report.summary ?? null,
           sourceReportIds: report.sourceReportIds || [],
@@ -520,14 +575,14 @@ export async function GET(req: NextRequest) {
       documentTitle: `Monthly Report - ${getMonthLabel(report.year, report.month)}`,
       projectId: report.projectId,
       projectName: str(report.project?.name, "-"),
-      selectedDate: formatDateOnly(selectedDate),
+      selectedDate: formatDateOnlyUtc(selectedDate),
       periodLabel: getWeekRangeLabel(report.startDate, report.endDate),
       summaryModel: {
         reportType: "MONTHLY",
         documentTitle: `Monthly Report - ${getMonthLabel(report.year, report.month)}`,
         projectName: str(report.project?.name, "-"),
         periodLabel: getWeekRangeLabel(report.startDate, report.endDate),
-        selectedDate: formatDateOnly(selectedDate),
+        selectedDate: formatDateOnlyUtc(selectedDate),
         title: report.title ?? null,
         summary: report.summary ?? null,
         sourceReportIds: report.sourceReportIds || [],

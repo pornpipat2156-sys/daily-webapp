@@ -8,21 +8,43 @@ export const dynamic = "force-dynamic";
 
 type ReportType = "daily" | "weekly" | "monthly";
 
+const APP_TIME_ZONE = "Asia/Bangkok";
+
 function str(v: unknown, fallback = "") {
   const s = String(v ?? "").trim();
   return s || fallback;
 }
 
-function formatDateOnly(date: Date) {
+function formatDateOnlyUtc(date: Date) {
   const y = date.getUTCFullYear();
   const m = String(date.getUTCMonth() + 1).padStart(2, "0");
   const d = String(date.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 
+function formatDateOnlyInTimeZone(date: Date, timeZone = APP_TIME_ZONE) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const year = parts.find((p) => p.type === "year")?.value ?? "";
+  const month = parts.find((p) => p.type === "month")?.value ?? "";
+  const day = parts.find((p) => p.type === "day")?.value ?? "";
+
+  if (!year || !month || !day) {
+    return formatDateOnlyUtc(date);
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
 function formatDateBE(dateStr: string) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
   if (!m) return dateStr;
+
   const year = Number(m[1]) + 543;
   const month = Number(m[2]);
   const day = Number(m[3]);
@@ -78,7 +100,7 @@ export async function GET(req: NextRequest) {
         ok: true,
         type: "daily",
         items: rows.map((row) => {
-          const value = formatDateOnly(row.date);
+          const value = formatDateOnlyInTimeZone(row.date);
           return {
             id: row.id,
             value,
@@ -106,13 +128,13 @@ export async function GET(req: NextRequest) {
         type: "weekly",
         items: rows.map((row) => ({
           id: row.id,
-          value: formatDateOnly(row.startDate),
+          value: formatDateOnlyUtc(row.startDate),
           label: `Week ${row.weekNo} / ${row.year}`,
           meta: {
             year: row.year,
             weekNo: row.weekNo,
-            startDate: formatDateOnly(row.startDate),
-            endDate: formatDateOnly(row.endDate),
+            startDate: formatDateOnlyUtc(row.startDate),
+            endDate: formatDateOnlyUtc(row.endDate),
           },
         })),
       });
@@ -135,13 +157,13 @@ export async function GET(req: NextRequest) {
       type: "monthly",
       items: rows.map((row) => ({
         id: row.id,
-        value: formatDateOnly(row.startDate),
+        value: formatDateOnlyUtc(row.startDate),
         label: `${String(row.month).padStart(2, "0")} / ${row.year}`,
         meta: {
           year: row.year,
           month: row.month,
-          startDate: formatDateOnly(row.startDate),
-          endDate: formatDateOnly(row.endDate),
+          startDate: formatDateOnlyUtc(row.startDate),
+          endDate: formatDateOnlyUtc(row.endDate),
         },
       })),
     });
