@@ -123,7 +123,7 @@ function buildWeeklyModelFromSummaryForExport(
   .filter(Boolean);
 
   const normalizedSupervisors: WeeklySupervisor[] = (
-  supervisorSource.length > 0
+    supervisorSource.length > 0
     ? supervisorSource.map((item) => ({
         name: toText(item.name, ""),
         role: toText(item.role, "ผู้ควบคุมงาน"),
