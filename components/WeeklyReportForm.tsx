@@ -153,79 +153,34 @@ function chunk<T>(items: T[], size: number): T[][] {
 
 function SignatureGrid({ items }: { items: WeeklySupervisor[] }) {
   const clean = (items || [])
-    .map((item) => ({
-      name: String(item?.name ?? "").trim(),
-      role: String(item?.role ?? "").trim(),
+    .map((x) => ({
+      name: String(x?.name || "").trim(),
+      role: String(x?.role || "").trim(),
     }))
-    .filter((item) => item.name || item.role);
+    .filter((x) => x.name || x.role);
+
+  if (!clean.length) return <div className="opacity-70">-</div>;
 
   const rows = chunk(clean, 5);
 
-  if (!rows.length) {
-    return (
-      <table>
-        <tbody>
-          <tr>
-            <td className="cellCenter">ยังไม่มีข้อมูลผู้ลงนาม</td>
-          </tr>
-        </tbody>
-      </table>
-    );
-  }
-
   return (
-    <table>
-      <tbody>
-        {rows.map((row, ri) => {
-          const emptyCount = 5 - row.length;
-
-          return (
-            <tr key={ri}>
-              {row.map((it, i) => (
-                <td
-                  key={`${it.name}-${it.role}-${i}`}
-                  className="cellCenter"
-                  style={{
-                    width: "20%",
-                    verticalAlign: "top",
-                    height: 120,
-                  }}
-                >
-                  <div
-                    style={{
-                      minHeight: 90,
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "flex-end",
-                      alignItems: "center",
-                      textAlign: "center",
-                    }}
-                  >
-                    <div>ลงชื่อ ................................</div>
-                    <div style={{ marginTop: 8 }}>({it.name || "-"})</div>
-                    <div style={{ marginTop: 4 }}>{it.role || " "}</div>
-                  </div>
-                </td>
-              ))}
-
-              {Array.from({ length: emptyCount }).map((_, index) => (
-                <td
-                  key={`empty-${ri}-${index}`}
-                  className="cellCenter"
-                  style={{
-                    width: "20%",
-                    verticalAlign: "top",
-                    height: 120,
-                  }}
-                >
-                  &nbsp;
-                </td>
-              ))}
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div className="space-y-4">
+      {rows.map((row, ri) => (
+        <div
+          key={ri}
+          className="grid gap-4"
+          style={{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }}
+        >
+          {row.map((it, i) => (
+            <div key={`${ri}-${i}`} className="text-center">
+              <div className="text-sm">ลงชื่อ ................................</div>
+              <div className="mt-1 text-sm">({it.name || "-"})</div>
+              <div className="mt-1 text-sm">{it.role || " "}</div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }
 
