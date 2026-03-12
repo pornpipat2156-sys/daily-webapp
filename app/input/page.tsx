@@ -306,7 +306,9 @@ function buildWeeklyModelFromSummary(
     const progressSource = toArray<Record<string, unknown>>(payload.progressByCategory);
     const supervisorSource = toArray<Record<string, unknown>>(payload.supervisors);
 
-const projectSupervisorSource = toArray<Record<string, unknown>>(projectMeta.supervisors);
+const projectSupervisorSource = toArray<Record<string, unknown>>(
+  projectMeta?.supervisors
+);
 
 const normalizedSupervisors: WeeklySupervisor[] = (
   supervisorSource.length > 0
