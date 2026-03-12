@@ -855,10 +855,10 @@ export default function DailyReportPage() {
               Daily Report
             </div>
             <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
-              Daily report
+              รายงานประจำวัน
             </h1>
             <div className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-              กรอกข้อมูลรายงานประจำวันในรูปแบบที่อ่านง่าย โปร่ง และเหมาะกับหน้าจอ iOS / Android / โทรศัพท์
+              กรุณากรอกฟอร์มข้อมูลรายงานประจำวันให้ครบถ้วนและถูกต้อง
             </div>
           </div>
 
@@ -938,7 +938,7 @@ export default function DailyReportPage() {
             </div>
 
             <div className="mt-2 rounded-2xl bg-[rgba(124,156,245,0.10)] px-3 py-2 text-xs font-medium text-slate-600 dark:text-slate-300">
-              (สำรอง) อุณหภูมิรายวัน: สูงสุด {tempMaxC ?? "-"}°C / ต่ำสุด {tempMinC ?? "-"}°C
+              อุณหภูมิรายวัน: สูงสุด {tempMaxC ?? "-"}°C / ต่ำสุด {tempMinC ?? "-"}°C
             </div>
 
             {project && autoMeta && (
