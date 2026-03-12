@@ -305,9 +305,22 @@ function buildWeeklyModelFromSummary(
     const problemSource = toArray<unknown>(payload.normalizedIssues);
     const progressSource = toArray<Record<string, unknown>>(payload.progressByCategory);
     const supervisorSource = toArray<Record<string, unknown>>(payload.supervisors);
+
     const projectSupervisorNames = toArray<unknown>(projectMeta.supervisors)
       .map((item) => toText(item, ""))
       .filter(Boolean);
+
+    const normalizedSupervisors: WeeklySupervisor[] = (
+      supervisorSource.length > 0
+        ? supervisorSource.map((item) => ({
+            name: toText(item.name, ""),
+            role: toText(item.role, "ผู้ควบคุมงาน"),
+          }))
+    : projectSupervisorNames.map((name) => ({
+        name,
+        role: "ผู้ควบคุมงาน",
+      }))
+).filter((item) => item.name || item.role);
 
   const normalizedWork: WeeklyWorkItem[] = workSource.map((item, index) => ({
     id: String(item.id ?? `work-${index + 1}`),
@@ -357,18 +370,6 @@ function buildWeeklyModelFromSummary(
         ? null
         : toNumber(item.amountRemaining, 0),
   }));
-
-    const normalizedSupervisors: WeeklySupervisor[] = (
-    supervisorSource.length > 0
-      ? supervisorSource.map((item) => ({
-          name: toText(item.name, ""),
-          role: toText(item.role, "ผู้ควบคุมงาน"),
-        }))
-      : projectSupervisorNames.map((name) => ({
-          name,
-          role: "ผู้ควบคุมงาน",
-        }))
-  ).filter((item) => item.name || item.role);
 
   const payloadDateStart = toText(payload.dateStart, "");
   const payloadDateEnd = toText(payload.dateEnd, "");
