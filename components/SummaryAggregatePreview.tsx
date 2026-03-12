@@ -199,9 +199,10 @@ function makeWeeklyProblems(root: unknown): WeeklyProblemItem[] {
 }
 
 function makeWeeklyProgress(root: unknown, reportType: SummaryReportType): WeeklyProgressItem[] {
-  const rows =
-    findArrayDeep(root, ["progressByCategory", "progressItems", "progressRows"]) ||
-    findArrayDeep(root, ["items", "rows"]);
+  let rows = findArrayDeep(root, ["progressByCategory", "progressItems", "progressRows"]);
+  if (!rows.length) {
+    rows = findArrayDeep(root, ["items", "rows"]);
+  }
 
   return rows
     .map((row, index) => {
