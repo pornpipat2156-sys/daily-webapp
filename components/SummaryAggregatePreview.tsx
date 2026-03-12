@@ -37,10 +37,6 @@ function toRecord(value: unknown): AnyRecord | null {
   return value as AnyRecord;
 }
 
-function toArray<T = unknown>(value: unknown): T[] {
-  return Array.isArray(value) ? (value as T[]) : [];
-}
-
 function asString(value: unknown, fallback = "") {
   if (value == null) return fallback;
   const text = String(value).trim();
@@ -145,9 +141,7 @@ function makeWeeklyWorkItems(root: unknown): WeeklyWorkItem[] {
   return rows
     .map((row, index) => {
       const description = asString(
-        firstNonEmpty(
-          findValueDeep(row, ["description", "desc", "workName", "item", "title", "name"])
-        ),
+        firstNonEmpty(findValueDeep(row, ["description", "desc", "workName", "item", "title", "name"])),
         "-"
       );
 
@@ -243,35 +237,42 @@ function makeWeeklyProgress(root: unknown, reportType: SummaryReportType): Weekl
           plannedRaw == null || plannedRaw === ""
             ? null
             : Number.isFinite(asNumber(plannedRaw, Number.NaN))
-            ? asNumber(plannedRaw, 0)
-            : null,
+              ? asNumber(plannedRaw, 0)
+              : null,
         variancePercent:
           varianceRaw == null || varianceRaw === ""
             ? null
             : Number.isFinite(asNumber(varianceRaw, Number.NaN))
-            ? asNumber(varianceRaw, 0)
-            : null,
+              ? asNumber(varianceRaw, 0)
+              : null,
         amountTotal:
           amountTotalRaw == null || amountTotalRaw === ""
             ? null
             : Number.isFinite(asNumber(amountTotalRaw, Number.NaN))
-            ? asNumber(amountTotalRaw, 0)
-            : null,
+              ? asNumber(amountTotalRaw, 0)
+              : null,
         amountAccumulated:
           amountAccumRaw == null || amountAccumRaw === ""
             ? null
             : Number.isFinite(asNumber(amountAccumRaw, Number.NaN))
-            ? asNumber(amountAccumRaw, 0)
-            : null,
+              ? asNumber(amountAccumRaw, 0)
+              : null,
         amountRemaining:
           amountRemainRaw == null || amountRemainRaw === ""
             ? null
             : Number.isFinite(asNumber(amountRemainRaw, Number.NaN))
-            ? asNumber(amountRemainRaw, 0)
-            : null,
+              ? asNumber(amountRemainRaw, 0)
+              : null,
       };
     })
-    .filter((row) => row.category || row.weightPercent || row.previousPercent || row.weeklyPercent || row.accumulatedPercent);
+    .filter(
+      (row) =>
+        row.category ||
+        row.weightPercent ||
+        row.previousPercent ||
+        row.weeklyPercent ||
+        row.accumulatedPercent
+    );
 }
 
 function makeWeeklySupervisors(root: unknown): WeeklySupervisor[] {
@@ -310,23 +311,20 @@ function makeWeeklyTimeSummary(root: unknown, reportType: SummaryReportType): We
       plannedRaw == null || plannedRaw === ""
         ? null
         : Number.isFinite(asNumber(plannedRaw, Number.NaN))
-        ? asNumber(plannedRaw, 0)
-        : null,
+          ? asNumber(plannedRaw, 0)
+          : null,
     varianceDays:
       varianceRaw == null || varianceRaw === ""
         ? null
         : Number.isFinite(asNumber(varianceRaw, Number.NaN))
-        ? asNumber(varianceRaw, 0)
-        : null,
+          ? asNumber(varianceRaw, 0)
+          : null,
   };
 }
 
 function buildInstallmentLabel(root: unknown, reportType: SummaryReportType) {
   const explicit = asString(
-    firstNonEmpty(
-      findValueDeep(root, ["installmentLabel"]),
-      findValueDeep(root, ["periodNo"])
-    ),
+    firstNonEmpty(findValueDeep(root, ["installmentLabel"]), findValueDeep(root, ["periodNo"])),
     ""
   );
 
@@ -381,23 +379,26 @@ function adaptSummaryToWeeklyModel(model: SummaryDocumentModel): WeeklyReportMod
     weekNo,
     startDate,
     endDate,
-    title: asString(firstNonEmpty(findValueDeep(root, ["title"]), model.title, model.documentTitle), model.documentTitle),
+    title: asString(
+      firstNonEmpty(findValueDeep(root, ["title"]), model.title, model.documentTitle),
+      model.documentTitle
+    ),
     summary: {
-      projectName: asString(
-        firstNonEmpty(
-          findValueDeep(root, ["projectName"]),
-          model.projectName
-        ),
-        "-"
-      ),
+      projectName: asString(firstNonEmpty(findValueDeep(root, ["projectName"]), model.projectName), "-"),
       contractNo: asString(firstNonEmpty(findValueDeep(root, ["contractNo", "contractNumber"])), "-"),
       installmentLabel: buildInstallmentLabel(root, model.reportType),
       contractorName: asString(firstNonEmpty(findValueDeep(root, ["contractorName", "contractor"])), "-"),
       siteLocation: asString(firstNonEmpty(findValueDeep(root, ["siteLocation", "location"])), "-"),
-      contractStart: asString(firstNonEmpty(findValueDeep(root, ["contractStart", "contractStartDate"])), "-"),
+      contractStart: asString(
+        firstNonEmpty(findValueDeep(root, ["contractStart", "contractStartDate"])),
+        "-"
+      ),
       contractEnd: asString(firstNonEmpty(findValueDeep(root, ["contractEnd", "contractEndDate"])), "-"),
       contractValue: asString(firstNonEmpty(findValueDeep(root, ["contractValue", "budget", "projectValue"])), "-"),
-      procurementMethod: asString(firstNonEmpty(findValueDeep(root, ["procurementMethod", "purchaseMethod"])), "-"),
+      procurementMethod: asString(
+        firstNonEmpty(findValueDeep(root, ["procurementMethod", "purchaseMethod"])),
+        "-"
+      ),
       periodNo: asString(firstNonEmpty(findValueDeep(root, ["periodNo"])), "") || undefined,
     },
     timeSummary: makeWeeklyTimeSummary(root, model.reportType),
@@ -411,7 +412,10 @@ function adaptSummaryToWeeklyModel(model: SummaryDocumentModel): WeeklyReportMod
     ),
     problemsAndObstacles: makeWeeklyProblems(root),
     safety: {
-      note: asString(firstNonEmpty(findValueDeep(root, ["safetyNote", "safetyRemark", "note", "remark", "remarks"])), "-"),
+      note: asString(
+        firstNonEmpty(findValueDeep(root, ["safetyNote", "safetyRemark", "note", "remark", "remarks"])),
+        "-"
+      ),
       accidentCount: (() => {
         const raw = firstNonEmpty(findValueDeep(root, ["accidentCount", "accident", "accidents"]));
         if (raw == null || raw === "") return null;
@@ -474,34 +478,34 @@ export function SummaryAggregatePreview({
 }) {
   const weeklyModel = React.useMemo(() => adaptSummaryToWeeklyModel(model), [model]);
 
-  const hasStructuredData = React.useMemo(() => {
-    if (!weeklyModel) return false;
-    return Boolean(
-      weeklyModel.summary.projectName !== "-" ||
-        weeklyModel.summary.contractNo !== "-" ||
-        weeklyModel.summary.contractorName !== "-" ||
-        weeklyModel.summary.siteLocation !== "-" ||
-        weeklyModel.workPerformedWeekly.length ||
-        weeklyModel.problemsAndObstacles.length ||
-        weeklyModel.progressByCategory.length ||
-        weeklyModel.supervisors.length ||
-        weeklyModel.comments !== "-"
-    );
-  }, [weeklyModel]);
-
   if ((model.reportType === "WEEKLY" || model.reportType === "MONTHLY") && weeklyModel) {
     return (
       <div className="w-full">
         <WeeklyReportForm model={weeklyModel} />
-        {!printMode && !hasStructuredData ? (
+
+        {!printMode ? (
           <div className="mt-4 rounded-[24px] border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-            <div className="text-sm font-semibold">ยัง map field จาก DB ไม่ได้เพียงพอ</div>
+            <div className="text-sm font-semibold">Debug Weekly/Monthly payload from API</div>
             <div className="mt-1 text-xs opacity-80">
-              ด้านล่างคือข้อมูลดิบจาก API เพื่อเช็ก key จริงของ payload/projectMeta
+              ใช้ดูข้อมูลจริงที่ส่งมาจาก DB เพื่อเช็ก key สำหรับ map ลงฟอร์ม
             </div>
+
             <div className="mt-4 grid gap-3">
+              <DebugCard label="model.summary (text)" value={model.summary || "-"} />
               <DebugCard label="projectMeta" value={model.projectMeta || {}} />
               <DebugCard label="payload" value={model.payload || {}} />
+              <DebugCard label="adapted weeklyModel.summary" value={weeklyModel.summary} />
+              <DebugCard label="adapted weeklyModel.timeSummary" value={weeklyModel.timeSummary} />
+              <DebugCard label="adapted weeklyModel.workPerformedWeekly" value={weeklyModel.workPerformedWeekly} />
+              <DebugCard
+                label="adapted weeklyModel.problemsAndObstacles"
+                value={weeklyModel.problemsAndObstacles}
+              />
+              <DebugCard
+                label="adapted weeklyModel.progressByCategory"
+                value={weeklyModel.progressByCategory}
+              />
+              <DebugCard label="adapted weeklyModel.supervisors" value={weeklyModel.supervisors} />
             </div>
           </div>
         ) : null}
@@ -517,9 +521,7 @@ export function SummaryAggregatePreview({
           "max-w-none rounded-none border-0 bg-white p-0 text-slate-900 shadow-none dark:border-0 dark:bg-white dark:text-slate-900"
       )}
     >
-      <div className="text-sm text-slate-600 dark:text-slate-300">
-        ไม่รองรับ preview ประเภทนี้
-      </div>
+      <div className="text-sm text-slate-600 dark:text-slate-300">ไม่รองรับ preview ประเภทนี้</div>
     </div>
   );
 }
