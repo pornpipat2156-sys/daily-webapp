@@ -105,10 +105,14 @@ function buildWeeklyModelFromSummaryForExport(
   const model = (result.summaryModel ?? {}) as Record<string, unknown>;
 
   const payload = toRecord(model.payload) ?? {};
-  const projectMeta =
-    toRecord(payload.projectMeta) ??
-    toRecord(model.projectMeta) ??
-    {};
+
+const modelProjectMeta = toRecord(model.projectMeta) ?? {};
+const payloadProjectMeta = toRecord(payload.projectMeta) ?? {};
+
+const projectMeta = {
+  ...modelProjectMeta,
+  ...payloadProjectMeta,
+};
 
   const timeSummary = toRecord(payload.timeSummary) ?? {};
   const safety = toRecord(payload.safety) ?? {};
@@ -119,7 +123,7 @@ function buildWeeklyModelFromSummaryForExport(
   const supervisorSource = toArray<Record<string, unknown>>(payload.supervisors);
 
 const projectSupervisorSource = toArray<Record<string, unknown>>(
-  projectMeta.supervisors
+  payloadProjectMeta.supervisors ?? modelProjectMeta.supervisors
 );
 
 const normalizedSupervisors: WeeklySupervisor[] = (
