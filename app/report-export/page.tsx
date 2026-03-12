@@ -396,6 +396,69 @@ function ExportGlobalStyle() {
         orphans: 3;
         widows: 3;
       }
+
+      /* WEEKLY EXPORT FIX: allow bottom content to flow across printed pages */
+      [data-weekly-export-print-root="1"] {
+        width: ${PDF_PAGE_WIDTH_PX}px !important;
+        overflow: visible !important;
+        max-height: none !important;
+        height: auto !important;
+        min-height: 0 !important;
+      }
+
+      [data-weekly-export-print-root="1"] * {
+        overflow: visible !important;
+      }
+
+      @media print {
+        [data-weekly-export-print-root="1"] {
+          overflow: visible !important;
+          max-height: none !important;
+          height: auto !important;
+          min-height: 0 !important;
+          break-inside: auto !important;
+          page-break-inside: auto !important;
+        }
+
+        [data-weekly-export-print-root="1"] > div,
+        [data-weekly-export-print-root="1"] > section,
+        [data-weekly-export-print-root="1"] > article {
+          overflow: visible !important;
+          max-height: none !important;
+          height: auto !important;
+          min-height: 0 !important;
+        }
+
+        [data-weekly-export-print-root="1"] [style*="overflow: hidden"] {
+          overflow: visible !important;
+        }
+
+        [data-weekly-export-print-root="1"] [style*="max-height"] {
+          max-height: none !important;
+        }
+
+        [data-weekly-export-print-root="1"] [style*="min-height"] {
+          min-height: 0 !important;
+        }
+
+        [data-weekly-export-print-root="1"] [style*="height:"] {
+          height: auto !important;
+        }
+
+        [data-weekly-export-print-root="1"] [style*="transform: scale("] {
+          transform: none !important;
+          transform-origin: top left !important;
+        }
+
+        [data-weekly-export-print-root="1"] table,
+        [data-weekly-export-print-root="1"] tbody,
+        [data-weekly-export-print-root="1"] tr,
+        [data-weekly-export-print-root="1"] td,
+        [data-weekly-export-print-root="1"] th {
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+        }
+      }
     `}</style>
   );
 }
@@ -706,7 +769,13 @@ export default async function ReportExportPage({
             model={result.dailyModel as ReportRenderModel}
           />
         ) : result.reportType === "WEEKLY" && weeklyExportModel ? (
-          <WeeklyReportForm model={weeklyExportModel} loading={false} error={undefined} />
+          <div className="weekly-export-print-root" data-weekly-export-print-root="1">
+            <WeeklyReportForm
+              model={weeklyExportModel}
+              loading={false}
+              error={undefined}
+            />
+          </div>
         ) : (
           <SummaryAggregatePreview
             model={result.summaryModel as SummaryDocumentModel}
