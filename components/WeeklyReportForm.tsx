@@ -174,20 +174,26 @@ function SignatureGrid({ items }: { items: WeeklySupervisor[] }) {
   }
 
   return (
-    <div className="space-y-2">
-      {rows.map((row, ri) => (
-        <table key={ri}>
-          <tbody>
-            <tr>
+    <table>
+      <tbody>
+        {rows.map((row, ri) => {
+          const emptyCount = 5 - row.length;
+
+          return (
+            <tr key={ri}>
               {row.map((it, i) => (
                 <td
                   key={`${it.name}-${it.role}-${i}`}
                   className="cellCenter"
-                  style={{ width: `${100 / row.length}%` }}
+                  style={{
+                    width: "20%",
+                    verticalAlign: "top",
+                    height: 120,
+                  }}
                 >
                   <div
                     style={{
-                      minHeight: 72,
+                      minHeight: 90,
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "flex-end",
@@ -196,16 +202,30 @@ function SignatureGrid({ items }: { items: WeeklySupervisor[] }) {
                     }}
                   >
                     <div>ลงชื่อ ................................</div>
-                    <div className="mt-2">({it.name || "-"})</div>
-                    <div className="mt-1">{it.role || " "}</div>
+                    <div style={{ marginTop: 8 }}>({it.name || "-"})</div>
+                    <div style={{ marginTop: 4 }}>{it.role || " "}</div>
                   </div>
                 </td>
               ))}
+
+              {Array.from({ length: emptyCount }).map((_, index) => (
+                <td
+                  key={`empty-${ri}-${index}`}
+                  className="cellCenter"
+                  style={{
+                    width: "20%",
+                    verticalAlign: "top",
+                    height: 120,
+                  }}
+                >
+                  &nbsp;
+                </td>
+              ))}
             </tr>
-          </tbody>
-        </table>
-      ))}
-    </div>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
@@ -859,7 +879,7 @@ export function WeeklyReportForm({ model, loading, error }: Props) {
                         </td>
                       </tr>
                       <tr>
-                        <td className="cell">
+                        <td className="cellCenter">
                           <SignatureGrid items={supervisors} />
                         </td>
                       </tr>
