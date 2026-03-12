@@ -258,7 +258,31 @@ function toNumber(value: unknown, fallback = 0) {
 }
 
 function toText(value: unknown, fallback = "") {
-  return typeof value === "string" ? value : fallback;
+  if (value == null) return fallback;
+  if (typeof value === "string") return value;
+  return String(value);
+}
+
+function toRecord(value: unknown): Record<string, unknown> | null {
+  if (!value) return null;
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return null;
 }
 
 function buildWeeklyModelFromSummary(
@@ -266,189 +290,139 @@ function buildWeeklyModelFromSummary(
 ): WeeklyReportModel | null {
   if (result.reportType !== "WEEKLY") return null;
 
-  const model: any = result.summaryModel ?? {};
-  const meta: any = model.meta ?? model.summary ?? model.header ?? {};
-  const project: any = model.project ?? {};
-  const period: any = model.period ?? {};
-  const timeSummary: any = model.timeSummary ?? model.durationSummary ?? {};
-  const safety: any = model.safety ?? {};
-  const progressSource: any[] = toArray<any>(
-    model.progressByCategory ??
-      model.progressItems ??
-      model.progressSummary ??
-      model.categories
-  );
-  const workSource: any[] = toArray<any>(
-    model.workPerformedWeekly ??
-      model.workItems ??
-      model.mergedWorkItems ??
-      model.items ??
-      model.works
-  );
-  const problemSource: any[] = toArray<any>(
-    model.problemsAndObstacles ?? model.problems ?? model.issues ?? model.obstacles
-  );
-  const supervisorSource: any[] = toArray<any>(
-    model.supervisors ?? model.signatures ?? model.approvals ?? model.reviewers
-  );
+  const model = (result.summaryModel ?? {}) as Record<string, unknown>;
+
+  const payload = toRecord(model.payload) ?? {};
+  const projectMeta =
+    toRecord(payload.projectMeta) ??
+    toRecord(model.projectMeta) ??
+    {};
+
+  const timeSummary = toRecord(payload.timeSummary) ?? {};
+  const safety = toRecord(payload.safety) ?? {};
+
+  const workSource = toArray<Record<string, unknown>>(payload.mergedWorkItems);
+  const problemSource = toArray<unknown>(payload.normalizedIssues);
+  const progressSource = toArray<Record<string, unknown>>(payload.progressByCategory);
+  const supervisorSource = toArray<Record<string, unknown>>(payload.supervisors);
 
   const normalizedWork: WeeklyWorkItem[] = workSource.map((item, index) => ({
-    id: String(item?.id ?? `work-${index + 1}`),
-    description: toText(
-      item?.description ??
-        item?.desc ??
-        item?.title ??
-        item?.workDescription ??
-        item?.name,
-      "-"
-    ),
-    location: toText(item?.location ?? item?.area ?? item?.position, ""),
+    id: String(item.id ?? `work-${index + 1}`),
+    description: toText(item.desc, "-"),
+    location: toText(item.location, ""),
     qty:
-      item?.qty == null && item?.quantity == null
+      item.qtyTotal == null || String(item.qtyTotal).trim() === ""
         ? null
-        : toNumber(item?.qty ?? item?.quantity, 0),
-    unit: toText(item?.unit, ""),
-    remark: toText(item?.remark ?? item?.materialDelivered ?? item?.note, ""),
+        : toNumber(item.qtyTotal, 0),
+    unit: toText(item.unit, ""),
+    remark: toText(item.materialDelivered, ""),
   }));
 
-  const normalizedProblems: WeeklyProblemItem[] = problemSource.map(
-    (item, index) => ({
-      id: String(item?.id ?? `problem-${index + 1}`),
-      topic: toText(item?.topic ?? item?.title ?? item?.issue ?? item?.problem, "-"),
-      impact: toText(item?.impact ?? item?.effect ?? item?.comment, ""),
-      solution: toText(item?.solution ?? item?.resolution ?? item?.action, ""),
-    })
-  );
-
-  const normalizedProgress: WeeklyProgressItem[] = progressSource.map(
-    (item, index) => ({
-      id: String(item?.id ?? `progress-${index + 1}`),
-      category: toText(
-        item?.category ?? item?.name ?? item?.title ?? item?.workCategory,
-        "-"
-      ),
-      weightPercent: toNumber(item?.weightPercent ?? item?.weight ?? item?.weightPct, 0),
-      previousPercent: toNumber(
-        item?.previousPercent ?? item?.prevPercent ?? item?.beforePercent,
-        0
-      ),
-      weeklyPercent: toNumber(
-        item?.weeklyPercent ?? item?.thisWeekPercent ?? item?.currentPercent,
-        0
-      ),
-      accumulatedPercent: toNumber(
-        item?.accumulatedPercent ?? item?.actualPercent ?? item?.cumulativePercent,
-        0
-      ),
-      remainingPercent: toNumber(
-        item?.remainingPercent ?? item?.remainPercent ?? item?.balancePercent,
-        0
-      ),
-      plannedPercent:
-        item?.plannedPercent == null && item?.planPercent == null
-          ? null
-          : toNumber(item?.plannedPercent ?? item?.planPercent, 0),
-      variancePercent:
-        item?.variancePercent == null && item?.diffPercent == null
-          ? null
-          : toNumber(item?.variancePercent ?? item?.diffPercent, 0),
-      amountTotal:
-        item?.amountTotal == null ? null : toNumber(item?.amountTotal, 0),
-      amountAccumulated:
-        item?.amountAccumulated == null
-          ? null
-          : toNumber(item?.amountAccumulated, 0),
-      amountRemaining:
-        item?.amountRemaining == null ? null : toNumber(item?.amountRemaining, 0),
-    })
-  );
-
-  const normalizedSupervisors: WeeklySupervisor[] = supervisorSource.map((item) => ({
-    name: toText(item?.name ?? item?.fullName, ""),
-    role: toText(item?.role ?? item?.position ?? item?.title, ""),
+  const normalizedProblems: WeeklyProblemItem[] = problemSource.map((item, index) => ({
+    id: `problem-${index + 1}`,
+    topic: toText(item, "-"),
+    impact: "",
+    solution: "",
   }));
 
+  const normalizedProgress: WeeklyProgressItem[] = progressSource.map((item, index) => ({
+    id: String(item.id ?? `progress-${index + 1}`),
+    category: toText(item.category, `หมวดงาน ${index + 1}`),
+    weightPercent: toNumber(item.weightPercent, 0),
+    previousPercent: toNumber(item.previousPercent, 0),
+    weeklyPercent: toNumber(item.weeklyPercent, 0),
+    accumulatedPercent: toNumber(item.accumulatedPercent, 0),
+    remainingPercent: toNumber(item.remainingPercent, 0),
+    plannedPercent:
+      item.plannedPercent == null || String(item.plannedPercent).trim() === ""
+        ? null
+        : toNumber(item.plannedPercent, 0),
+    variancePercent:
+      item.variancePercent == null || String(item.variancePercent).trim() === ""
+        ? null
+        : toNumber(item.variancePercent, 0),
+    amountTotal:
+      item.amountTotal == null || String(item.amountTotal).trim() === ""
+        ? null
+        : toNumber(item.amountTotal, 0),
+    amountAccumulated:
+      item.amountAccumulated == null || String(item.amountAccumulated).trim() === ""
+        ? null
+        : toNumber(item.amountAccumulated, 0),
+    amountRemaining:
+      item.amountRemaining == null || String(item.amountRemaining).trim() === ""
+        ? null
+        : toNumber(item.amountRemaining, 0),
+  }));
+
+  const normalizedSupervisors: WeeklySupervisor[] = supervisorSource
+    .map((item) => ({
+      name: toText(item.name, ""),
+      role: toText(item.role, ""),
+    }))
+    .filter((item) => item.name || item.role);
+
+  const payloadDateStart = toText(payload.dateStart, "");
+  const payloadDateEnd = toText(payload.dateEnd, "");
+  const yearFromDate =
+    payloadDateStart && !Number.isNaN(new Date(payloadDateStart).getTime())
+      ? new Date(payloadDateStart).getFullYear()
+      : new Date(result.selectedDate).getFullYear();
+
+  // DIRECT WEEKLY INPUT PREVIEW BUILD
   return {
     id: result.reportId,
     projectId: result.projectId,
-    year: toNumber(meta?.year ?? period?.year ?? 0, 0),
-    weekNo: toNumber(meta?.weekNo ?? period?.weekNo ?? 0, 0),
-    startDate: toText(
-      meta?.startDate ?? period?.startDate ?? result.selectedDate,
-      result.selectedDate
-    ),
-    endDate: toText(meta?.endDate ?? period?.endDate ?? result.selectedDate, result.selectedDate),
+    year: toNumber(payload.year, yearFromDate),
+    weekNo: toNumber(payload.weekNo, 0),
+    startDate: payloadDateStart || result.selectedDate,
+    endDate: payloadDateEnd || result.selectedDate,
     title: toText(
-      model?.documentTitle ??
-        model?.title ??
-        result.documentTitle ??
-        `Weekly Report - ${result.periodLabel}`,
-      `Weekly Report - ${result.periodLabel}`
+      (model.title as string | null) ??
+        (model.documentTitle as string | null) ??
+        result.documentTitle,
+      result.documentTitle
     ),
     summary: {
-      projectName: toText(
-        project?.projectName ?? meta?.projectName ?? result.projectName,
-        result.projectName
-      ),
-      contractNo: toText(meta?.contractNo ?? meta?.contractNumber, "-"),
-      installmentLabel: toText(
-        meta?.installmentLabel ?? meta?.periodNo ?? result.periodLabel,
-        result.periodLabel
-      ),
-      contractorName: toText(meta?.contractorName ?? meta?.contractor, "-"),
-      siteLocation: toText(meta?.siteLocation ?? meta?.location, "-"),
-      contractStart: toText(meta?.contractStart ?? meta?.startContractDate, ""),
-      contractEnd: toText(meta?.contractEnd ?? meta?.endContractDate, ""),
-      contractValue: toText(meta?.contractValue ?? meta?.projectValue, "-"),
-      procurementMethod: toText(meta?.procurementMethod ?? meta?.purchaseMethod, "-"),
-      periodNo: toText(meta?.periodNo, ""),
+      projectName: toText(projectMeta.projectName, result.projectName),
+      contractNo: toText(projectMeta.contractNo, "-"),
+      installmentLabel: toText(projectMeta.periodNo, "-"),
+      contractorName: toText(projectMeta.contractorName, "-"),
+      siteLocation: toText(projectMeta.siteLocation, "-"),
+      contractStart: toText(projectMeta.contractStart, "-"),
+      contractEnd: toText(projectMeta.contractEnd, "-"),
+      contractValue: toText(projectMeta.contractValue, "-"),
+      procurementMethod: toText(projectMeta.procurementMethod, "-"),
+      periodNo: toText(projectMeta.periodNo, ""),
     },
     timeSummary: {
-      contractDays: toNumber(timeSummary?.contractDays ?? timeSummary?.totalDays, 0),
-      previousUsedDays: toNumber(
-        timeSummary?.previousUsedDays ?? timeSummary?.usedDaysBefore,
-        0
-      ),
-      currentWeekDays: toNumber(
-        timeSummary?.currentWeekDays ?? timeSummary?.thisWeekDays,
-        0
-      ),
-      accumulatedDays: toNumber(
-        timeSummary?.accumulatedDays ?? timeSummary?.usedDaysAccumulated,
-        0
-      ),
-      remainingDays: toNumber(
-        timeSummary?.remainingDays ?? timeSummary?.daysRemaining,
-        0
-      ),
+      contractDays: toNumber(timeSummary.contractDays, 0),
+      previousUsedDays: toNumber(timeSummary.previousUsedDays, 0),
+      currentWeekDays: toNumber(timeSummary.currentWeekDays, 0),
+      accumulatedDays: toNumber(timeSummary.accumulatedDays, 0),
+      remainingDays: toNumber(timeSummary.remainingDays, 0),
       plannedDays:
-        timeSummary?.plannedDays == null ? null : toNumber(timeSummary?.plannedDays, 0),
+        timeSummary.plannedDays == null || String(timeSummary.plannedDays).trim() === ""
+          ? null
+          : toNumber(timeSummary.plannedDays, 0),
       varianceDays:
-        timeSummary?.varianceDays == null ? null : toNumber(timeSummary?.varianceDays, 0),
+        timeSummary.varianceDays == null || String(timeSummary.varianceDays).trim() === ""
+          ? null
+          : toNumber(timeSummary.varianceDays, 0),
     } satisfies WeeklyTimeSummary,
     workPerformedWeekly: normalizedWork,
-    comments: toText(
-      model?.comments ??
-        model?.comment ??
-        model?.inspectorComment ??
-        model?.supervisorComment ??
-        "",
-      ""
-    ),
+    comments: toText(model.summary, "-"),
     problemsAndObstacles: normalizedProblems,
     safety: {
-      note: toText(safety?.note ?? safety?.remark ?? safety?.summary, ""),
-      accidentCount:
-        safety?.accidentCount == null ? 0 : toNumber(safety?.accidentCount, 0),
-      injuredCount:
-        safety?.injuredCount == null ? 0 : toNumber(safety?.injuredCount, 0),
-      lostTimeCount:
-        safety?.lostTimeCount == null ? 0 : toNumber(safety?.lostTimeCount, 0),
+      note: toText(safety.note, "-"),
+      accidentCount: toNumber(safety.accidentCount, 0),
+      injuredCount: toNumber(safety.injuredCount, 0),
+      lostTimeCount: toNumber(safety.lostTimeCount, 0),
     },
     progressByCategory: normalizedProgress,
     supervisors: normalizedSupervisors,
-    createdAt: toText(model?.createdAt, ""),
-    updatedAt: toText(model?.updatedAt, ""),
+    createdAt: toText(payload.createdAt ?? model.createdAt, ""),
+    updatedAt: toText(payload.updatedAt ?? model.updatedAt, ""),
   };
 }
 
