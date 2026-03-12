@@ -637,8 +637,8 @@ export function WeeklyReportForm({ model, loading, error }: Props) {
                       <tr>
                         <td className="cell multiline" 
                         style={{ 
-                            height: "70mm",
-                            minHeight: "70mm",
+                            height: "50mm",
+                            minHeight: "50mm",
                             verticalAlign: "top",
                          }}>
                             &nbsp;

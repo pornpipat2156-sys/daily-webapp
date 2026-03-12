@@ -352,43 +352,42 @@ export async function GET(req: NextRequest) {
       };
 
       const dailyModel = {
-        date: report.date.toISOString(),
-        projectName: str(report.project?.name, "-"),
-        projectMeta: resolvedProjectMeta,
-        contractors: arrayOfObjects(payload.contractors),
-        subContractors: arrayOfObjects(payload.subContractors),
-        majorEquipment: arrayOfObjects(payload.majorEquipment),
-        workPerformed: arrayOfObjects(payload.workPerformed),
-        issues: report.issues.map((it) => ({
-          id: it.id,
-          detail: str(it.detail),
-          imageUrl: str(it.imageUrl),
-          comments: (it.comments || []).map((c) => ({
-            id: c.id,
-            comment: str(c.comment),
-            createdAt: c.createdAt.toISOString(),
-            author: c.author
-              ? {
-                  name: c.author.name ?? null,
-                  email: c.author.email ?? null,
-                  role: c.author.role ?? null,
-                }
-              : null,
-          })),
-        })),
-        safetyNote: str(payload.safetyNote),
-        tempMaxC: nullableNum(payload.tempMaxC),
-        tempMinC: nullableNum(payload.tempMinC),
-        hasOvertime: Boolean(payload.hasOvertime),
-        supervisors,
-
-        dayNo,
-        totalDays,
-        periodIndex,
-        installmentCount,
-        weekIndex,
-        totalWeeks,
-      };
+  date: formatDateOnly(report.date),
+  projectName: str(report.project?.name, "-"),
+  projectMeta: resolvedProjectMeta,
+  contractors: arrayOfObjects(payload.contractors),
+  subContractors: arrayOfObjects(payload.subContractors),
+  majorEquipment: arrayOfObjects(payload.majorEquipment),
+  workPerformed: arrayOfObjects(payload.workPerformed),
+  issues: report.issues.map((it) => ({
+    id: it.id,
+    detail: str(it.detail),
+    imageUrl: str(it.imageUrl),
+    comments: (it.comments || []).map((c) => ({
+      id: c.id,
+      comment: str(c.comment),
+      createdAt: c.createdAt.toISOString(),
+      author: c.author
+        ? {
+            name: c.author.name ?? null,
+            email: c.author.email ?? null,
+            role: c.author.role ?? null,
+          }
+        : null,
+    })),
+  })),
+  safetyNote: str(payload.safetyNote),
+  tempMaxC: nullableNum(payload.tempMaxC),
+  tempMinC: nullableNum(payload.tempMinC),
+  hasOvertime: Boolean(payload.hasOvertime),
+  supervisors,
+  dayNo,
+  totalDays,
+  periodIndex,
+  installmentCount,
+  weekIndex,
+  totalWeeks,
+};
 
       return NextResponse.json({
         ok: true,
