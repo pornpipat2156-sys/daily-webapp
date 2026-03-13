@@ -87,7 +87,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_44px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:p-6 dark:border-slate-800/80 dark:bg-slate-950/70 dark:shadow-[0_20px_50px_rgba(0,0,0,0.34)]">
+    <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_44px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:p-6 dark:border-slate-800/80 dark:bg-slate-950/72 dark:shadow-[0_20px_50px_rgba(0,0,0,0.34)]">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
@@ -676,7 +676,7 @@ function ContactPageInner() {
     projects.find((p) => p.id === projectId)?.projectName ?? "-";
 
   const inputClass =
-    "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:border-slate-600 dark:focus:border-blue-500 dark:focus:ring-blue-950/50";
+    "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:border-slate-600 dark:focus:border-blue-500 dark:focus:ring-blue-900/50";
 
   if (status === "loading") {
     return (
@@ -901,7 +901,7 @@ function ContactPageInner() {
         >
           <div
             ref={listRef}
-            className="mb-4 max-h-[560px] overflow-y-auto rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50"
+            className="mb-4 max-h-[560px] overflow-y-auto rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-[#081225]"
           >
             {loadingMessages ? (
               <div className="text-sm text-slate-500 dark:text-slate-400">
@@ -925,7 +925,7 @@ function ContactPageInner() {
                           "max-w-[85%] rounded-[22px] px-4 py-3 shadow-sm",
                           mine
                             ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                            : "border border-slate-200/80 bg-white text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                            : "border border-slate-200/80 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100"
                         )}
                       >
                         <div
@@ -980,13 +980,16 @@ function ContactPageInner() {
 
           <div className="relative">
             <FieldLabel>ข้อความ</FieldLabel>
-            <textarea
-              ref={inputRef}
-              className="min-h-[120px] w-full resize-y rounded-[22px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:border-slate-600 dark:focus:border-blue-500 dark:focus:ring-blue-950/50"
-              placeholder="พิมพ์ข้อความ... ใช้ @ เพื่อ mention สมาชิก"
-              value={text}
-              onChange={(e) => handleTextChange(e.target.value)}
-            />
+
+            <div className="rounded-[28px] border border-slate-200 bg-white p-2 shadow-sm transition focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-700 dark:bg-[#0f1d36] dark:focus-within:border-blue-500 dark:focus-within:ring-blue-900/50">
+              <textarea
+                ref={inputRef}
+                className="min-h-[120px] w-full resize-y rounded-[22px] border-0 bg-transparent px-4 py-3 text-sm leading-6 text-slate-700 outline-none ring-0 placeholder:text-slate-400 focus:outline-none focus:ring-0 dark:text-slate-100 dark:placeholder:text-slate-500"
+                placeholder="พิมพ์ข้อความ... ใช้ @ เพื่อ mention สมาชิก"
+                value={text}
+                onChange={(e) => handleTextChange(e.target.value)}
+              />
+            </div>
 
             {mentionOpen && mentionCandidates.length > 0 ? (
               <div className="absolute bottom-[calc(100%+8px)] left-0 z-20 w-full max-w-md rounded-[22px] border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-950">
@@ -1016,7 +1019,7 @@ function ContactPageInner() {
               <button
                 type="button"
                 onClick={() => setPickerOpen((v) => !v)}
-                className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900"
+                className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
               >
                 {pickerOpen ? "ปิดการแนบ Report" : "แนบ Daily Report"}
               </button>
@@ -1030,7 +1033,7 @@ function ContactPageInner() {
                 })
               }
               disabled={sendDisabled}
-              className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-5 text-sm font-bold text-white transition hover:translate-y-[-1px] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900"
+              className="inline-flex h-11 min-w-[138px] items-center justify-center rounded-full bg-slate-900 px-5 text-sm font-bold text-white transition hover:translate-y-[-1px] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900"
             >
               {sending ? "กำลังส่ง..." : "ส่งข้อความ"}
             </button>
