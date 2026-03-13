@@ -23,9 +23,9 @@ export const metadata: Metadata = {
   description: "Daily report web application",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
-    shortcut: "/logo.png",
+    icon: "/icon-512.png",
+    apple: "/icon-512.png",
+    shortcut: "/icon-512.png",
   },
   appleWebApp: {
     capable: true,
