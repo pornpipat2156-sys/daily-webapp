@@ -37,7 +37,8 @@ type GroupedNotificationItem = NotificationItem & {
   groupedIds: string[];
 };
 
-const PUSH_PROMPT_SESSION_KEY = "daily-webapp-push-prompt-dismissed-session-v2";
+const PUSH_PROMPT_SESSION_KEY =
+  "daily-webapp-push-prompt-dismissed-session-v2";
 
 function fmtDateTime(iso: string) {
   const d = new Date(iso);
@@ -55,6 +56,7 @@ function getProjectName(item: NotificationItem) {
     item?.meta && typeof item.meta === "object"
       ? String((item.meta as Record<string, unknown>).projectName || "").trim()
       : "";
+
   return projectName || null;
 }
 
@@ -161,15 +163,19 @@ function urlBase64ToUint8Array(base64String: string) {
 
 function isIosDevice() {
   if (typeof window === "undefined") return false;
+
   const ua = window.navigator.userAgent || "";
   const platform = window.navigator.platform || "";
   const touchPoints = window.navigator.maxTouchPoints || 0;
 
-  return /iPad|iPhone|iPod/.test(ua) || (platform === "MacIntel" && touchPoints > 1);
+  return (
+    /iPad|iPhone|iPod/.test(ua) || (platform === "MacIntel" && touchPoints > 1)
+  );
 }
 
 function isStandaloneDisplayMode() {
   if (typeof window === "undefined") return false;
+
   const nav = window.navigator as Navigator & { standalone?: boolean };
 
   return (
@@ -180,7 +186,12 @@ function isStandaloneDisplayMode() {
 
 function supportsPushPrompt() {
   if (typeof window === "undefined") return false;
-  return "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
+
+  return (
+    "Notification" in window &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window
+  );
 }
 
 function getBrowserPermissionState(): NotificationPermission | "unsupported" {
@@ -191,6 +202,7 @@ function getBrowserPermissionState(): NotificationPermission | "unsupported" {
 export default function NotificationBell({ onSummaryChange }: Props) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+
   const [summary, setSummary] = useState<NotificationResponse>({
     ok: true,
     unreadCount: 0,
@@ -198,6 +210,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
     unreadApprovals: 0,
     items: [],
   });
+
   const [showPushPrompt, setShowPushPrompt] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState<string | null>(null);
@@ -221,6 +234,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
 
       const json = (await res.json()) as NotificationResponse;
       setSummary(json);
+
       onSummaryChange?.({
         unreadCount: json.unreadCount || 0,
         unreadMentions: json.unreadMentions || 0,
@@ -296,6 +310,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
         },
         body: JSON.stringify({ subscription: existingSub.toJSON() }),
       });
+
       return true;
     }
 
@@ -345,7 +360,9 @@ export default function NotificationBell({ onSummaryChange }: Props) {
     }
 
     if (isIosDevice() && !isStandaloneDisplayMode()) {
-      setPushMessage("บน iPhone/iPad ให้ Add to Home Screen แล้วเปิดแอปจากไอคอนก่อน");
+      setPushMessage(
+        "บน iPhone/iPad ให้ Add to Home Screen แล้วเปิดแอปจากไอคอนก่อน"
+      );
       return;
     }
 
@@ -370,7 +387,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
       try {
         sessionStorage.setItem(PUSH_PROMPT_SESSION_KEY, "1");
       } catch {
-        // ignore
+        //
       }
 
       setShowPushPrompt(false);
@@ -389,7 +406,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
     try {
       sessionStorage.setItem(PUSH_PROMPT_SESSION_KEY, "1");
     } catch {
-      // ignore
+      //
     }
   }
 
@@ -470,12 +487,16 @@ export default function NotificationBell({ onSummaryChange }: Props) {
     };
   }, []);
 
-  const grouped = useMemo(() => groupNotifications(summary.items || []), [summary.items]);
+  const grouped = useMemo(
+    () => groupNotifications(summary.items || []),
+    [summary.items]
+  );
+
   const isIosWithoutStandalone = isIosDevice() && !isStandaloneDisplayMode();
 
   return (
     <>
-      <div ref={wrapRef} className="relative">
+      <div className="relative" ref={wrapRef}>
         <button
           onClick={() => setOpen((v) => !v)}
           className="soft-btn relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-border/80 bg-white/90 text-neutral-700 shadow-sm hover:bg-white dark:bg-slate-900/60 dark:text-slate-200"
@@ -483,10 +504,10 @@ export default function NotificationBell({ onSummaryChange }: Props) {
           title="Notifications"
           type="button"
         >
-          <span className="text-lg">🔔</span>
+          <span className="text-lg leading-none">🔔</span>
 
           {summary.unreadCount > 0 && (
-            <span className="status-danger absolute -right-1 -top-1 inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-1 text-[11px] font-extrabold leading-none shadow-sm">
+            <span className="absolute -right-1 -top-1 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow-sm">
               {summary.unreadCount > 99 ? "99+" : summary.unreadCount}
             </span>
           )}
@@ -501,37 +522,35 @@ export default function NotificationBell({ onSummaryChange }: Props) {
               type="button"
             />
 
-            <div className="soft-card-strong fixed inset-x-3 top-[72px] z-50 max-h-[min(72dvh,38rem)] overflow-hidden sm:absolute sm:right-0 sm:top-[calc(100%+0.75rem)] sm:left-auto sm:w-[min(92vw,26rem)]">
-              <div className="border-b border-border/80 px-4 py-4 sm:px-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-base font-extrabold text-slate-900 dark:text-white">
-                      Notifications
-                    </div>
-                    <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                      {summary.unreadCount > 99 ? "99+" : summary.unreadCount} unread
-                    </div>
-                  </div>
-
-                  {summary.unreadCount > 0 && (
-                    <button
-                      onClick={() => markAllAsRead()}
-                      className="soft-btn status-danger rounded-full px-3 py-2 text-xs font-bold sm:text-sm"
-                      type="button"
-                    >
-                      Mark All As Read
-                    </button>
-                  )}
+            <div className="fixed right-3 top-16 z-50 w-[min(24rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-3xl border border-border/70 bg-white/95 shadow-2xl backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/95 sm:right-4 sm:top-[4.5rem]">
+              <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-4 sm:px-5">
+                <div className="min-w-0">
+                  <h3 className="truncate text-sm font-extrabold text-slate-900 dark:text-slate-100">
+                    Notifications
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {summary.unreadCount > 99 ? "99+" : summary.unreadCount} unread
+                  </p>
                 </div>
+
+                {summary.unreadCount > 0 && (
+                  <button
+                    onClick={() => markAllAsRead()}
+                    className="soft-btn status-danger shrink-0 rounded-full px-3 py-2 text-xs font-bold sm:text-sm"
+                    type="button"
+                  >
+                    Mark All As Read
+                  </button>
+                )}
               </div>
 
-              <div className="soft-scroll max-h-[calc(min(72dvh,38rem)-5.5rem)] overflow-y-auto">
+              <div className="max-h-[min(65vh,32rem)] overflow-y-auto">
                 {loading && grouped.length === 0 ? (
-                  <div className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                  <div className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
                     กำลังโหลด...
                   </div>
                 ) : grouped.length === 0 ? (
-                  <div className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                  <div className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
                     ยังไม่มีการแจ้งเตือน
                   </div>
                 ) : (
@@ -543,7 +562,7 @@ export default function NotificationBell({ onSummaryChange }: Props) {
 
                     return (
                       <button
-                        key={`${item.id}-${item.groupedIds.join("-")}`}
+                        key={`${item.id}-${item.groupedIds.join(",")}`}
                         onClick={() => markAsRead(item.groupedIds, item.url)}
                         className={`relative block w-full border-b border-border/70 px-4 py-4 text-left transition hover:bg-white/80 sm:px-5 ${
                           unread
@@ -553,24 +572,30 @@ export default function NotificationBell({ onSummaryChange }: Props) {
                         type="button"
                       >
                         <div className="flex items-start gap-3">
-                          <div className={getTypePillClass(item.type) + " inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-base font-bold"}>
-                            {icon}
-                          </div>
+                          <div className="pt-0.5 text-base leading-none">{icon}</div>
 
                           <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="truncate text-sm font-bold text-slate-800 dark:text-slate-100 sm:text-[15px]">
-                                {title}
-                              </div>
+                            <div className="mb-1 flex flex-wrap items-center gap-2">
+                              <span
+                                className={`inline-flex shrink-0 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${getTypePillClass(
+                                  item.type
+                                )}`}
+                              >
+                                {item.type}
+                              </span>
 
                               {unread && (
-                                <span className="status-info rounded-full px-2 py-1 text-[11px] font-bold leading-none">
+                                <span className="rounded-full bg-sky-100 px-2 py-1 text-[10px] font-bold text-sky-700 dark:bg-sky-900/40 dark:text-sky-200">
                                   New
                                 </span>
                               )}
                             </div>
 
-                            <div className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                            <div className="break-words text-sm font-bold text-slate-900 dark:text-slate-100">
+                              {title}
+                            </div>
+
+                            <div className="mt-1 break-words text-sm text-slate-600 dark:text-slate-300">
                               {body}
                             </div>
 
@@ -590,73 +615,69 @@ export default function NotificationBell({ onSummaryChange }: Props) {
       </div>
 
       {showPushPrompt && (
-        <>
-          <button
-            onClick={dismissPromptForSession}
-            className="fixed inset-0 z-[70] bg-slate-900/30 backdrop-blur-[2px]"
-            aria-label="Close push prompt overlay"
-            type="button"
-          />
-
-          <div className="soft-card-strong fixed inset-x-4 bottom-4 z-[80] mx-auto w-auto max-w-[30rem] p-5 sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[28rem]">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-lg font-extrabold text-slate-900 dark:text-white">
-                  Allow notifications?
-                </div>
-                <div className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                  เปิดการแจ้งเตือนเพื่อรับข้อความใหม่, mention และการอัปเดตการอนุมัติ
-                </div>
-              </div>
-
+        <div className="fixed inset-0 z-[70] overflow-x-hidden bg-black/30 p-4 backdrop-blur-[2px] sm:p-6">
+          <div className="flex min-h-full items-start justify-center pt-safe sm:items-start">
+            <div className="relative mt-2 w-full max-w-[min(100%,32rem)] overflow-hidden rounded-[32px] border border-border/70 bg-white/95 shadow-[0_24px_60px_rgba(15,23,42,0.18)] backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/95">
               <button
                 onClick={dismissPromptForSession}
-                className="soft-btn inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-border/80 bg-white/90 text-slate-500 shadow-sm hover:bg-white dark:bg-slate-900/60 dark:text-slate-300"
+                className="absolute right-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                aria-label="Close"
                 type="button"
-                aria-label="Dismiss push prompt"
               >
                 ✕
               </button>
-            </div>
 
-            {isIosWithoutStandalone && (
-              <div className="status-warning mt-4 rounded-2xl px-4 py-3 text-sm leading-6">
-                สำหรับ iPhone/iPad ให้กด Share → Add to Home Screen แล้วเปิดแอปจากไอคอนก่อน
+              <div className="px-5 pb-5 pt-6 sm:px-6 sm:pb-6 sm:pt-7">
+                <div className="pr-10">
+                  <h3 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+                    Allow notifications?
+                  </h3>
+
+                  <p className="mt-2 break-words text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    เปิดการแจ้งเตือนเพื่อรับข้อความใหม่, mention และการอัปเดตการอนุมัติ
+                  </p>
+                </div>
+
+                {isIosWithoutStandalone && (
+                  <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+                    สำหรับ iPhone/iPad ให้กด Share → Add to Home Screen แล้วเปิดแอปจากไอคอนก่อน
+                  </div>
+                )}
+
+                {permissionState === "denied" && (
+                  <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
+                    ตอนนี้ browser บล็อกการแจ้งเตือนอยู่ ต้องไปเปิดใหม่ใน Site Settings ของเว็บนี้
+                  </div>
+                )}
+
+                {pushMessage && (
+                  <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200">
+                    {pushMessage}
+                  </div>
+                )}
+
+                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <button
+                    onClick={dismissPromptForSession}
+                    className="soft-btn inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-2xl border border-border bg-white px-4 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                    type="button"
+                  >
+                    Not now
+                  </button>
+
+                  <button
+                    onClick={handleEnablePush}
+                    disabled={pushBusy}
+                    className="soft-btn inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-2xl border border-primary/25 bg-[linear-gradient(135deg,rgba(124,156,245,0.92),rgba(121,217,199,0.92))] px-4 text-sm font-bold text-white shadow-[0_14px_30px_rgba(124,156,245,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
+                    type="button"
+                  >
+                    {pushBusy ? "กำลังเปิด..." : "Enable notifications"}
+                  </button>
+                </div>
               </div>
-            )}
-
-            {permissionState === "denied" && (
-              <div className="status-danger mt-4 rounded-2xl px-4 py-3 text-sm leading-6">
-                ตอนนี้ browser บล็อกการแจ้งเตือนอยู่ ต้องไปเปิดใหม่ใน Site Settings ของเว็บนี้
-              </div>
-            )}
-
-            {pushMessage && (
-              <div className="status-info mt-4 rounded-2xl px-4 py-3 text-sm leading-6">
-                {pushMessage}
-              </div>
-            )}
-
-            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button
-                onClick={dismissPromptForSession}
-                className="soft-btn inline-flex min-h-11 items-center justify-center rounded-2xl border border-border/80 bg-white/90 px-4 text-sm font-semibold text-slate-600 shadow-sm hover:bg-white dark:bg-slate-900/60 dark:text-slate-200"
-                type="button"
-              >
-                Not now
-              </button>
-
-              <button
-                onClick={() => handleEnablePush()}
-                disabled={pushBusy}
-                className="soft-btn inline-flex min-h-11 items-center justify-center rounded-2xl border border-primary/25 bg-[linear-gradient(135deg,rgba(124,156,245,0.92),rgba(121,217,199,0.92))] px-5 text-sm font-bold text-white shadow-[0_14px_30px_rgba(124,156,245,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
-                type="button"
-              >
-                {pushBusy ? "กำลังเปิด..." : "Enable notifications"}
-              </button>
             </div>
           </div>
-        </>
+        </div>
       )}
     </>
   );
