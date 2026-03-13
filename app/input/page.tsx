@@ -676,10 +676,26 @@ export default function InputPage() {
 
   return (
     <main className="min-h-screen px-4 py-5 md:px-6">
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div className="rounded-[30px] bg-[linear-gradient(135deg,rgba(124,156,245,0.16),rgba(121,217,199,0.14),rgba(247,199,217,0.16))] p-5 shadow-[0_14px_38px_rgba(148,163,184,0.10)] sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-300">
+                Report Center
+              </div>
+              <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
+                การสรุปผลข้อมูล
+              </h1>
+              <div className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                นำออกข้อมูลรายงานในระบบมาแสดงผลและดาวน์โหลดเป็นไฟล์ PDF 
+              </div>
+            </div>
+          </div>
+        </div>
+
         <SectionCard
-          title="Report Center"
-          subtitle="เลือกโครงการและเลือกรอบรายงานจากข้อมูลในระบบ เพื่อดู Preview และดาวน์โหลด PDF แบบ A4 โดยตรงจากระบบ"
+          title="เลือกข้อมูลรายงาน"
+          subtitle="เลือกโครงการและเลือกรอบรายงานจากข้อมูลในระบบ"
         >
           <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr_auto]">
             <div>

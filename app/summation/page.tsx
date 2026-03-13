@@ -631,31 +631,31 @@ export default function SummationPage() {
 
   return (
     <div className="min-h-[calc(100dvh-4rem)] w-full bg-gradient-to-br from-slate-50 via-white to-slate-100 px-3 py-3 text-slate-900 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 dark:text-slate-100 sm:px-4 sm:py-4">
-      <div className="mx-auto w-full max-w-7xl space-y-6">
-        <section className="overflow-hidden rounded-[28px] border border-white/70 bg-[linear-gradient(135deg,rgba(240,244,255,0.96),rgba(236,249,245,0.9),rgba(255,244,246,0.92))] p-6 shadow-[0_24px_80px_rgba(148,163,184,0.16)] backdrop-blur dark:border-slate-800/80 dark:bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(17,24,39,0.94),rgba(30,41,59,0.96))] dark:shadow-[0_24px_80px_rgba(2,6,23,0.45)] sm:p-8">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-3xl">
-              <div className="text-xs font-semibold uppercase tracking-[0.34em] text-slate-400 dark:text-slate-500">
+      <div className="mx-auto w-full max-w-6xl space-y-6">
+        <section className="overflow-hidden rounded-[30px] border border-white/70 bg-[linear-gradient(135deg,rgba(240,244,255,0.96),rgba(236,249,245,0.9),rgba(255,244,246,0.92))] p-5 shadow-[0_14px_38px_rgba(148,163,184,0.10)] backdrop-blur dark:border-slate-800/80 dark:bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(17,24,39,0.94),rgba(30,41,59,0.96))] dark:shadow-[0_20px_60px_rgba(2,6,23,0.45)] sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl min-w-0">
+              <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-300">
                 information Approve
               </div>
-              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-5xl">
+              <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
                 ตรวจสอบรายงานประจำวัน
               </h1>
-              <p className="mt-4 text-lg text-slate-500 dark:text-slate-400">
+              <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
                 ตรวจสอบและอนุมัติรายงานประจำวันที่ส่งโดยผู้ควบคุมงาน
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               {reportId ? (
-                <div className="inline-flex min-h-11 items-center rounded-full border border-slate-200/80 bg-white/88 px-5 text-sm font-semibold text-slate-600 shadow-[0_10px_30px_rgba(148,163,184,0.14)] dark:border-slate-700/80 dark:bg-slate-900/80 dark:text-slate-200 dark:shadow-[0_12px_30px_rgba(2,6,23,0.35)]">
+                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200/80 bg-white/88 px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/80 dark:text-slate-200">
                   Report: {reportId}
                 </div>
               ) : null}
 
               <div
                 className={cn(
-                  "inline-flex min-h-11 items-center rounded-full border border-slate-200/80 px-5 text-sm font-semibold shadow-[0_10px_30px_rgba(148,163,184,0.14)] dark:border-slate-700/80 dark:shadow-[0_12px_30px_rgba(2,6,23,0.35)]",
+                  "inline-flex w-fit items-center gap-2 rounded-full border border-slate-200/80 px-4 py-2 text-sm font-semibold shadow-sm dark:border-slate-700/80",
                   allApproved
                     ? "bg-[rgba(121,217,199,0.16)] text-emerald-700 dark:text-emerald-300"
                     : "bg-[rgba(243,190,114,0.18)] text-amber-700 dark:text-amber-300"
