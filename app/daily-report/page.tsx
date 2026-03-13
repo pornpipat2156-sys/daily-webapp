@@ -1,4 +1,3 @@
-// app/daily-report/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -6,7 +5,6 @@ import { useRouter } from "next/navigation";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
-/** ✅ Type ให้ตรงกับ /api/projects และ meta jsonb */
 type ProjectMeta = {
   id: string;
   projectName: string;
@@ -28,11 +26,9 @@ type ProjectMeta = {
 
   supervisors: string[];
 
-  /** ✅ พิกัดสถานที่ก่อสร้างจาก Project.meta */
   siteLatitude?: number | null;
   siteLongitude?: number | null;
 
-  // ✅ options จาก meta jsonb (ถ้ามี)
   contractorNameOptions?: string[];
   contractorPositionOptions?: string[];
   subContractorPositionOptions?: string[];
@@ -77,25 +73,18 @@ type WeatherOption = "sunny" | "cloudy" | "rainy" | "storm" | "foggy" | "";
 type DailyReportPayload = {
   projectId: string;
   projectMeta: ProjectMeta;
-
-  date: string; // ✅ เก็บ ISO สำหรับระบบเดิม (yyyy-mm-dd)
-  dateBE: string; // ✅ แสดงผลแบบ พ.ศ.
-
+  date: string;
+  dateBE: string;
   tempMaxC: number | null;
   tempMinC: number | null;
-
-  /** ✅ ผู้ใช้เลือกเอง */
   weatherMorning?: WeatherOption;
   weatherAfternoon?: WeatherOption;
   weatherEvening?: WeatherOption;
-
   contractors: ContractorRow[];
   subContractors: SubContractorRow[];
   majorEquipment: MajorEquipmentRow[];
-
   workPerformed: WorkRow[];
   issues: IssueRow[];
-
   safetyNote: string;
 };
 
@@ -112,13 +101,12 @@ async function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-/** ✅ (แก้ปัญหามือถือ) บีบอัด/ย่อรูปก่อนแปลงเป็น dataURL เพื่อลดขนาด sessionStorage */
 async function compressImageToDataUrl(
   file: File,
   opts?: { maxSize?: number; quality?: number }
 ): Promise<string> {
-  const maxSize = opts?.maxSize ?? 1280; // px
-  const quality = opts?.quality ?? 0.75; // 0..1
+  const maxSize = opts?.maxSize ?? 1280;
+  const quality = opts?.quality ?? 0.75;
 
   if (!file.type.startsWith("image/")) return fileToDataUrl(file);
 
@@ -158,7 +146,6 @@ async function compressImageToDataUrl(
   }
 }
 
-/** ✅ คำนวณ weekNo / periodNo / annexNo / dailyReportNo อัตโนมัติจากวันเริ่ม-สิ้นสุดสัญญา + วันที่รายงาน */
 function computeAutoMeta(p: ProjectMeta, reportDate: string) {
   function parseISODateOnly(iso: string) {
     const [y, m, d] = (iso || "").split("-").map(Number);
@@ -225,7 +212,6 @@ function isValidLongitude(lon: number | null) {
   return lon !== null && lon >= -180 && lon <= 180;
 }
 
-/** ✅ อุณหภูมิรายวันจากพิกัดโครงการ */
 async function fetchDailyTemp(yyyyMmDd: string, latInput?: unknown, lonInput?: unknown) {
   const lat = parseCoordinate(latInput);
   const lon = parseCoordinate(lonInput);
@@ -234,16 +220,18 @@ async function fetchDailyTemp(yyyyMmDd: string, latInput?: unknown, lonInput?: u
     return { max: null, min: null };
   }
 
-  const url =
-    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-    `&daily=temperature_2m_max,temperature_2m_min&timezone=Asia%2FBangkok&start_date=${yyyyMmDd}&end_date=${yyyyMmDd}`;
+  const res = await fetch(
+    `/api/weather?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(
+      String(lon)
+    )}&date=${encodeURIComponent(yyyyMmDd)}`,
+    { cache: "no-store" }
+  );
 
-  const res = await fetch(url);
   if (!res.ok) return { max: null, min: null };
-  const data = await res.json();
 
-  const max = data?.daily?.temperature_2m_max?.[0];
-  const min = data?.daily?.temperature_2m_min?.[0];
+  const data = await res.json().catch(() => null);
+  const max = data?.max;
+  const min = data?.min;
 
   return {
     max: typeof max === "number" ? max : null,
@@ -707,8 +695,12 @@ export default function DailyReportPage() {
   useEffect(() => {
     let alive = true;
 
-    if (editingReportId) return;
     if (!project || !date) return;
+
+    const hasSavedTemps =
+      typeof tempMaxC === "number" || typeof tempMinC === "number";
+
+    if (editingReportId && hasSavedTemps) return;
 
     fetchDailyTemp(date, project.siteLatitude, project.siteLongitude)
       .then((t) => {
@@ -725,7 +717,7 @@ export default function DailyReportPage() {
     return () => {
       alive = false;
     };
-  }, [date, editingReportId, project]);
+  }, [date, editingReportId, project, tempMaxC, tempMinC]);
 
   function addRow<T>(setFn: React.Dispatch<React.SetStateAction<T[]>>, row: T) {
     setFn((prev) => [...prev, row]);
@@ -923,7 +915,6 @@ export default function DailyReportPage() {
         badge="Project Setup"
       >
         <div className="grid gap-4 md:grid-cols-2">
-          {/* ฝั่งซ้าย */}
           <div>
             <FieldLabel>ชื่อโครงการ</FieldLabel>
 
@@ -946,7 +937,6 @@ export default function DailyReportPage() {
               )}
             </select>
 
-            {/* Desktop only: ย้ายสภาพอากาศมาไว้ใต้กล่องเลือกโครงการ */}
             <div className="mt-3 hidden md:block">
               <div className="grid gap-3 md:grid-cols-3">
                 <WeatherSelect
@@ -968,7 +958,6 @@ export default function DailyReportPage() {
             </div>
           </div>
 
-          {/* ฝั่งขวา */}
           <div>
             <FieldLabel>วัน/เดือน/ปี พ.ศ.</FieldLabel>
 
@@ -1003,7 +992,6 @@ export default function DailyReportPage() {
               </div>
             ) : null}
 
-            {/* Mobile only: คงตำแหน่งเดิมไว้ */}
             <div className="mt-3 grid gap-3 md:hidden sm:grid-cols-3">
               <WeatherSelect
                 label="ช่วงเช้า"
