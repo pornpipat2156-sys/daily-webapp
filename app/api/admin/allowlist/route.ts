@@ -63,9 +63,10 @@ export async function POST(req: NextRequest) {
     }
 
     const baseUrl =
-      process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL;
+      process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "";
 
     if (!baseUrl) {
+      console.error("allowlist: missing NEXTAUTH_URL/NEXT_PUBLIC_APP_URL");
       return NextResponse.json({
         ok: true,
         row,
@@ -90,27 +91,37 @@ export async function POST(req: NextRequest) {
     const resetLink = `${baseUrl}/reset-password?token=${raw}`;
     const displayNameOrEmail = displayName || normalized;
 
+    const html = `
+      <div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.7; color: #111827;">
+        <p>สวัสดี ${displayNameOrEmail}</p>
+        <p>บัญชีของคุณถูกเพิ่มเข้าสู่ระบบแล้ว กรุณากดลิงก์ด้านล่างเพื่อตั้งรหัสผ่านสำหรับเข้าใช้งานครั้งแรก</p>
+        <p>
+          <a
+            href="${resetLink}"
+            style="display:inline-block;padding:10px 16px;border-radius:10px;background:#2563eb;color:#ffffff;text-decoration:none;"
+          >
+            ตั้งรหัสผ่าน
+          </a>
+        </p>
+        <p>หากปุ่มไม่ทำงาน ให้นำลิงก์นี้ไปเปิดในเบราว์เซอร์:</p>
+        <p style="word-break: break-all;">${resetLink}</p>
+        <p>ลิงก์นี้จะหมดอายุภายใน 30 นาที</p>
+      </div>
+    `;
+
+    const text = [
+      `สวัสดี ${displayNameOrEmail}`,
+      "บัญชีของคุณถูกเพิ่มเข้าสู่ระบบแล้ว กรุณาเปิดลิงก์นี้เพื่อตั้งรหัสผ่านสำหรับเข้าใช้งานครั้งแรก",
+      resetLink,
+      "ลิงก์นี้จะหมดอายุภายใน 30 นาที",
+    ].join("\n\n");
+
     try {
       await sendEmail(
         normalized,
         "ตั้งรหัสผ่านสำหรับเข้าใช้งาน",
-        `
-          <div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.7; color: #111827;">
-            <p>สวัสดี ${displayNameOrEmail}</p>
-            <p>บัญชีของคุณถูกเพิ่มเข้าสู่ระบบแล้ว กรุณากดลิงก์ด้านล่างเพื่อตั้งรหัสผ่านสำหรับเข้าใช้งานครั้งแรก</p>
-            <p>
-              <a
-                href="${resetLink}"
-                style="display:inline-block;padding:10px 16px;border-radius:10px;background:#2563eb;color:#ffffff;text-decoration:none;"
-              >
-                ตั้งรหัสผ่าน
-              </a>
-            </p>
-            <p>หรือนำลิงก์นี้ไปเปิดในเบราว์เซอร์:</p>
-            <p style="word-break: break-all;">${resetLink}</p>
-            <p>ลิงก์นี้จะหมดอายุภายใน 30 นาที</p>
-          </div>
-        `
+        html,
+        text
       );
 
       return NextResponse.json({
