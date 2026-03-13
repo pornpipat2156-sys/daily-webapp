@@ -636,14 +636,13 @@ export default function SummationPage() {
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
               <div className="text-xs font-semibold uppercase tracking-[0.34em] text-slate-400 dark:text-slate-500">
-                Summation
+                information Approve
               </div>
               <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-5xl">
-                Review &amp; approval
+                ตรวจสอบรายงานประจำวัน
               </h1>
               <p className="mt-4 text-lg text-slate-500 dark:text-slate-400">
-                เลือกโครงการ → เลือกรายงาน → ตรวจสอบข้อมูลแบบอ่านอย่างเดียว →
-                ผู้ควบคุมงานกดยืนยันของตนเอง
+                ตรวจสอบและอนุมัติรายงานประจำวันที่ส่งโดยผู้ควบคุมงาน
               </p>
             </div>
 

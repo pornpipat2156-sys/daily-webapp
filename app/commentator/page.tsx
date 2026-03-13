@@ -543,13 +543,13 @@ export default function CommentatorPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-300">
-              Commentator
+              Comment
             </div>
             <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
-              Comment & review
+              แสดงความคิดเห็น
             </h1>
             <div className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-              เลือกรายงานตามโครงการและวันที่ แล้วใส่ความเห็นของผู้ควบคุมงานในแต่ละ Issue ภายใน Preview โดยตรง
+              เลือกรายงานตามโครงการและวันที่ แล้วใส่ความเห็นของผู้ควบคุมงาน
             </div>
           </div>
 

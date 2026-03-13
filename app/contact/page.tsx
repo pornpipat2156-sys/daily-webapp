@@ -685,10 +685,10 @@ function ContactPageInner() {
               Contact
             </div>
             <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
-              Project group chat
+              ห้องแชทสำหรับโครงการ
             </h1>
             <div className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-              เก็บ log การพูดคุย, mention สมาชิก, และแนบ Daily Report Preview ภายในกลุ่มโครงการ
+              สนทนาและแลกเปลี่ยนข้อมูลกับทีมงานโครงการ
             </div>
           </div>
 
