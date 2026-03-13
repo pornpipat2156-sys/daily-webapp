@@ -1,0 +1,16 @@
+name: Process AllowedEmail Invites
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  call-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call invite worker
+        run: |
+          curl --fail --silent --show-error \
+          -X POST "https://daily-webapp-rho.vercel.app/api/internal/process-allowed-email-invites" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
