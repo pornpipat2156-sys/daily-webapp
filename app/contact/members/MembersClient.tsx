@@ -1,4 +1,3 @@
-// app/contact/members/MembersClient.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -38,22 +37,18 @@ export default function MembersClient({ myRole }: { myRole: string }) {
 
   const [toast, setToast] = useState<string | null>(null);
 
-  // ✅ ทำเพื่อ: แสดงข้อความสั้นๆ ไม่ให้ผู้ใช้คิดว่าเว็บค้าง
   function notify(msg: string) {
     setToast(msg);
     window.clearTimeout((notify as any)._t);
     (notify as any)._t = window.setTimeout(() => setToast(null), 2500);
   }
 
-  // ✅ โหลดรายการโครงการ
-  // ทำเพื่อ: ให้เลือก project ก่อนแล้วค่อยโหลดสมาชิก ลด query หนัก/ลด error
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         setLoadingProjects(true);
 
-        // คาดว่าโปรเจกต์คุณมี /api/projects อยู่แล้ว
         const res = await fetch("/api/projects", { cache: "no-store" });
         const j = await safeJson(res);
 
@@ -65,15 +60,16 @@ export default function MembersClient({ myRole }: { myRole: string }) {
           return;
         }
 
-        // รองรับได้หลายรูปแบบ: [{id,name}] หรือ {projects:[...]}
         const list: any[] = Array.isArray(j.data) ? j.data : j.data?.projects ?? [];
         const normalized: ProjectRow[] = list
-          .map((p) => ({ id: String(p.id), name: String(p.name ?? p.projectName ?? "Unnamed") }))
+          .map((p) => ({
+            id: String(p.id),
+            name: String(p.name ?? p.projectName ?? "Unnamed"),
+          }))
           .filter((p) => p.id);
 
         setProjects(normalized);
 
-        // auto select อันแรกเพื่อความเสถียร (ไม่ต้องให้ user คลิกหลายครั้ง)
         if (!projectId && normalized.length) setProjectId(normalized[0].id);
       } catch {
         if (alive) notify("โหลดโครงการไม่สำเร็จ");
@@ -88,8 +84,6 @@ export default function MembersClient({ myRole }: { myRole: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ โหลดสมาชิกเมื่อเปลี่ยน project
-  // ทำเพื่อ: กันคนไม่อยู่ในกลุ่มไม่ให้เห็นข้อมูล และให้ UI sync กับ DB
   useEffect(() => {
     if (!projectId) return;
 
@@ -97,9 +91,12 @@ export default function MembersClient({ myRole }: { myRole: string }) {
     (async () => {
       try {
         setLoadingMembers(true);
-        const res = await fetch(`/api/chat/members?projectId=${encodeURIComponent(projectId)}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(
+          `/api/chat/members?projectId=${encodeURIComponent(projectId)}`,
+          {
+            cache: "no-store",
+          }
+        );
         const j = await safeJson(res);
 
         if (!alive) return;
@@ -158,8 +155,11 @@ export default function MembersClient({ myRole }: { myRole: string }) {
 
       notify("เพิ่มสมาชิกสำเร็จ");
       setAddEmail("");
-      // reload members
-      const r2 = await fetch(`/api/chat/members?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+
+      const r2 = await fetch(
+        `/api/chat/members?projectId=${encodeURIComponent(projectId)}`,
+        { cache: "no-store" }
+      );
       const j2 = await safeJson(r2);
       if (j2.ok) {
         const list: any[] = Array.isArray(j2.data) ? j2.data : j2.data?.members ?? [];
@@ -185,7 +185,9 @@ export default function MembersClient({ myRole }: { myRole: string }) {
     if (!memberId) return;
 
     try {
-      const res = await fetch(`/api/chat/members/${encodeURIComponent(memberId)}/disable`, { method: "PATCH" });
+      const res = await fetch(`/api/chat/members/${encodeURIComponent(memberId)}/disable`, {
+        method: "PATCH",
+      });
       const j = await safeJson(res);
 
       if (!j.ok) {
@@ -194,7 +196,9 @@ export default function MembersClient({ myRole }: { myRole: string }) {
       }
 
       notify("ปิดสิทธิ์สำเร็จ");
-      setMembers((prev) => prev.map((m) => (m.memberId === memberId ? { ...m, isActive: false } : m)));
+      setMembers((prev) =>
+        prev.map((m) => (m.memberId === memberId ? { ...m, isActive: false } : m))
+      );
     } catch {
       notify("Disable ไม่สำเร็จ");
     }
@@ -202,18 +206,19 @@ export default function MembersClient({ myRole }: { myRole: string }) {
 
   return (
     <div className="space-y-4">
-      {/* Project selector */}
-      <div className="rounded-xl border bg-card p-4">
+      <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/70">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="text-sm font-medium">เลือกโครงการ</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              เลือกโครงการ
+            </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">
               {loadingProjects ? "กำลังโหลดโครงการ..." : `${projects.length} projects`}
             </div>
           </div>
 
           <select
-            className="h-10 w-full rounded-lg border bg-background px-3 text-sm sm:w-[360px]"
+            className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition hover:border-slate-300 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 sm:w-[360px] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:border-slate-600 dark:focus:border-blue-500 dark:focus:ring-blue-950/50"
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
             disabled={loadingProjects || projects.length === 0}
@@ -226,42 +231,48 @@ export default function MembersClient({ myRole }: { myRole: string }) {
           </select>
         </div>
 
-        <div className="mt-3 text-xs text-muted-foreground">
-          สมาชิกใช้งานได้: <span className="font-medium text-foreground">{activeCount}</span> / {members.length}
+        <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+          สมาชิกใช้งานได้:{" "}
+          <span className="font-semibold text-slate-900 dark:text-slate-100">
+            {activeCount}
+          </span>{" "}
+          / {members.length}
         </div>
       </div>
 
-      {/* Add member (SuperAdmin) */}
       {isSuperAdmin && (
-        <div className="rounded-xl border bg-card p-4">
-          <div className="text-sm font-medium">เพิ่มสมาชิกเข้ากลุ่ม</div>
+        <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/70">
+          <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            เพิ่มสมาชิกเข้ากลุ่ม
+          </div>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
             <input
-              className="h-10 flex-1 rounded-lg border bg-background px-3 text-sm"
+              className="h-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:border-slate-600 dark:focus:border-blue-500 dark:focus:ring-blue-950/50"
               placeholder="email เช่น someone@example.com"
               value={addEmail}
               onChange={(e) => setAddEmail(e.target.value)}
             />
             <button
-              className="h-10 rounded-lg border bg-background px-4 text-sm hover:bg-muted disabled:opacity-60"
+              className="h-10 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900"
               onClick={onAddMember}
               disabled={busyAdd}
             >
               {busyAdd ? "กำลังเพิ่ม..." : "Add"}
             </button>
           </div>
-          <div className="mt-2 text-xs text-muted-foreground">
+          <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
             ทำเพื่อ: แยก AllowEmail (เข้าใช้ระบบได้) ออกจาก Member (เข้าโปรเจกต์/แชทได้จริง)
           </div>
         </div>
       )}
 
-      {/* Members table */}
-      <div className="rounded-xl border bg-card p-4">
+      <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/70">
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <div className="text-sm font-medium">สมาชิกในกลุ่ม</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              สมาชิกในกลุ่ม
+            </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">
               {loadingMembers ? "กำลังโหลดสมาชิก..." : "แสดงตามข้อมูลจริงใน DB"}
             </div>
           </div>
@@ -269,8 +280,8 @@ export default function MembersClient({ myRole }: { myRole: string }) {
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted-foreground">
-              <tr className="border-b">
+            <thead className="text-left text-xs text-slate-500 dark:text-slate-400">
+              <tr className="border-b border-slate-200 dark:border-slate-800">
                 <th className="py-2 pr-3">Name</th>
                 <th className="py-2 pr-3">Email</th>
                 <th className="py-2 pr-3">Role</th>
@@ -280,19 +291,34 @@ export default function MembersClient({ myRole }: { myRole: string }) {
             </thead>
             <tbody>
               {members.map((m) => (
-                <tr key={m.memberId} className="border-b last:border-b-0">
-                  <td className="py-2 pr-3">{m.name ?? "-"}</td>
-                  <td className="py-2 pr-3">{m.email}</td>
-                  <td className="py-2 pr-3">{m.role}</td>
+                <tr
+                  key={m.memberId}
+                  className="border-b border-slate-200 last:border-b-0 dark:border-slate-800"
+                >
+                  <td className="py-2 pr-3 text-slate-800 dark:text-slate-100">
+                    {m.name ?? "-"}
+                  </td>
+                  <td className="py-2 pr-3 text-slate-700 dark:text-slate-300">
+                    {m.email}
+                  </td>
+                  <td className="py-2 pr-3 text-slate-700 dark:text-slate-300">
+                    {m.role}
+                  </td>
                   <td className="py-2 pr-3">
-                    <span className={`rounded-md border px-2 py-1 text-xs ${m.isActive ? "" : "opacity-60"}`}>
+                    <span
+                      className={`rounded-lg border px-2 py-1 text-xs ${
+                        m.isActive
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+                          : "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+                      }`}
+                    >
                       {m.isActive ? "Active" : "Disabled"}
                     </span>
                   </td>
                   {isSuperAdmin && (
                     <td className="py-2">
                       <button
-                        className="rounded-lg border px-3 py-1 text-xs hover:bg-muted disabled:opacity-60"
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"
                         onClick={() => onDisable(m.memberId)}
                         disabled={!m.isActive}
                         title="Disable member (soft)"
@@ -306,7 +332,10 @@ export default function MembersClient({ myRole }: { myRole: string }) {
 
               {!loadingMembers && members.length === 0 && (
                 <tr>
-                  <td className="py-6 text-center text-sm text-muted-foreground" colSpan={isSuperAdmin ? 5 : 4}>
+                  <td
+                    className="py-6 text-center text-sm text-slate-500 dark:text-slate-400"
+                    colSpan={isSuperAdmin ? 5 : 4}
+                  >
                     ไม่พบสมาชิก (หรือคุณไม่มีสิทธิ์ดูโครงการนี้)
                   </td>
                 </tr>
@@ -317,7 +346,7 @@ export default function MembersClient({ myRole }: { myRole: string }) {
       </div>
 
       {toast && (
-        <div className="fixed bottom-4 right-4 rounded-xl border bg-background px-4 py-3 text-sm shadow">
+        <div className="fixed bottom-4 right-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-lg dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
           {toast}
         </div>
       )}

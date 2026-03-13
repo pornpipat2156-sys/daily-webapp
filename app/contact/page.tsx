@@ -87,21 +87,21 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="soft-card rounded-[28px] p-5 sm:p-6">
+    <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_44px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:p-6 dark:border-slate-800/80 dark:bg-slate-950/70 dark:shadow-[0_20px_50px_rgba(0,0,0,0.34)]">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">
+          <h2 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
             {title}
           </h2>
           {subtitle ? (
-            <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">
               {subtitle}
             </p>
           ) : null}
         </div>
 
         {badge ? (
-          <span className="shrink-0 rounded-full bg-slate-900/5 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:bg-white/10 dark:text-slate-300">
+          <span className="shrink-0 rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-600 dark:border-slate-700/80 dark:bg-slate-900 dark:text-slate-300">
             {badge}
           </span>
         ) : null}
@@ -131,14 +131,14 @@ function StatChip({
 }) {
   const toneClass =
     tone === "mint"
-      ? "bg-[rgba(121,217,199,0.16)] text-emerald-700 dark:text-emerald-300"
+      ? "border border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
       : tone === "pink"
-      ? "bg-[rgba(247,199,217,0.18)] text-rose-700 dark:text-rose-300"
+      ? "border border-rose-200/70 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
       : tone === "amber"
-      ? "bg-[rgba(243,190,114,0.18)] text-amber-700 dark:text-amber-300"
+      ? "border border-amber-200/70 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300"
       : tone === "violet"
-      ? "bg-[rgba(154,135,245,0.18)] text-violet-700 dark:text-violet-300"
-      : "bg-[rgba(124,156,245,0.16)] text-blue-700 dark:text-blue-300";
+      ? "border border-violet-200/70 bg-violet-50 text-violet-700 dark:border-violet-900/50 dark:bg-violet-950/30 dark:text-violet-300"
+      : "border border-blue-200/70 bg-blue-50 text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300";
 
   return (
     <div className={cn("rounded-[22px] px-4 py-3", toneClass)}>
@@ -664,21 +664,24 @@ function ContactPageInner() {
 
   const realtimeTone =
     realtimeState === "connected"
-      ? "status-success"
+      ? "border border-emerald-200/80 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300"
       : realtimeState === "connecting"
-      ? "status-info"
+      ? "border border-blue-200/80 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300"
       : realtimeState === "error"
-      ? "status-warning"
-      : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300";
+      ? "border border-amber-200/80 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300"
+      : "border border-slate-200/80 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300";
 
   const sendDisabled = sending || (!text.trim() && !(pickerOpen && reportIdToSend));
   const currentProjectName =
     projects.find((p) => p.id === projectId)?.projectName ?? "-";
 
+  const inputClass =
+    "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:border-slate-600 dark:focus:border-blue-500 dark:focus:ring-blue-950/50";
+
   if (status === "loading") {
     return (
       <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4 lg:px-6">
-        <div className="soft-card rounded-[26px] px-5 py-6 text-sm text-slate-500 dark:text-slate-300">
+        <div className="rounded-[26px] border border-slate-200/80 bg-white/90 px-5 py-6 text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-950/70 dark:text-slate-300">
           กำลังโหลด...
         </div>
       </div>
@@ -697,16 +700,16 @@ function ContactPageInner() {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-3 pb-8 sm:px-4 lg:px-6">
-      <div className="mb-5 rounded-[30px] bg-[linear-gradient(135deg,rgba(124,156,245,0.16),rgba(121,217,199,0.14),rgba(247,199,217,0.16))] p-5 shadow-[0_14px_38px_rgba(148,163,184,0.10)] sm:p-6">
+      <div className="mb-5 rounded-[30px] border border-slate-200/70 bg-gradient-to-br from-blue-100/80 via-cyan-50 to-violet-100/80 p-5 shadow-[0_16px_40px_rgba(148,163,184,0.15)] sm:p-6 dark:border-slate-800/70 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 dark:shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
-            <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-300">
+            <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-600 dark:text-slate-400">
               Contact
             </div>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl">
               ห้องแชทสำหรับโครงการ
             </h1>
-            <div className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+            <div className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-300">
               สนทนาและแลกเปลี่ยนข้อมูลกับทีมงานโครงการ
             </div>
           </div>
@@ -720,7 +723,7 @@ function ContactPageInner() {
             >
               {realtimeText}
             </span>
-            <span className="rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm dark:bg-slate-900/60 dark:text-slate-200">
+            <span className="rounded-full border border-slate-200/80 bg-white/85 px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-200">
               {currentProjectName}
             </span>
           </div>
@@ -737,7 +740,7 @@ function ContactPageInner() {
             <div>
               <FieldLabel>โครงการ</FieldLabel>
               <select
-                className="soft-input h-12 w-full px-4 text-sm text-slate-700 hover:bg-white disabled:opacity-50 dark:text-slate-100"
+                className={inputClass}
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
                 disabled={!canPickProject}
@@ -777,7 +780,7 @@ function ContactPageInner() {
                 <div className="mb-4">
                   <FieldLabel>ค้นหาสมาชิก</FieldLabel>
                   <input
-                    className="soft-input h-12 w-full px-4 text-sm text-slate-700 placeholder:text-slate-400 dark:text-slate-100"
+                    className={inputClass}
                     placeholder="ค้นหาชื่อหรืออีเมล..."
                     value={memberQuery}
                     onChange={(e) => setMemberQuery(e.target.value)}
@@ -785,7 +788,7 @@ function ContactPageInner() {
                 </div>
 
                 {filteredMembers.length === 0 ? (
-                  <div className="rounded-[22px] border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50/80 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
                     ยังไม่มีสมาชิก
                   </div>
                 ) : (
@@ -793,7 +796,7 @@ function ContactPageInner() {
                     {visibleMembers.map((m) => (
                       <div
                         key={m.memberId}
-                        className="flex items-center justify-between gap-3 rounded-[22px] border border-slate-200/70 px-4 py-3 dark:border-slate-800"
+                        className="flex items-center justify-between gap-3 rounded-[22px] border border-slate-200/80 bg-slate-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40"
                       >
                         <div className="min-w-0">
                           <div className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
@@ -808,7 +811,7 @@ function ContactPageInner() {
                           type="button"
                           onClick={() => removeMember(m.memberId)}
                           disabled={togglingMemberId === m.memberId}
-                          className="rounded-full border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-900/50 dark:text-rose-300 dark:hover:bg-rose-950/20"
+                          className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-bold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-900/50 dark:bg-slate-950 dark:text-rose-300 dark:hover:bg-rose-950/20"
                         >
                           {togglingMemberId === m.memberId ? "Removing..." : "Remove"}
                         </button>
@@ -819,7 +822,7 @@ function ContactPageInner() {
                       <button
                         type="button"
                         onClick={() => setShowAllMembers(true)}
-                        className="w-full rounded-[18px] border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-900"
+                        className="w-full rounded-[18px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"
                       >
                         ดูทั้งหมด ({filteredMembers.length})
                       </button>
@@ -836,7 +839,7 @@ function ContactPageInner() {
                 <div className="mb-4">
                   <FieldLabel>ค้นหาสมาชิกที่จะเพิ่ม</FieldLabel>
                   <input
-                    className="soft-input h-12 w-full px-4 text-sm text-slate-700 placeholder:text-slate-400 dark:text-slate-100"
+                    className={inputClass}
                     placeholder="ค้นหาชื่อหรืออีเมล..."
                     value={addQuery}
                     onChange={(e) => setAddQuery(e.target.value)}
@@ -844,7 +847,7 @@ function ContactPageInner() {
                 </div>
 
                 {visibleAddable.length === 0 ? (
-                  <div className="rounded-[22px] border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50/80 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
                     ไม่มีสมาชิกที่สามารถเพิ่มได้
                   </div>
                 ) : (
@@ -852,11 +855,11 @@ function ContactPageInner() {
                     {visibleAddable.map((u) => (
                       <label
                         key={u.id}
-                        className="flex cursor-pointer items-center gap-3 rounded-[20px] border border-slate-200/70 px-4 py-3 transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
+                        className="flex cursor-pointer items-center gap-3 rounded-[20px] border border-slate-200/80 bg-slate-50/70 px-4 py-3 transition hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/40 dark:hover:bg-slate-900"
                       >
                         <input
                           type="checkbox"
-                          className="h-4 w-4"
+                          className="h-4 w-4 rounded border-slate-300 bg-white text-blue-600 focus:ring-2 focus:ring-blue-400 dark:border-slate-600 dark:bg-slate-950 dark:text-blue-400"
                           checked={Boolean(selectedToAdd[u.id])}
                           onChange={(e) =>
                             setSelectedToAdd((prev) => ({
@@ -882,7 +885,7 @@ function ContactPageInner() {
                   type="button"
                   onClick={addMembersToGroup}
                   disabled={adding || selectedAddIds.length === 0}
-                  className="mt-4 inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-5 text-sm font-bold text-white transition hover:translate-y-[-1px] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-900"
+                  className="mt-4 inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-5 text-sm font-bold text-white transition hover:translate-y-[-1px] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900"
                 >
                   {adding ? "กำลังเพิ่มสมาชิก..." : `เพิ่มสมาชิก (${selectedAddIds.length})`}
                 </button>
@@ -898,7 +901,7 @@ function ContactPageInner() {
         >
           <div
             ref={listRef}
-            className="mb-4 max-h-[560px] overflow-y-auto rounded-[24px] border border-slate-200/70 bg-white/70 p-4 dark:border-slate-800 dark:bg-slate-950/40"
+            className="mb-4 max-h-[560px] overflow-y-auto rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50"
           >
             {loadingMessages ? (
               <div className="text-sm text-slate-500 dark:text-slate-400">
@@ -921,8 +924,8 @@ function ContactPageInner() {
                         className={cn(
                           "max-w-[85%] rounded-[22px] px-4 py-3 shadow-sm",
                           mine
-                            ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-                            : "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100"
+                            ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                            : "border border-slate-200/80 bg-white text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                         )}
                       >
                         <div
@@ -949,8 +952,8 @@ function ContactPageInner() {
                             className={cn(
                               "mt-3 inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold transition",
                               mine
-                                ? "bg-white/15 text-white hover:bg-white/20 dark:bg-slate-900/10 dark:text-slate-700"
-                                : "bg-slate-900 text-white hover:opacity-90 dark:bg-white dark:text-slate-900"
+                                ? "bg-white/15 text-white hover:bg-white/20 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                                : "bg-slate-900 text-white hover:opacity-90 dark:bg-slate-100 dark:text-slate-900"
                             )}
                           >
                             เปิด Daily Report
@@ -979,7 +982,7 @@ function ContactPageInner() {
             <FieldLabel>ข้อความ</FieldLabel>
             <textarea
               ref={inputRef}
-              className="soft-input min-h-[120px] w-full resize-y px-4 py-3 text-sm leading-6 text-slate-700 placeholder:text-slate-400 dark:text-slate-100"
+              className="min-h-[120px] w-full resize-y rounded-[22px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:border-slate-600 dark:focus:border-blue-500 dark:focus:ring-blue-950/50"
               placeholder="พิมพ์ข้อความ... ใช้ @ เพื่อ mention สมาชิก"
               value={text}
               onChange={(e) => handleTextChange(e.target.value)}
@@ -1013,7 +1016,7 @@ function ContactPageInner() {
               <button
                 type="button"
                 onClick={() => setPickerOpen((v) => !v)}
-                className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-100 dark:hover:bg-slate-900"
+                className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900"
               >
                 {pickerOpen ? "ปิดการแนบ Report" : "แนบ Daily Report"}
               </button>
@@ -1027,14 +1030,14 @@ function ContactPageInner() {
                 })
               }
               disabled={sendDisabled}
-              className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-5 text-sm font-bold text-white transition hover:translate-y-[-1px] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-900"
+              className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-5 text-sm font-bold text-white transition hover:translate-y-[-1px] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900"
             >
               {sending ? "กำลังส่ง..." : "ส่งข้อความ"}
             </button>
           </div>
 
           {pickerOpen ? (
-            <div className="mt-4 rounded-[22px] border border-slate-200/70 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+            <div className="mt-4 rounded-[22px] border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/40">
               <FieldLabel>เลือก Daily Report</FieldLabel>
               {reports.length === 0 ? (
                 <div className="text-sm text-slate-500 dark:text-slate-400">
@@ -1042,7 +1045,7 @@ function ContactPageInner() {
                 </div>
               ) : (
                 <select
-                  className="soft-input h-12 w-full px-4 text-sm text-slate-700 dark:text-slate-100"
+                  className={inputClass}
                   value={reportIdToSend}
                   onChange={(e) => setReportIdToSend(e.target.value)}
                 >
@@ -1066,7 +1069,7 @@ export default function ContactPage() {
     <Suspense
       fallback={
         <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4 lg:px-6">
-          <div className="soft-card rounded-[26px] px-5 py-6 text-sm text-slate-500 dark:text-slate-300">
+          <div className="rounded-[26px] border border-slate-200/80 bg-white/90 px-5 py-6 text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-950/70 dark:text-slate-300">
             กำลังโหลด...
           </div>
         </div>
