@@ -170,7 +170,7 @@ export default function AppShell({
           {displayName}
         </div>
         <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          {role} • {position}
+          {position}
         </div>
       </div>
     </div>
@@ -198,7 +198,7 @@ export default function AppShell({
                   {displayName}
                 </div>
                 <div className="truncate text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
-                  {role} • {position}
+                  {position}
                 </div>
               </div>
 
