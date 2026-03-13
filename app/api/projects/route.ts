@@ -26,12 +26,8 @@ export type ProjectMeta = {
   periodNo: string;
   weekNo: string;
   supervisors: string[];
-
-  /** ✅ เพิ่ม: พิกัดสถานที่ก่อสร้างจาก meta jsonb */
   siteLatitude?: number | null;
   siteLongitude?: number | null;
-
-  // ✅ options สำหรับ dropdown (อยู่ใน meta jsonb)
   contractorNameOptions?: string[];
   contractorPositionOptions?: string[];
   subContractorPositionOptions?: string[];
@@ -63,7 +59,6 @@ const emptyMeta: Omit<ProjectMeta, "id" | "projectName"> = {
   equipmentTypeOptions: [],
 };
 
-// ✅ กำหนดชนิดข้อมูลจาก DB
 type Row = {
   id: string;
   name: string;
@@ -110,9 +105,6 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const scope = (url.searchParams.get("scope") ?? "").trim().toLowerCase();
 
-    // ใช้เฉพาะหน้า chat/contact:
-    // - SUPERADMIN เห็นทุกโครงการ
-    // - ADMIN/USER เห็นเฉพาะโครงการที่เป็นสมาชิกและ active
     if (scope === "chat") {
       const session = await getServerSession(authOptions);
       if (!session) {
@@ -122,49 +114,56 @@ export async function GET(req: Request) {
       const meId = (session as any)?.user?.id as string | undefined;
       const role = (session as any)?.user?.role as string | undefined;
 
-      if (role !== "SUPERADMIN") {
-        if (!meId) {
-          return new NextResponse("Missing session user id", { status: 400 });
-        }
-
-        const memberships = await prisma.chatGroupMember.findMany({
-          where: {
-            userId: meId,
-            isActive: true,
-          },
-          select: {
-            projectId: true,
-          },
-        });
-
-        const projectIds = Array.from(
-          new Set(
-            memberships
-              .map((m) => String(m.projectId || "").trim())
-              .filter(Boolean)
-          )
-        );
-
-        if (projectIds.length === 0) {
-          return NextResponse.json([], {
-            headers: { "Cache-Control": "no-store" },
-          });
-        }
-
+      if (role === "SUPERADMIN") {
         const rows = (await prisma.project.findMany({
-          where: {
-            id: { in: projectIds },
-          },
           select: { id: true, name: true, createdAt: true, meta: true },
           orderBy: { createdAt: "desc" },
         })) as unknown as Row[];
 
-        const projects: ProjectMeta[] = rows.map(mapProjectRow);
-
-        return NextResponse.json(projects, {
+        return NextResponse.json(rows.map(mapProjectRow), {
           headers: { "Cache-Control": "no-store" },
         });
       }
+
+      if (!meId) {
+        return new NextResponse("Missing session user id", { status: 400 });
+      }
+
+      const memberships = await prisma.chatGroupMember.findMany({
+        where: {
+          userId: meId,
+          isActive: true,
+        },
+        select: {
+          projectId: true,
+        },
+      });
+
+      const projectIds = Array.from(
+        new Set(
+          memberships
+            .map((m) => String(m.projectId || "").trim())
+            .filter(Boolean)
+        )
+      );
+
+      if (projectIds.length === 0) {
+        return NextResponse.json([], {
+          headers: { "Cache-Control": "no-store" },
+        });
+      }
+
+      const rows = (await prisma.project.findMany({
+        where: {
+          id: { in: projectIds },
+        },
+        select: { id: true, name: true, createdAt: true, meta: true },
+        orderBy: { createdAt: "desc" },
+      })) as unknown as Row[];
+
+      return NextResponse.json(rows.map(mapProjectRow), {
+        headers: { "Cache-Control": "no-store" },
+      });
     }
 
     const rows = (await prisma.project.findMany({
@@ -172,9 +171,7 @@ export async function GET(req: Request) {
       orderBy: { createdAt: "desc" },
     })) as unknown as Row[];
 
-    const projects: ProjectMeta[] = rows.map(mapProjectRow);
-
-    return NextResponse.json(projects, {
+    return NextResponse.json(rows.map(mapProjectRow), {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (err: any) {

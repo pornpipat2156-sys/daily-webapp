@@ -142,7 +142,9 @@ function StatChip({
 
   return (
     <div className={cn("rounded-[22px] px-4 py-3", toneClass)}>
-      <div className="text-[11px] font-bold uppercase tracking-[0.16em] opacity-80">{label}</div>
+      <div className="text-[11px] font-bold uppercase tracking-[0.16em] opacity-80">
+        {label}
+      </div>
       <div className="mt-1 break-words text-sm font-bold">{value}</div>
     </div>
   );
@@ -166,7 +168,9 @@ function ContactPageInner() {
 
   const PAGE_SIZE = 20;
 
-  const [selectedToAdd, setSelectedToAdd] = useState<Record<string, boolean>>({});
+  const [selectedToAdd, setSelectedToAdd] = useState<Record<string, boolean>>(
+    {}
+  );
   const [adding, setAdding] = useState(false);
   const [togglingMemberId, setTogglingMemberId] = useState<string | null>(null);
 
@@ -181,7 +185,10 @@ function ContactPageInner() {
 
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
-  const [mentionAnchor, setMentionAnchor] = useState<{ start: number; end: number } | null>(null);
+  const [mentionAnchor, setMentionAnchor] = useState<{
+    start: number;
+    end: number;
+  } | null>(null);
 
   const [realtimeState, setRealtimeState] = useState<
     "disabled" | "connecting" | "connected" | "error"
@@ -224,7 +231,10 @@ function ContactPageInner() {
     });
   }
 
-  async function reloadMessages(opts?: { keepBottom?: boolean; behavior?: ScrollBehavior }) {
+  async function reloadMessages(opts?: {
+    keepBottom?: boolean;
+    behavior?: ScrollBehavior;
+  }) {
     if (!projectId) return;
     const rows = await jget<ChatMessage[]>(
       `/api/chat/messages?projectId=${encodeURIComponent(projectId)}`
@@ -262,12 +272,9 @@ function ContactPageInner() {
 
     (async () => {
       try {
-        const [allowRows, memberRows] = await Promise.all([
-          jget<AllowUserRow[]>(`/api/allow-email?projectId=${encodeURIComponent(projectId)}`),
-          jget<any>(`/api/chat/members?projectId=${encodeURIComponent(projectId)}`),
-        ]);
-
-        setAllowUsers(allowRows);
+        const memberRows = await jget<any>(
+          `/api/chat/members?projectId=${encodeURIComponent(projectId)}`
+        );
 
         const list = Array.isArray(memberRows)
           ? memberRows
@@ -285,6 +292,16 @@ function ContactPageInner() {
         }));
 
         setGroupMembers(normalized);
+
+        if (isSuperAdmin) {
+          const allowRows = await jget<AllowUserRow[]>(
+            `/api/allow-email?projectId=${encodeURIComponent(projectId)}`
+          );
+          setAllowUsers(allowRows);
+        } else {
+          setAllowUsers([]);
+        }
+
         setSelectedToAdd({});
         setMemberQuery("");
         setAddQuery("");
@@ -294,7 +311,7 @@ function ContactPageInner() {
         alert("โหลดรายชื่อสมาชิกไม่สำเร็จ: " + String((e as any)?.message || e));
       }
     })();
-  }, [projectId]);
+  }, [projectId, isSuperAdmin]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -339,7 +356,10 @@ function ContactPageInner() {
         console.error(e);
         setReports([]);
         setReportIdToSend("");
-        alert("โหลดรายการ Daily Report ไม่สำเร็จ: " + String((e as any)?.message || e));
+        alert(
+          "โหลดรายการ Daily Report ไม่สำเร็จ: " +
+            String((e as any)?.message || e)
+        );
       }
     })();
   }, [pickerOpen, projectId]);
@@ -415,7 +435,8 @@ function ContactPageInner() {
     if (!q) return base;
     return base.filter(
       (m) =>
-        (m.name ?? m.email).toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
+        (m.name ?? m.email).toLowerCase().includes(q) ||
+        m.email.toLowerCase().includes(q)
     );
   }, [groupMembers, memberQuery]);
 
@@ -430,7 +451,8 @@ function ContactPageInner() {
 
     return addableUsers.filter(
       (u) =>
-        (u.name ?? u.email).toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+        (u.name ?? u.email).toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q)
     );
   }, [addableUsers, addQuery]);
 
@@ -447,7 +469,9 @@ function ContactPageInner() {
   );
 
   async function reloadMembersOnly() {
-    const memberRows = await jget<any>(`/api/chat/members?projectId=${encodeURIComponent(projectId)}`);
+    const memberRows = await jget<any>(
+      `/api/chat/members?projectId=${encodeURIComponent(projectId)}`
+    );
 
     const list = Array.isArray(memberRows)
       ? memberRows
@@ -521,7 +545,8 @@ function ContactPageInner() {
     return mentionSource
       .filter(
         (m) =>
-          (m.name ?? m.email).toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
+          (m.name ?? m.email).toLowerCase().includes(q) ||
+          m.email.toLowerCase().includes(q)
       )
       .slice(0, 8);
   }, [mentionSource, mentionQuery]);
@@ -620,7 +645,10 @@ function ContactPageInner() {
   }
 
   function openReport(reportId: string) {
-    window.open(`/daily-report/preview?reportId=${encodeURIComponent(reportId)}`, "_blank");
+    window.open(
+      `/daily-report/preview?reportId=${encodeURIComponent(reportId)}`,
+      "_blank"
+    );
   }
 
   const canPickProject = projects.length > 0;
@@ -644,7 +672,8 @@ function ContactPageInner() {
       : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300";
 
   const sendDisabled = sending || (!text.trim() && !(pickerOpen && reportIdToSend));
-  const currentProjectName = projects.find((p) => p.id === projectId)?.projectName ?? "-";
+  const currentProjectName =
+    projects.find((p) => p.id === projectId)?.projectName ?? "-";
 
   if (status === "loading") {
     return (
@@ -683,7 +712,12 @@ function ContactPageInner() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className={cn("rounded-full px-3 py-1.5 text-xs font-bold shadow-sm", realtimeTone)}>
+            <span
+              className={cn(
+                "rounded-full px-3 py-1.5 text-xs font-bold shadow-sm",
+                realtimeTone
+              )}
+            >
               {realtimeText}
             </span>
             <span className="rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm dark:bg-slate-900/60 dark:text-slate-200">
@@ -867,9 +901,13 @@ function ContactPageInner() {
             className="mb-4 max-h-[560px] overflow-y-auto rounded-[24px] border border-slate-200/70 bg-white/70 p-4 dark:border-slate-800 dark:bg-slate-950/40"
           >
             {loadingMessages ? (
-              <div className="text-sm text-slate-500 dark:text-slate-400">กำลังโหลดข้อความ...</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                กำลังโหลดข้อความ...
+              </div>
             ) : messages.length === 0 ? (
-              <div className="text-sm text-slate-500 dark:text-slate-400">ยังไม่มีข้อความ</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                ยังไม่มีข้อความ
+              </div>
             ) : (
               <div className="space-y-3">
                 {messages.map((msg) => {
