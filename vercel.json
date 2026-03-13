@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/internal/process-allowed-email-invites",
+      "schedule": "*/1 * * * *"
+    }
+  ]
+}
