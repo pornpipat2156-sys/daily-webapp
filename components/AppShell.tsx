@@ -135,10 +135,10 @@ export default function AppShell({
             Daily Webapp
           </div>
           <div className="mt-2 text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            DAILY-WEBAPP
+            รายงานประจำวัน
           </div>
           <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            Construction Collaboration
+            บันทึกรายงานประจำวันและติดตามความคืบหน้าของโครงการก่อสร้าง
           </div>
         </div>
 

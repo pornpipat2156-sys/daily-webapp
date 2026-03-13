@@ -55,7 +55,7 @@ export default function SidebarShell({
             ☰
           </button>
 
-          <div className="font-semibold tracking-wide">DAILY-WEBAPP</div>
+          <div className="font-semibold tracking-wide">รายงานประจำวัน</div>
 
           <div className="ml-auto">
             <TopRightAuth />

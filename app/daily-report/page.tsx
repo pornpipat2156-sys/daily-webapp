@@ -120,13 +120,10 @@ async function compressImageToDataUrl(
   const maxSize = opts?.maxSize ?? 1280; // px
   const quality = opts?.quality ?? 0.75; // 0..1
 
-  // ถ้าไม่ใช่รูปภาพ ให้ใช้วิธีเดิม
   if (!file.type.startsWith("image/")) return fileToDataUrl(file);
 
-  // อ่านเป็น data url ก่อน
   const srcDataUrl = await fileToDataUrl(file);
 
-  // สร้าง image เพื่อวาดลง canvas
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const im = new Image();
     im.onload = () => resolve(im);
@@ -138,12 +135,10 @@ async function compressImageToDataUrl(
   const h = img.naturalHeight || img.height;
   if (!w || !h) return srcDataUrl;
 
-  // คำนวณขนาดใหม่ (รักษาสัดส่วน)
   const scale = Math.min(1, maxSize / Math.max(w, h));
   const nw = Math.max(1, Math.round(w * scale));
   const nh = Math.max(1, Math.round(h * scale));
 
-  // ถ้ารูปเล็กอยู่แล้ว ก็ส่งกลับเดิม (กันเสียคุณภาพเกินจำเป็น)
   if (scale >= 1) return srcDataUrl;
 
   const canvas = document.createElement("canvas");
@@ -155,12 +150,10 @@ async function compressImageToDataUrl(
 
   ctx.drawImage(img, 0, 0, nw, nh);
 
-  // แปลงเป็น JPEG เพื่อลดขนาด (กัน png ใหญ่)
   try {
     const out = canvas.toDataURL("image/jpeg", quality);
     return out || srcDataUrl;
   } catch {
-    // Safari บางเคสอาจมีปัญหา ให้ fallback
     return srcDataUrl;
   }
 }
@@ -170,7 +163,6 @@ function computeAutoMeta(p: ProjectMeta, reportDate: string) {
   function parseISODateOnly(iso: string) {
     const [y, m, d] = (iso || "").split("-").map(Number);
     if (!y || !m || !d) return null;
-    // บังคับเที่ยงวันกัน timezone เพี้ยน
     return new Date(y, m - 1, d, 12, 0, 0, 0);
   }
   function clamp(n: number, min: number, max: number) {
@@ -181,7 +173,6 @@ function computeAutoMeta(p: ProjectMeta, reportDate: string) {
   const e = parseISODateOnly(p.contractEnd);
   const r = parseISODateOnly(reportDate);
 
-  // fallback ถ้าวันไม่ครบ ให้คืนค่าเดิม (กันระบบพัง)
   if (!s || !e || !r) {
     return {
       weekNo: p.weekNo,
@@ -332,7 +323,7 @@ function StatCard({
   return (
     <div className={cn("rounded-[22px] px-4 py-3", toneClass)}>
       <div className="text-[11px] font-bold uppercase tracking-[0.16em] opacity-80">{label}</div>
-      <div className="mt-1 text-sm font-bold break-words">{value}</div>
+      <div className="mt-1 break-words text-sm font-bold">{value}</div>
     </div>
   );
 }
@@ -374,7 +365,6 @@ function RowCard({
   );
 }
 
-/** ✅ select จำนวนแบบเลือกเท่านั้น */
 function QtySelect({
   value,
   onChange,
@@ -399,7 +389,6 @@ function QtySelect({
   );
 }
 
-/** ✅ Dropdown + อื่นๆ (เลือกอื่นๆแล้วพิมพ์ได้) */
 function SelectOrOther({
   label,
   value,
@@ -489,7 +478,7 @@ function WeatherSelect({
         value={value}
         onChange={(e) => onChange(e.target.value as WeatherOption)}
       >
-        <option value="">เลือกสภาพอากาศ...</option>
+        <option value="">เลือกสภาพอากาศ</option>
         <option value="sunny">แดดออก</option>
         <option value="cloudy">มีเมฆมาก</option>
         <option value="rainy">ฝนตก</option>
@@ -500,9 +489,7 @@ function WeatherSelect({
   );
 }
 
-/** ✅ แสดงผลวันที่แบบ พ.ศ. DD/MM/BBBB */
 function toBE(isoYmd: string) {
-  // isoYmd: yyyy-mm-dd
   const [y, m, d] = isoYmd.split("-").map((x) => Number(x));
   if (!y || !m || !d) return "";
   const be = y + 543;
@@ -511,14 +498,12 @@ function toBE(isoYmd: string) {
   return `${dd}/${mm}/${be}`;
 }
 
-/** ✅ (แก้เฉพาะส่วน date) แปลง yyyy-mm-dd -> Date (ตั้ง 12:00 กัน timezone เพี้ยน) */
 function isoToDateOnly(isoYmd: string) {
   const [y, m, d] = (isoYmd || "").split("-").map(Number);
   if (!y || !m || !d) return new Date();
   return new Date(y, m - 1, d, 12, 0, 0, 0);
 }
 
-/** ✅ (แก้เฉพาะส่วน date) แปลง Date -> yyyy-mm-dd (ใช้ local parts กันเพี้ยน) */
 function dateToISODateOnly(dt: Date) {
   const y = dt.getFullYear();
   const m = String(dt.getMonth() + 1).padStart(2, "0");
@@ -526,7 +511,6 @@ function dateToISODateOnly(dt: Date) {
   return `${y}-${m}-${d}`;
 }
 
-/** ✅ (แก้เฉพาะส่วน date) custom input ที่คลิกได้ชัวร์ทุกแพลตฟอร์ม */
 const DateBEInput = React.forwardRef<HTMLInputElement, any>(function DateBEInput(props, ref) {
   const { value, onClick, onKeyDown } = props;
   return (
@@ -546,12 +530,10 @@ const DateBEInput = React.forwardRef<HTMLInputElement, any>(function DateBEInput
 export default function DailyReportPage() {
   const router = useRouter();
 
-  // ✅ projects จาก DB
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
 
-  // เลือกโครงการเท่านั้น (จาก DB)
   const [projectId, setProjectId] = useState<string>("");
 
   const project = useMemo(
@@ -559,11 +541,9 @@ export default function DailyReportPage() {
     [projects, projectId]
   );
 
-  // ✅ เก็บแบบ ISO เพื่อให้ระบบเดิม + weather ทำงาน
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const dateBE = useMemo(() => toBE(date), [date]);
 
-  // ✅ (แก้เฉพาะส่วน date) สร้าง state Date สำหรับ DatePicker และ sync กับ `date`
   const [selectedDate, setSelectedDate] = useState<Date>(() =>
     isoToDateOnly(new Date().toISOString().slice(0, 10))
   );
@@ -571,51 +551,40 @@ export default function DailyReportPage() {
     setSelectedDate(isoToDateOnly(date));
   }, [date]);
 
-  // ✅ (แก้เฉพาะส่วน date) คุมการเปิด/ปิด popup ให้ชัวร์ทุก platform (แต่แสดงเป็น popup ใต้ช่อง)
   const [dateOpen, setDateOpen] = useState(false);
 
-  // ✅ คำนวณเลขรายงานอัตโนมัติจากสัญญา + วันที่ที่เลือก
   const autoMeta = useMemo(() => {
     if (!project || !date) return null;
     return computeAutoMeta(project, date);
   }, [project, date]);
 
-  // weather auto (temp)
   const [tempMaxC, setTempMaxC] = useState<number | null>(null);
   const [tempMinC, setTempMinC] = useState<number | null>(null);
 
-  // ✅ weather manual
   const [weatherMorning, setWeatherMorning] = useState<WeatherOption>("");
   const [weatherAfternoon, setWeatherAfternoon] = useState<WeatherOption>("");
   const [weatherEvening, setWeatherEvening] = useState<WeatherOption>("");
 
-  // Contractors
   const [contractors, setContractors] = useState<ContractorRow[]>([
     { id: uid(), name: "", position: "", qty: 0 },
   ]);
 
-  // Sub Contractors
   const [subContractors, setSubContractors] = useState<SubContractorRow[]>([
     { id: uid(), position: "", morning: 0, afternoon: 0, overtime: 0 },
   ]);
 
-  // Major Equipment
   const [majorEquipment, setMajorEquipment] = useState<MajorEquipmentRow[]>([
     { id: uid(), type: "", morning: 0, afternoon: 0, overtime: 0 },
   ]);
 
-  // Work performed
   const [workPerformed, setWorkPerformed] = useState<WorkRow[]>([
     { id: uid(), desc: "", location: "", qty: "", unit: "", materialDelivered: "" },
   ]);
 
-  // Issues (ไม่บังคับแล้ว)
   const [issues, setIssues] = useState<IssueRow[]>([{ id: uid(), detail: "", imageDataUrl: "" }]);
 
-  // Safety note
   const [safetyNote, setSafetyNote] = useState("");
 
-  /** ✅ รีเซ็ตฟอร์มเมื่อเลือกวันที่ที่ไม่มีข้อมูลใน DB */
   function resetForm() {
     setEditingReportId(null);
 
@@ -634,7 +603,6 @@ export default function DailyReportPage() {
     setSafetyNote("");
   }
 
-  // ✅ โหลดรายการโครงการจาก DB ครั้งเดียว
   useEffect(() => {
     let alive = true;
     async function run() {
@@ -646,7 +614,6 @@ export default function DailyReportPage() {
         if (!alive) return;
         setProjects(Array.isArray(data) ? data : []);
 
-        // set default projectId เป็นตัวแรก
         if (Array.isArray(data) && data.length > 0) {
           setProjectId((prev) => prev || data[0].id);
         }
@@ -663,7 +630,6 @@ export default function DailyReportPage() {
     };
   }, []);
 
-  /** ✅ โหลดข้อมูลเก่าจาก DB ตาม projectId + date แล้วเด้งกลับเข้าฟอร์ม */
   useEffect(() => {
     let alive = true;
 
@@ -678,7 +644,6 @@ export default function DailyReportPage() {
       if (!alive) return;
       if (!json?.ok) return;
 
-      // ✅ ไม่มีรายงานวันนั้น => รีเซ็ตฟอร์มให้สะอาด
       if (!json.reportId) {
         resetForm();
         return;
@@ -686,7 +651,6 @@ export default function DailyReportPage() {
 
       setEditingReportId(String(json.reportId));
 
-      // 1) โหลด payload กลับเข้าฟอร์ม
       const p = json.payload || {};
 
       setTempMaxC(p.tempMaxC ?? null);
@@ -722,12 +686,11 @@ export default function DailyReportPage() {
 
       setSafetyNote(String(p.safetyNote || ""));
 
-      // 2) โหลด issues จากตาราง Issue (ใช้ id จริงของ DB)
       const dbIssues = Array.isArray(json.issues) ? json.issues : [];
       setIssues(
         dbIssues.length
           ? dbIssues.map((it: any) => ({
-              id: String(it.id), // ✅ ใช้ id จาก DB เพื่อให้ update ได้
+              id: String(it.id),
               detail: String(it.detail || ""),
               imageDataUrl: String(it.imageUrl || ""),
             }))
@@ -739,13 +702,8 @@ export default function DailyReportPage() {
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, date]);
 
-  /** ✅ auto fetch daily temp when date/project changes
-   * เงื่อนไข: รัน "เฉพาะกรณีที่วันนั้นยังไม่มีรายงานใน DB" เท่านั้น
-   * เพื่อกันไปทับค่าที่โหลดจาก DB
-   */
   useEffect(() => {
     let alive = true;
 
@@ -789,17 +747,14 @@ export default function DailyReportPage() {
   async function updateIssueImage(id: string, file?: File) {
     if (!file) {
       updateRow(setIssues, id, { imageDataUrl: "" } as any);
-      // ✅ ถ้าเอารูปออก ให้เคลียร์รายละเอียดด้วย (เพราะห้ามกรอกรายละเอียดถ้าไม่มีรูป)
       updateRow(setIssues, id, { detail: "" } as any);
       return;
     }
 
-    // ✅ (แก้ปัญหามือถือ) บีบอัดก่อนเพื่อลดโอกาส sessionStorage เต็ม
     const dataUrl = await compressImageToDataUrl(file, { maxSize: 1280, quality: 0.75 });
     updateRow(setIssues, id, { imageDataUrl: dataUrl } as any);
   }
 
-  /** ✅ รวมยอดอัตโนมัติ */
   const contractorTotal = useMemo(
     () => contractors.reduce((s, r) => s + (Number(r.qty) || 0), 0),
     [contractors]
@@ -819,7 +774,6 @@ export default function DailyReportPage() {
     return { morning, afternoon, overtime };
   }, [majorEquipment]);
 
-  // ✅ options: เอาจาก meta ของโครงการที่เลือกอยู่ ถ้าไม่มีให้มี “อื่นๆ” อย่างเดียว (SelectOrOther จะใส่ให้เอง)
   const contractorNameOptions = useMemo(
     () =>
       project?.contractorNameOptions && project.contractorNameOptions.length
@@ -853,7 +807,6 @@ export default function DailyReportPage() {
     if (!projectId) return false;
     if (!date) return false;
 
-    // ✅ issues ไม่บังคับ แต่ถ้ามีรูป => ต้องมีรายละเอียด
     for (const it of issues) {
       if (it.imageDataUrl && !it.detail.trim()) return false;
     }
@@ -874,7 +827,6 @@ export default function DailyReportPage() {
       return;
     }
 
-    // ✅ อัปเดทเลขรายงานอัตโนมัติ (weekNo/annexNo/periodNo/dailyReportNo) ตามสัญญา + วันที่ที่เลือก
     const patchedProjectMeta: ProjectMeta = {
       ...project,
       weekNo: autoMeta?.weekNo ?? project.weekNo,
@@ -965,13 +917,13 @@ export default function DailyReportPage() {
         </div>
       </div>
 
-      {/* โครงการ (DB) */}
       <SoftSection
         title="ข้อมูลโครงการ"
         subtitle="เลือกโครงการและวันที่รายงาน พร้อมดูข้อมูลสัญญาโดยสรุป"
         badge="Project Setup"
       >
         <div className="grid gap-4 md:grid-cols-2">
+          {/* ฝั่งซ้าย */}
           <div>
             <FieldLabel>ชื่อโครงการ</FieldLabel>
 
@@ -993,8 +945,30 @@ export default function DailyReportPage() {
                 ))
               )}
             </select>
+
+            {/* Desktop only: ย้ายสภาพอากาศมาไว้ใต้กล่องเลือกโครงการ */}
+            <div className="mt-3 hidden md:block">
+              <div className="grid gap-3 md:grid-cols-3">
+                <WeatherSelect
+                  label="สภาพอากาศช่วงเช้า"
+                  value={weatherMorning}
+                  onChange={setWeatherMorning}
+                />
+                <WeatherSelect
+                  label="สภาพอากาศช่วงบ่าย"
+                  value={weatherAfternoon}
+                  onChange={setWeatherAfternoon}
+                />
+                <WeatherSelect
+                  label="สภาพอากาศล่วงเวลา"
+                  value={weatherEvening}
+                  onChange={setWeatherEvening}
+                />
+              </div>
+            </div>
           </div>
 
+          {/* ฝั่งขวา */}
           <div>
             <FieldLabel>วัน/เดือน/ปี พ.ศ.</FieldLabel>
 
@@ -1029,19 +1003,20 @@ export default function DailyReportPage() {
               </div>
             ) : null}
 
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            {/* Mobile only: คงตำแหน่งเดิมไว้ */}
+            <div className="mt-3 grid gap-3 md:hidden sm:grid-cols-3">
               <WeatherSelect
-                label="สภาพอากาศช่วงเช้า"
+                label="ช่วงเช้า"
                 value={weatherMorning}
                 onChange={setWeatherMorning}
               />
               <WeatherSelect
-                label="สภาพอากาศช่วงบ่าย"
+                label="ช่วงบ่าย"
                 value={weatherAfternoon}
                 onChange={setWeatherAfternoon}
               />
               <WeatherSelect
-                label="สภาพอากาศชล่วงเวลา"
+                label="ล่วงเวลา"
                 value={weatherEvening}
                 onChange={setWeatherEvening}
               />
@@ -1066,13 +1041,11 @@ export default function DailyReportPage() {
       </SoftSection>
 
       <form onSubmit={onSubmit} className="mt-6 space-y-6">
-        {/* PROJECT TEAM */}
         <SoftSection
           title="ส่วนโครงการ (PROJECT TEAM)"
           subtitle="ข้อมูลบุคลากรและเครื่องจักรของวันทำงาน"
           badge="Team"
         >
-          {/* Contractors */}
           <div className="mb-6">
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-base font-bold text-slate-800 dark:text-slate-100">
@@ -1134,7 +1107,6 @@ export default function DailyReportPage() {
             </div>
           </div>
 
-          {/* Sub Contractors */}
           <div className="mb-6">
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-base font-bold text-slate-800 dark:text-slate-100">
@@ -1215,7 +1187,6 @@ export default function DailyReportPage() {
             </div>
           </div>
 
-          {/* Major Equipment */}
           <div>
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-base font-bold text-slate-800 dark:text-slate-100">
@@ -1297,7 +1268,6 @@ export default function DailyReportPage() {
           </div>
         </SoftSection>
 
-        {/* WORK PERFORMED */}
         <SoftSection
           title="รายละเอียดของงานที่ได้ดำเนินงานทำแล้ว (WORK PERFORMED)"
           subtitle="รายการงานที่ดำเนินการในวันนั้น"
@@ -1390,7 +1360,6 @@ export default function DailyReportPage() {
           </div>
         </SoftSection>
 
-        {/* ISSUES */}
         <SoftSection
           title="ปัญหาและอุปสรรค"
           subtitle="เพิ่มรูปและคำอธิบายเมื่อพบปัญหาในหน้างาน"
@@ -1490,7 +1459,6 @@ export default function DailyReportPage() {
           </div>
         </SoftSection>
 
-        {/* SAFETY */}
         <SoftSection
           title="บันทึกความปลอดภัย"
           subtitle="บันทึกเรื่อง PPE งานเสี่ยง และมาตรการป้องกัน"
