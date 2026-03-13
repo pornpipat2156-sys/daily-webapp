@@ -120,7 +120,7 @@ export default function AppShell({
             {displayName}
           </div>
           <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {role} • {position}
+            {position}
           </div>
         </div>
       </div>
