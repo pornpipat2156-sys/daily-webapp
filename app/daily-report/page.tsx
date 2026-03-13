@@ -950,17 +950,17 @@ export default function DailyReportPage() {
             <div className="mt-3 hidden md:block">
               <div className="grid gap-3 md:grid-cols-3">
                 <WeatherSelect
-                  label="สภาพอากาศช่วงเช้า"
+                  label="ช่วงเช้า"
                   value={weatherMorning}
                   onChange={setWeatherMorning}
                 />
                 <WeatherSelect
-                  label="สภาพอากาศช่วงบ่าย"
+                  label="ช่วงบ่าย"
                   value={weatherAfternoon}
                   onChange={setWeatherAfternoon}
                 />
                 <WeatherSelect
-                  label="สภาพอากาศล่วงเวลา"
+                  label="ล่วงเวลา"
                   value={weatherEvening}
                   onChange={setWeatherEvening}
                 />
