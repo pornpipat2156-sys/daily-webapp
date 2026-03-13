@@ -26,7 +26,11 @@ export type ProjectMeta = {
 
   supervisors: string[];
 
-  // ✅ เพิ่ม: options สำหรับ dropdown (อยู่ใน meta jsonb)
+  /** ✅ เพิ่ม: พิกัดสถานที่ก่อสร้างจาก meta jsonb */
+  siteLatitude?: number | null;
+  siteLongitude?: number | null;
+
+  // ✅ options สำหรับ dropdown (อยู่ใน meta jsonb)
   contractorNameOptions?: string[];
   contractorPositionOptions?: string[];
   subContractorPositionOptions?: string[];
@@ -51,7 +55,9 @@ const emptyMeta: Omit<ProjectMeta, "id" | "projectName"> = {
   weekNo: "",
   supervisors: [],
 
-  // ✅ default options
+  siteLatitude: null,
+  siteLongitude: null,
+
   contractorNameOptions: [],
   contractorPositionOptions: [],
   subContractorPositionOptions: [],
@@ -71,6 +77,15 @@ function asStringArray(x: unknown): string[] {
   return x.filter((v) => typeof v === "string") as string[];
 }
 
+function asNullableNumber(x: unknown): number | null {
+  if (typeof x === "number" && Number.isFinite(x)) return x;
+  if (typeof x === "string" && x.trim() !== "") {
+    const parsed = Number(x);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
 export async function GET() {
   try {
     const rows = (await prisma.project.findMany({
@@ -79,7 +94,7 @@ export async function GET() {
     })) as unknown as Row[];
 
     const projects: ProjectMeta[] = rows.map((p: Row) => {
-      const m = (p.meta ?? {}) as unknown as ProjectMetaDb;
+      const m = (p.meta ?? {}) as ProjectMetaDb & Record<string, unknown>;
 
       return {
         id: p.id,
@@ -88,12 +103,16 @@ export async function GET() {
         ...m,
 
         // ✅ กันพัง + บังคับเป็น string[]
-        supervisors: asStringArray((m as any).supervisors),
+        supervisors: asStringArray(m.supervisors),
 
-        contractorNameOptions: asStringArray((m as any).contractorNameOptions),
-        contractorPositionOptions: asStringArray((m as any).contractorPositionOptions),
-        subContractorPositionOptions: asStringArray((m as any).subContractorPositionOptions),
-        equipmentTypeOptions: asStringArray((m as any).equipmentTypeOptions),
+        // ✅ อ่านพิกัดจาก Project.meta
+        siteLatitude: asNullableNumber(m.siteLatitude),
+        siteLongitude: asNullableNumber(m.siteLongitude),
+
+        contractorNameOptions: asStringArray(m.contractorNameOptions),
+        contractorPositionOptions: asStringArray(m.contractorPositionOptions),
+        subContractorPositionOptions: asStringArray(m.subContractorPositionOptions),
+        equipmentTypeOptions: asStringArray(m.equipmentTypeOptions),
       };
     });
 

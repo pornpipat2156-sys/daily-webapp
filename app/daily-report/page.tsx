@@ -1,4 +1,4 @@
-// app/daily-report/pagr.tsx
+// app/daily-report/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -27,6 +27,10 @@ type ProjectMeta = {
   weekNo: string;
 
   supervisors: string[];
+
+  /** ✅ พิกัดสถานที่ก่อสร้างจาก Project.meta */
+  siteLatitude?: number | null;
+  siteLongitude?: number | null;
 
   // ✅ options จาก meta jsonb (ถ้ามี)
   contractorNameOptions?: string[];
@@ -68,6 +72,8 @@ type IssueRow = {
   imageDataUrl: string;
 };
 
+type WeatherOption = "sunny" | "cloudy" | "rainy" | "storm" | "foggy" | "";
+
 type DailyReportPayload = {
   projectId: string;
   projectMeta: ProjectMeta;
@@ -77,6 +83,11 @@ type DailyReportPayload = {
 
   tempMaxC: number | null;
   tempMinC: number | null;
+
+  /** ✅ ผู้ใช้เลือกเอง */
+  weatherMorning?: WeatherOption;
+  weatherAfternoon?: WeatherOption;
+  weatherEvening?: WeatherOption;
 
   contractors: ContractorRow[];
   subContractors: SubContractorRow[];
@@ -206,10 +217,31 @@ function computeAutoMeta(p: ProjectMeta, reportDate: string) {
   };
 }
 
-/** อุณหภูมิรายวัน (กันพังไว้ก่อน) */
-async function fetchDailyTemp(yyyyMmDd: string) {
-  const lat = 18.7883;
-  const lon = 98.9853;
+function parseCoordinate(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function isValidLatitude(lat: number | null) {
+  return lat !== null && lat >= -90 && lat <= 90;
+}
+
+function isValidLongitude(lon: number | null) {
+  return lon !== null && lon >= -180 && lon <= 180;
+}
+
+/** ✅ อุณหภูมิรายวันจากพิกัดโครงการ */
+async function fetchDailyTemp(yyyyMmDd: string, latInput?: unknown, lonInput?: unknown) {
+  const lat = parseCoordinate(latInput);
+  const lon = parseCoordinate(lonInput);
+
+  if (!isValidLatitude(lat) || !isValidLongitude(lon)) {
+    return { max: null, min: null };
+  }
 
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
@@ -440,6 +472,34 @@ function SelectOrOther({
   );
 }
 
+function WeatherSelect({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: WeatherOption;
+  onChange: (value: WeatherOption) => void;
+}) {
+  return (
+    <div>
+      <FieldLabel>{label}</FieldLabel>
+      <select
+        className="soft-input h-12 w-full px-4 text-sm text-slate-700 hover:bg-white dark:text-slate-100"
+        value={value}
+        onChange={(e) => onChange(e.target.value as WeatherOption)}
+      >
+        <option value="">เลือกสภาพอากาศ...</option>
+        <option value="sunny">แดดออก</option>
+        <option value="cloudy">มีเมฆมาก</option>
+        <option value="rainy">ฝนตก</option>
+        <option value="storm">พายุฝนฟ้าคะนอง</option>
+        <option value="foggy">หมอก</option>
+      </select>
+    </div>
+  );
+}
+
 /** ✅ แสดงผลวันที่แบบ พ.ศ. DD/MM/BBBB */
 function toBE(isoYmd: string) {
   // isoYmd: yyyy-mm-dd
@@ -520,9 +580,14 @@ export default function DailyReportPage() {
     return computeAutoMeta(project, date);
   }, [project, date]);
 
-  // weather auto (สำรอง)
+  // weather auto (temp)
   const [tempMaxC, setTempMaxC] = useState<number | null>(null);
   const [tempMinC, setTempMinC] = useState<number | null>(null);
+
+  // ✅ weather manual
+  const [weatherMorning, setWeatherMorning] = useState<WeatherOption>("");
+  const [weatherAfternoon, setWeatherAfternoon] = useState<WeatherOption>("");
+  const [weatherEvening, setWeatherEvening] = useState<WeatherOption>("");
 
   // Contractors
   const [contractors, setContractors] = useState<ContractorRow[]>([
@@ -556,6 +621,10 @@ export default function DailyReportPage() {
 
     setTempMaxC(null);
     setTempMinC(null);
+
+    setWeatherMorning("");
+    setWeatherAfternoon("");
+    setWeatherEvening("");
 
     setContractors([{ id: uid(), name: "", position: "", qty: 0 }]);
     setSubContractors([{ id: uid(), position: "", morning: 0, afternoon: 0, overtime: 0 }]);
@@ -623,6 +692,10 @@ export default function DailyReportPage() {
       setTempMaxC(p.tempMaxC ?? null);
       setTempMinC(p.tempMinC ?? null);
 
+      setWeatherMorning((p.weatherMorning ?? "") as WeatherOption);
+      setWeatherAfternoon((p.weatherAfternoon ?? "") as WeatherOption);
+      setWeatherEvening((p.weatherEvening ?? "") as WeatherOption);
+
       setContractors(
         Array.isArray(p.contractors) && p.contractors.length
           ? p.contractors
@@ -669,17 +742,17 @@ export default function DailyReportPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, date]);
 
-  /** ✅ auto fetch daily weather when date changes
-   *  เงื่อนไข: รัน "เฉพาะกรณีที่วันนั้นยังไม่มีรายงานใน DB" เท่านั้น
-   *  เพื่อกันไปทับค่าที่โหลดจาก DB
+  /** ✅ auto fetch daily temp when date/project changes
+   * เงื่อนไข: รัน "เฉพาะกรณีที่วันนั้นยังไม่มีรายงานใน DB" เท่านั้น
+   * เพื่อกันไปทับค่าที่โหลดจาก DB
    */
   useEffect(() => {
     let alive = true;
 
-    // ถ้ามี report อยู่แล้ว => ไม่ดึง weather ใหม่
     if (editingReportId) return;
+    if (!project || !date) return;
 
-    fetchDailyTemp(date)
+    fetchDailyTemp(date, project.siteLatitude, project.siteLongitude)
       .then((t) => {
         if (!alive) return;
         setTempMaxC(t.max);
@@ -694,7 +767,7 @@ export default function DailyReportPage() {
     return () => {
       alive = false;
     };
-  }, [date, editingReportId]);
+  }, [date, editingReportId, project]);
 
   function addRow<T>(setFn: React.Dispatch<React.SetStateAction<T[]>>, row: T) {
     setFn((prev) => [...prev, row]);
@@ -817,6 +890,9 @@ export default function DailyReportPage() {
       dateBE,
       tempMaxC,
       tempMinC,
+      weatherMorning,
+      weatherAfternoon,
+      weatherEvening,
       contractors,
       subContractors,
       majorEquipment,
@@ -845,6 +921,12 @@ export default function DailyReportPage() {
 
     router.push(`/daily-report/preview?reportId=${encodeURIComponent(reportId)}`);
   }
+
+  const hasValidProjectCoords = useMemo(() => {
+    if (!project) return false;
+    return isValidLatitude(parseCoordinate(project.siteLatitude)) &&
+      isValidLongitude(parseCoordinate(project.siteLongitude));
+  }, [project]);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-3 pb-8 sm:px-4 lg:px-6">
@@ -939,6 +1021,30 @@ export default function DailyReportPage() {
 
             <div className="mt-2 rounded-2xl bg-[rgba(124,156,245,0.10)] px-3 py-2 text-xs font-medium text-slate-600 dark:text-slate-300">
               อุณหภูมิรายวัน: สูงสุด {tempMaxC ?? "-"}°C / ต่ำสุด {tempMinC ?? "-"}°C
+            </div>
+
+            {!hasValidProjectCoords && project ? (
+              <div className="mt-2 rounded-2xl bg-[rgba(243,190,114,0.18)] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200">
+                โครงการนี้ยังไม่มีพิกัดสถานที่ก่อสร้างในระบบ จึงยังไม่สามารถดึงอุณหภูมิอัตโนมัติได้
+              </div>
+            ) : null}
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <WeatherSelect
+                label="สภาพอากาศช่วงเช้า"
+                value={weatherMorning}
+                onChange={setWeatherMorning}
+              />
+              <WeatherSelect
+                label="สภาพอากาศช่วงบ่าย"
+                value={weatherAfternoon}
+                onChange={setWeatherAfternoon}
+              />
+              <WeatherSelect
+                label="สภาพอากาศชล่วงเวลา"
+                value={weatherEvening}
+                onChange={setWeatherEvening}
+              />
             </div>
 
             {project && autoMeta && (

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 export type Supervisor = { name: string; role: string };
 
@@ -53,6 +53,9 @@ export type ReportRenderModel = {
   safetyNote: string;
   tempMaxC?: number | null;
   tempMinC?: number | null;
+  weatherMorning?: string | null;
+  weatherAfternoon?: string | null;
+  weatherEvening?: string | null;
   hasOvertime?: boolean;
   supervisors: Supervisor[];
 };
@@ -71,100 +74,6 @@ export function formatDateBE(isoOrYmd?: string) {
   const d = new Date(isoOrYmd);
   if (Number.isNaN(d.getTime())) return isoOrYmd;
   return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear() + 543}`;
-}
-
-function hmToMin(hm: string) {
-  const [h, m] = hm.split(":").map(Number);
-  if (Number.isNaN(h) || Number.isNaN(m)) return 0;
-  return h * 60 + m;
-}
-
-function weatherTextFromCode(code: number | null | undefined) {
-  if (code == null) return "-";
-  if (code === 0) return "ท้องฟ้าแจ่มใส";
-  if (code === 1 || code === 2) return "มีเมฆบางส่วน";
-  if (code === 3) return "มีเมฆมาก";
-  if (code === 45 || code === 48) return "หมอก";
-  if (code >= 51 && code <= 57) return "ฝนปรอย";
-  if (code >= 61 && code <= 67) return "ฝนตก";
-  if (code >= 71 && code <= 77) return "หิมะ/ลูกเห็บ";
-  if (code >= 80 && code <= 82) return "ฝนตกหนัก";
-  if (code >= 95) return "พายุฝนฟ้าคะนอง";
-  return "สภาพอากาศแปรปรวน";
-}
-
-async function fetchHourlyWeather(dateISO: string) {
-  const lat = 18.7883;
-  const lon = 98.9853;
-  const url =
-    `https://api.open-meteo.com/v1/forecast` +
-    `?latitude=${lat}&longitude=${lon}` +
-    `&hourly=temperature_2m,weathercode` +
-    `&timezone=Asia%2FBangkok` +
-    `&start_date=${dateISO}&end_date=${dateISO}`;
-
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("hourly weather fetch failed");
-  const data = await res.json();
-
-  const times: string[] = data?.hourly?.time || [];
-  const temps: number[] = data?.hourly?.temperature_2m || [];
-  const codes: number[] = data?.hourly?.weathercode || [];
-
-  return times.map((t, i) => ({
-    time: t,
-    temp: typeof temps[i] === "number" ? temps[i] : null,
-    code: typeof codes[i] === "number" ? codes[i] : null,
-  }));
-}
-
-function calcMaxMinInRange(
-  hourly: { time: string; temp: number | null; code: number | null }[],
-  startMin: number,
-  endMin: number
-) {
-  let max: number | null = null;
-  let min: number | null = null;
-
-  for (const r of hourly) {
-    const timePart = r.time.split("T")[1] || "00:00";
-    const hm = timePart.slice(0, 5);
-    const m = hmToMin(hm);
-    if (m < startMin) continue;
-    if (m > endMin) continue;
-    if (r.temp == null) continue;
-
-    max = max == null ? r.temp : Math.max(max, r.temp);
-    min = min == null ? r.temp : Math.min(min, r.temp);
-  }
-  return { max, min };
-}
-
-function representativeWeather(
-  hourly: { time: string; temp: number | null; code: number | null }[],
-  startMin: number,
-  endMin: number
-) {
-  const freq = new Map<number, number>();
-  for (const r of hourly) {
-    const timePart = r.time.split("T")[1] || "00:00";
-    const hm = timePart.slice(0, 5);
-    const m = hmToMin(hm);
-    if (m < startMin) continue;
-    if (m > endMin) continue;
-    if (r.code == null) continue;
-    freq.set(r.code, (freq.get(r.code) || 0) + 1);
-  }
-
-  let bestCode: number | null = null;
-  let bestCount = -1;
-  for (const [code, count] of freq.entries()) {
-    if (count > bestCount) {
-      bestCount = count;
-      bestCode = code;
-    }
-  }
-  return weatherTextFromCode(bestCode);
 }
 
 function padArray<T>(arr: T[], targetLen: number, makeEmpty: (idx: number) => T): T[] {
@@ -370,6 +279,26 @@ function resolveWeekDisplay(pm: ProjectMetaUnified, reportDate: string) {
   return value || "-";
 }
 
+function displayWeatherText(value: unknown) {
+  const s = String(value ?? "").trim();
+  if (!s) return "-";
+
+  switch (s) {
+    case "sunny":
+      return "แดดออก";
+    case "cloudy":
+      return "มีเมฆมาก";
+    case "rainy":
+      return "ฝนตก";
+    case "storm":
+      return "พายุฝนฟ้าคะนอง";
+    case "foggy":
+      return "หมอก";
+    default:
+      return s;
+  }
+}
+
 function normalizeModel(raw: any): ReportRenderModel {
   const pmRaw = raw?.projectMeta ?? raw?.project_meta ?? raw?.meta ?? {};
   const pm: ProjectMetaUnified = {
@@ -439,6 +368,9 @@ function normalizeModel(raw: any): ReportRenderModel {
     safetyNote: String(raw?.safetyNote ?? raw?.safety_note ?? ""),
     tempMaxC: raw?.tempMaxC ?? raw?.temp_max_c ?? null,
     tempMinC: raw?.tempMinC ?? raw?.temp_min_c ?? null,
+    weatherMorning: raw?.weatherMorning ?? raw?.weather_morning ?? null,
+    weatherAfternoon: raw?.weatherAfternoon ?? raw?.weather_afternoon ?? null,
+    weatherEvening: raw?.weatherEvening ?? raw?.weather_evening ?? null,
     hasOvertime: raw?.hasOvertime ?? null,
     supervisors: safeArr<Supervisor>(raw?.supervisors).map((s: any) => ({
       name: String(s?.name ?? "-"),
@@ -506,73 +438,6 @@ export function ReportPreviewForm({
       window.removeEventListener("orientationchange", onResize);
     };
   }, []);
-
-  const hasOvertime = useMemo(() => {
-    if (model.hasOvertime != null) return Boolean(model.hasOvertime);
-    const subOt = model.subContractors?.some((r) => (Number(r.overtime) || 0) > 0);
-    const eqOt = model.majorEquipment?.some((r) => (Number(r.overtime) || 0) > 0);
-    return Boolean(subOt || eqOt);
-  }, [model]);
-
-  const [tempMax, setTempMax] = useState<number | null>(model.tempMaxC ?? null);
-  const [tempMin, setTempMin] = useState<number | null>(model.tempMinC ?? null);
-  const [wMorning, setWMorning] = useState<string>("-");
-  const [wAfternoon, setWAfternoon] = useState<string>("-");
-  const [wOvertime, setWOvertime] = useState<string>("-");
-  const [wxLoading, setWxLoading] = useState(false);
-
-  const dateISO = useMemo(() => {
-    const d = model.date || "";
-    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-    const dd = new Date(d);
-    if (Number.isNaN(dd.getTime())) return "";
-    const y = dd.getFullYear();
-    const m = pad2(dd.getMonth() + 1);
-    const da = pad2(dd.getDate());
-    return `${y}-${m}-${da}`;
-  }, [model.date]);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function run() {
-      if (!dateISO) return;
-
-      setWxLoading(true);
-      try {
-        const hourly = await fetchHourlyWeather(dateISO);
-
-        const start = hmToMin("06:00");
-        const end = hasOvertime ? hmToMin("24:00") : hmToMin("18:00");
-        const { max, min } = calcMaxMinInRange(hourly, start, end);
-
-        const mMorning = representativeWeather(hourly, hmToMin("08:30"), hmToMin("12:00"));
-        const mAfternoon = representativeWeather(hourly, hmToMin("13:00"), hmToMin("16:30"));
-        const mOver = hasOvertime ? representativeWeather(hourly, hmToMin("16:30"), hmToMin("24:00")) : "-";
-
-        if (!cancelled) {
-          setTempMax(max);
-          setTempMin(min);
-          setWMorning(mMorning);
-          setWAfternoon(mAfternoon);
-          setWOvertime(mOver);
-        }
-      } catch {
-        if (!cancelled) {
-          setTempMax(model.tempMaxC ?? null);
-          setTempMin(model.tempMinC ?? null);
-          setWMorning("-");
-          setWAfternoon("-");
-          setWOvertime("-");
-        }
-      } finally {
-        if (!cancelled) setWxLoading(false);
-      }
-    }
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [dateISO, hasOvertime, model.tempMaxC, model.tempMinC]);
 
   const contractorTotal = useMemo(
     () => (model.contractors || []).reduce((s, r) => s + (Number(r.qty) || 0), 0),
@@ -658,6 +523,12 @@ export function ReportPreviewForm({
   const dailyReportDisplay = resolveDailyReportDisplay(pm, model.date);
   const periodDisplay = resolvePeriodDisplay(pm, model.date);
   const weekDisplay = resolveWeekDisplay(pm, model.date);
+
+  const tempMax = model.tempMaxC ?? null;
+  const tempMin = model.tempMinC ?? null;
+  const wMorning = displayWeatherText(model.weatherMorning);
+  const wAfternoon = displayWeatherText(model.weatherAfternoon);
+  const wEvening = displayWeatherText(model.weatherEvening);
 
   return (
     <>
@@ -781,27 +652,23 @@ export function ReportPreviewForm({
                       <div className="grid grid-cols-3 gap-x-10 numTab">
                         <div className="nowrap">ช่วงเช้า 08:30น.-12:00น.</div>
                         <div className="nowrap text-center">ช่วงบ่าย 13:00น.-17:00น.</div>
-                        <div className="nowrap text-right">ล่วงเวลา 17:00น. ขึ้นไป</div>
+                        <div className="nowrap text-right">ล่วงเวลา</div>
                       </div>
 
                       <div className="mt-2 font-semibold">สภาพอากาศ (WEATHER)</div>
 
-                      {wxLoading ? (
-                        <div className="opacity-70">กำลังดึงข้อมูลอุณหภูมิ/สภาพอากาศ...</div>
-                      ) : (
-                        <>
-                          <div className="numTab">
-                            <span className="nowrap">อุณหภูมิ สูงสุด: {tempMax ?? "-"}°C</span>
-                            <span className="mx-6"> </span>
-                            <span className="nowrap">อุณหภูมิ ต่ำสุด: {tempMin ?? "-"}°C</span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-x-10 numTab mt-1">
-                            <div className="nowrap">เช้า: {wMorning}</div>
-                            <div className="nowrap text-center">บ่าย: {wAfternoon}</div>
-                            <div className="nowrap text-right">ล่วงเวลา: {wOvertime}</div>
-                          </div>
-                        </>
-                      )}
+                      <>
+                        <div className="numTab">
+                          <span className="nowrap">อุณหภูมิ สูงสุด: {tempMax ?? "-"}°C</span>
+                          <span className="mx-6"> </span>
+                          <span className="nowrap">อุณหภูมิ ต่ำสุด: {tempMin ?? "-"}°C</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-x-10 numTab mt-1">
+                          <div className="nowrap">เช้า: {wMorning}</div>
+                          <div className="nowrap text-center">บ่าย: {wAfternoon}</div>
+                          <div className="nowrap text-right">เย็น: {wEvening}</div>
+                        </div>
+                      </>
                     </div>
                   </div>
 
@@ -1048,7 +915,7 @@ export function ReportPreviewReadonly({ reportId }: { reportId: string }) {
   const [model, setModel] = useState<ReportRenderModel | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false;
 
     (async () => {

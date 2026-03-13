@@ -50,6 +50,9 @@ type DailyModel = {
   safetyNote: string;
   tempMaxC?: number | null;
   tempMinC?: number | null;
+  weatherMorning?: string | null;
+  weatherAfternoon?: string | null;
+  weatherEvening?: string | null;
   hasOvertime?: boolean;
   supervisors: Supervisor[];
   dayNo?: number;
@@ -117,6 +120,11 @@ function num(v: unknown, fallback = 0) {
 
 function nullableNum(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+function nullableStr(v: unknown): string | null {
+  const s = String(v ?? "").trim();
+  return s || null;
 }
 
 function record(v: unknown): Record<string, unknown> {
@@ -494,6 +502,9 @@ export async function getReportExportData(input: {
       safetyNote: str(payload.safetyNote),
       tempMaxC: nullableNum(payload.tempMaxC),
       tempMinC: nullableNum(payload.tempMinC),
+      weatherMorning: nullableStr(payload.weatherMorning),
+      weatherAfternoon: nullableStr(payload.weatherAfternoon),
+      weatherEvening: nullableStr(payload.weatherEvening),
       hasOvertime: Boolean(payload.hasOvertime),
       supervisors,
       dayNo,
