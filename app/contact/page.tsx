@@ -75,16 +75,6 @@ function mergeChatMessages(prev: ChatMessage[], next: ChatMessage[]) {
   );
 }
 
-function roleTone(role?: string) {
-  if (role === "SUPERADMIN") {
-    return "bg-[rgba(239,127,150,0.14)] text-rose-700 dark:text-rose-300";
-  }
-  if (role === "ADMIN") {
-    return "bg-[rgba(154,135,245,0.16)] text-violet-700 dark:text-violet-300";
-  }
-  return "bg-[rgba(121,217,199,0.16)] text-emerald-700 dark:text-emerald-300";
-}
-
 function SectionCard({
   title,
   subtitle,
@@ -97,10 +87,10 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="soft-card rounded-[26px] p-4 sm:p-5 lg:p-6">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-xl">
+    <section className="soft-card rounded-[28px] p-5 sm:p-6">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">
             {title}
           </h2>
           {subtitle ? (
@@ -111,7 +101,7 @@ function SectionCard({
         </div>
 
         {badge ? (
-          <span className="inline-flex w-fit items-center rounded-full border border-white/60 bg-[linear-gradient(135deg,rgba(124,156,245,0.16),rgba(121,217,199,0.16))] px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm dark:text-slate-100">
+          <span className="shrink-0 rounded-full bg-slate-900/5 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:bg-white/10 dark:text-slate-300">
             {badge}
           </span>
         ) : null}
@@ -153,7 +143,7 @@ function StatChip({
   return (
     <div className={cn("rounded-[22px] px-4 py-3", toneClass)}>
       <div className="text-[11px] font-bold uppercase tracking-[0.16em] opacity-80">{label}</div>
-      <div className="mt-1 text-sm font-bold break-words">{value}</div>
+      <div className="mt-1 break-words text-sm font-bold">{value}</div>
     </div>
   );
 }
@@ -633,7 +623,7 @@ function ContactPageInner() {
     window.open(`/daily-report/preview?reportId=${encodeURIComponent(reportId)}`, "_blank");
   }
 
-  const canPickProject = isSuperAdmin;
+  const canPickProject = projects.length > 0;
 
   const realtimeText =
     realtimeState === "connected"
@@ -724,11 +714,12 @@ function ContactPageInner() {
                   </option>
                 ))}
               </select>
-              {!isSuperAdmin ? (
-                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  บัญชีนี้เปลี่ยนโครงการไม่ได้ ระบบเลือกตามสิทธิ์ที่ใช้งานได้
-                </div>
-              ) : null}
+
+              <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                {isSuperAdmin
+                  ? "Superadmin สามารถเลือกได้ทุกโครงการ"
+                  : "เลือกได้เฉพาะโครงการที่บัญชีนี้เป็นสมาชิกอยู่"}
+              </div>
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -760,63 +751,43 @@ function ContactPageInner() {
                 </div>
 
                 {filteredMembers.length === 0 ? (
-                  <div className="rounded-[22px] border border-dashed border-border bg-slate-50/70 px-4 py-6 text-sm text-slate-500 dark:bg-slate-900/40 dark:text-slate-400">
+                  <div className="rounded-[22px] border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
                     ยังไม่มีสมาชิก
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {visibleMembers.map((m) => {
-                      const label = m.name?.trim() ? m.name : m.email;
-                      const busy = togglingMemberId === m.memberId;
-
-                      return (
-                        <div
-                          key={m.memberId}
-                          className="rounded-[22px] border border-border/80 bg-white/85 p-4 shadow-[0_6px_18px_rgba(148,163,184,0.08)] dark:bg-slate-900/50"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
-                                {label}
-                              </div>
-                              <div className="mt-1 truncate text-sm text-slate-500 dark:text-slate-400">
-                                {m.email}
-                              </div>
-                              <div className="mt-2">
-                                <span
-                                  className={cn(
-                                    "rounded-full px-2.5 py-1 text-[11px] font-bold",
-                                    roleTone(m.role)
-                                  )}
-                                >
-                                  {m.role}
-                                </span>
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => removeMember(m.memberId)}
-                              disabled={busy}
-                              title="Remove member"
-                              className="soft-btn shrink-0 rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300"
-                            >
-                              {busy ? "กำลังทำ..." : "Remove"}
-                            </button>
+                    {visibleMembers.map((m) => (
+                      <div
+                        key={m.memberId}
+                        className="flex items-center justify-between gap-3 rounded-[22px] border border-slate-200/70 px-4 py-3 dark:border-slate-800"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+                            {m.name || m.email}
+                          </div>
+                          <div className="truncate text-xs text-slate-500 dark:text-slate-400">
+                            {m.email} • {m.role}
                           </div>
                         </div>
-                      );
-                    })}
 
-                    {filteredMembers.length > PAGE_SIZE ? (
+                        <button
+                          type="button"
+                          onClick={() => removeMember(m.memberId)}
+                          disabled={togglingMemberId === m.memberId}
+                          className="rounded-full border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-900/50 dark:text-rose-300 dark:hover:bg-rose-950/20"
+                        >
+                          {togglingMemberId === m.memberId ? "Removing..." : "Remove"}
+                        </button>
+                      </div>
+                    ))}
+
+                    {!showAllMembers && filteredMembers.length > PAGE_SIZE ? (
                       <button
                         type="button"
-                        onClick={() => setShowAllMembers((v) => !v)}
-                        className="soft-btn w-full rounded-[18px] border border-border/80 bg-white/80 px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-white dark:bg-slate-900/50 dark:text-slate-200"
+                        onClick={() => setShowAllMembers(true)}
+                        className="w-full rounded-[18px] border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-900"
                       >
-                        {showAllMembers
-                          ? "แสดงน้อยลง"
-                          : `แสดงทั้งหมด (${filteredMembers.length})`}
+                        ดูทั้งหมด ({filteredMembers.length})
                       </button>
                     ) : null}
                   </div>
@@ -824,253 +795,228 @@ function ContactPageInner() {
               </SectionCard>
 
               <SectionCard
-                title="เพิ่มผู้เข้าร่วมกลุ่ม"
-                subtitle="แสดงเฉพาะคนที่ยังไม่เป็นสมาชิก"
-                badge="Add Members"
+                title="เพิ่มสมาชิกเข้ากลุ่ม"
+                subtitle="ค้นหาและเลือกสมาชิกที่อนุญาตให้เข้าร่วมโครงการนี้"
+                badge="Add"
               >
-                <div className="mb-4 flex flex-col gap-3">
-                  <button
-                    type="button"
-                    className="soft-btn inline-flex min-h-11 items-center justify-center rounded-2xl border border-primary/20 bg-[linear-gradient(135deg,rgba(124,156,245,0.14),rgba(121,217,199,0.12))] px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-white disabled:opacity-50 dark:text-slate-100"
-                    onClick={addMembersToGroup}
-                    disabled={adding || selectedAddIds.length === 0}
-                  >
-                    {adding ? "กำลังเพิ่ม..." : `Add (${selectedAddIds.length})`}
-                  </button>
-
-                  <div>
-                    <FieldLabel>ค้นหารายชื่อที่จะเพิ่ม</FieldLabel>
-                    <input
-                      className="soft-input h-12 w-full px-4 text-sm text-slate-700 placeholder:text-slate-400 dark:text-slate-100"
-                      placeholder="ค้นหาชื่อหรืออีเมล..."
-                      value={addQuery}
-                      onChange={(e) => setAddQuery(e.target.value)}
-                    />
-                  </div>
+                <div className="mb-4">
+                  <FieldLabel>ค้นหาสมาชิกที่จะเพิ่ม</FieldLabel>
+                  <input
+                    className="soft-input h-12 w-full px-4 text-sm text-slate-700 placeholder:text-slate-400 dark:text-slate-100"
+                    placeholder="ค้นหาชื่อหรืออีเมล..."
+                    value={addQuery}
+                    onChange={(e) => setAddQuery(e.target.value)}
+                  />
                 </div>
 
-                {filteredAddable.length === 0 ? (
-                  <div className="rounded-[22px] border border-dashed border-border bg-slate-50/70 px-4 py-6 text-sm text-slate-500 dark:bg-slate-900/40 dark:text-slate-400">
-                    ไม่มีรายชื่อที่เพิ่มได้ (ทุกคนเป็นสมาชิกแล้ว)
+                {visibleAddable.length === 0 ? (
+                  <div className="rounded-[22px] border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    ไม่มีสมาชิกที่สามารถเพิ่มได้
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {visibleAddable.map((u) => {
-                      const label = u.name?.trim() ? u.name : u.email;
-                      const checked = Boolean(selectedToAdd[u.id]);
-
-                      return (
-                        <label
-                          key={u.id}
-                          className="flex cursor-pointer items-start gap-3 rounded-[22px] border border-border/80 bg-white/85 p-4 shadow-[0_6px_18px_rgba(148,163,184,0.08)] dark:bg-slate-900/50"
-                        >
-                          <input
-                            type="checkbox"
-                            className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
-                            checked={checked}
-                            onChange={(e) =>
-                              setSelectedToAdd((p) => ({
-                                ...p,
-                                [u.id]: e.target.checked,
-                              }))
-                            }
-                          />
-
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
-                              {label}
-                            </div>
-                            <div className="mt-1 truncate text-sm text-slate-500 dark:text-slate-400">
-                              {u.email}
-                            </div>
-                            <div className="mt-2">
-                              <span
-                                className={cn(
-                                  "rounded-full px-2.5 py-1 text-[11px] font-bold",
-                                  roleTone(u.role)
-                                )}
-                              >
-                                {u.role}
-                              </span>
-                            </div>
+                    {visibleAddable.map((u) => (
+                      <label
+                        key={u.id}
+                        className="flex cursor-pointer items-center gap-3 rounded-[20px] border border-slate-200/70 px-4 py-3 transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={Boolean(selectedToAdd[u.id])}
+                          onChange={(e) =>
+                            setSelectedToAdd((prev) => ({
+                              ...prev,
+                              [u.id]: e.target.checked,
+                            }))
+                          }
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+                            {u.name || u.email}
                           </div>
-                        </label>
-                      );
-                    })}
-
-                    {filteredAddable.length > 50 ? (
-                      <div className="rounded-[18px] bg-[rgba(243,190,114,0.14)] px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-                        แสดง 50 รายชื่อแรก (ใช้ช่องค้นหาเพื่อเจาะจง)
-                      </div>
-                    ) : null}
+                          <div className="truncate text-xs text-slate-500 dark:text-slate-400">
+                            {u.email} • {u.role}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
                   </div>
                 )}
+
+                <button
+                  type="button"
+                  onClick={addMembersToGroup}
+                  disabled={adding || selectedAddIds.length === 0}
+                  className="mt-4 inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-5 text-sm font-bold text-white transition hover:translate-y-[-1px] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-900"
+                >
+                  {adding ? "กำลังเพิ่มสมาชิก..." : `เพิ่มสมาชิก (${selectedAddIds.length})`}
+                </button>
               </SectionCard>
             </>
           ) : null}
         </div>
 
         <SectionCard
-          title="ห้องแชท"
+          title="Project Group Chat"
           subtitle={`โครงการ: ${currentProjectName}`}
           badge="Chat"
         >
-          <div className="grid gap-4">
-            <div
-              ref={listRef}
-              className="soft-scroll h-[52dvh] min-h-[360px] overflow-y-auto rounded-[24px] border border-border/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(248,250,255,0.92))] p-3 sm:p-4 dark:bg-[linear-gradient(180deg,rgba(17,28,44,0.85),rgba(22,33,49,0.92))]"
-            >
-              {loadingMessages ? (
-                <div className="flex h-full items-center justify-center rounded-[20px] border border-dashed border-border bg-white/60 px-4 py-8 text-sm text-slate-500 dark:bg-slate-900/30 dark:text-slate-400">
-                  กำลังโหลดข้อความ...
-                </div>
-              ) : messages.length === 0 ? (
-                <div className="flex h-full items-center justify-center rounded-[20px] border border-dashed border-border bg-white/60 px-4 py-8 text-sm text-slate-500 dark:bg-slate-900/30 dark:text-slate-400">
-                  ยังไม่มีข้อความ
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {messages.map((msg) => {
-                    const mine = msg.author.id === meId;
-                    const label = msg.author.name?.trim() ? msg.author.name : msg.author.email;
-
-                    return (
+          <div
+            ref={listRef}
+            className="mb-4 max-h-[560px] overflow-y-auto rounded-[24px] border border-slate-200/70 bg-white/70 p-4 dark:border-slate-800 dark:bg-slate-950/40"
+          >
+            {loadingMessages ? (
+              <div className="text-sm text-slate-500 dark:text-slate-400">กำลังโหลดข้อความ...</div>
+            ) : messages.length === 0 ? (
+              <div className="text-sm text-slate-500 dark:text-slate-400">ยังไม่มีข้อความ</div>
+            ) : (
+              <div className="space-y-3">
+                {messages.map((msg) => {
+                  const mine = msg.author.id === meId;
+                  return (
+                    <div
+                      key={msg.id}
+                      className={cn("flex", mine ? "justify-end" : "justify-start")}
+                    >
                       <div
-                        key={msg.id}
-                        className={cn("flex", mine ? "justify-end" : "justify-start")}
+                        className={cn(
+                          "max-w-[85%] rounded-[22px] px-4 py-3 shadow-sm",
+                          mine
+                            ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                            : "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100"
+                        )}
                       >
                         <div
                           className={cn(
-                            "max-w-[92%] rounded-[24px] px-4 py-3 shadow-[0_8px_22px_rgba(148,163,184,0.10)] sm:max-w-[78%]",
+                            "mb-1 text-[11px] font-bold uppercase tracking-[0.14em]",
                             mine
-                              ? "bg-[linear-gradient(135deg,rgba(124,156,245,0.18),rgba(121,217,199,0.16))] text-slate-800 dark:text-slate-100"
-                              : "border border-border/80 bg-white/88 text-slate-800 dark:bg-slate-900/60 dark:text-slate-100"
+                              ? "text-white/70 dark:text-slate-500"
+                              : "text-slate-500 dark:text-slate-400"
                           )}
                         >
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-bold">{label}</span>
-                            <span
-                              className={cn(
-                                "rounded-full px-2 py-0.5 text-[11px] font-bold",
-                                roleTone(msg.author.role)
-                              )}
-                            >
-                              {msg.author.role}
-                            </span>
-                            <span className="text-xs text-slate-500 dark:text-slate-400">
-                              {fmtDateTime(msg.createdAt)}
-                            </span>
+                          {msg.author.name || msg.author.email}
+                        </div>
+
+                        {msg.text ? (
+                          <div className="whitespace-pre-wrap break-words text-sm leading-6">
+                            {msg.text}
                           </div>
+                        ) : null}
 
-                          {msg.text ? (
-                            <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-6">
-                              {msg.text}
-                            </div>
-                          ) : null}
+                        {msg.reportId ? (
+                          <button
+                            type="button"
+                            onClick={() => openReport(msg.reportId!)}
+                            className={cn(
+                              "mt-3 inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold transition",
+                              mine
+                                ? "bg-white/15 text-white hover:bg-white/20 dark:bg-slate-900/10 dark:text-slate-700"
+                                : "bg-slate-900 text-white hover:opacity-90 dark:bg-white dark:text-slate-900"
+                            )}
+                          >
+                            เปิด Daily Report
+                          </button>
+                        ) : null}
 
-                          {msg.reportId ? (
-                            <button
-                              type="button"
-                              onClick={() => openReport(msg.reportId!)}
-                              className="soft-btn mt-3 inline-flex items-center rounded-full border border-primary/20 bg-white/80 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white dark:bg-slate-800/80 dark:text-slate-100"
-                            >
-                              เปิด Daily Report Preview
-                            </button>
-                          ) : null}
+                        <div
+                          className={cn(
+                            "mt-2 text-[11px]",
+                            mine
+                              ? "text-white/70 dark:text-slate-500"
+                              : "text-slate-500 dark:text-slate-400"
+                          )}
+                        >
+                          {fmtDateTime(msg.createdAt)}
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="relative">
+            <FieldLabel>ข้อความ</FieldLabel>
+            <textarea
+              ref={inputRef}
+              className="soft-input min-h-[120px] w-full resize-y px-4 py-3 text-sm leading-6 text-slate-700 placeholder:text-slate-400 dark:text-slate-100"
+              placeholder="พิมพ์ข้อความ... ใช้ @ เพื่อ mention สมาชิก"
+              value={text}
+              onChange={(e) => handleTextChange(e.target.value)}
+            />
+
+            {mentionOpen && mentionCandidates.length > 0 ? (
+              <div className="absolute bottom-[calc(100%+8px)] left-0 z-20 w-full max-w-md rounded-[22px] border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-950">
+                {mentionCandidates.map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => insertMention(u)}
+                    className="flex w-full items-center gap-3 rounded-[16px] px-3 py-2 text-left transition hover:bg-slate-50 dark:hover:bg-slate-900"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+                        {u.name || u.email}
+                      </div>
+                      <div className="truncate text-xs text-slate-500 dark:text-slate-400">
+                        {u.email} • {u.role}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPickerOpen((v) => !v)}
+                className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-100 dark:hover:bg-slate-900"
+              >
+                {pickerOpen ? "ปิดการแนบ Report" : "แนบ Daily Report"}
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                sendMessage({
+                  reportId: pickerOpen ? reportIdToSend || null : null,
+                })
+              }
+              disabled={sendDisabled}
+              className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-5 text-sm font-bold text-white transition hover:translate-y-[-1px] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-900"
+            >
+              {sending ? "กำลังส่ง..." : "ส่งข้อความ"}
+            </button>
+          </div>
+
+          {pickerOpen ? (
+            <div className="mt-4 rounded-[22px] border border-slate-200/70 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+              <FieldLabel>เลือก Daily Report</FieldLabel>
+              {reports.length === 0 ? (
+                <div className="text-sm text-slate-500 dark:text-slate-400">
+                  ยังไม่มี Daily Report ให้แนบในโครงการนี้
                 </div>
+              ) : (
+                <select
+                  className="soft-input h-12 w-full px-4 text-sm text-slate-700 dark:text-slate-100"
+                  value={reportIdToSend}
+                  onChange={(e) => setReportIdToSend(e.target.value)}
+                >
+                  {reports.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.date}
+                    </option>
+                  ))}
+                </select>
               )}
             </div>
-
-            <div className="rounded-[24px] border border-border/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(251,252,255,0.94))] p-4 shadow-[0_10px_26px_rgba(148,163,184,0.08)] dark:bg-[linear-gradient(180deg,rgba(17,28,44,0.9),rgba(22,33,49,0.94))]">
-              <div className="relative">
-                <FieldLabel>ข้อความ</FieldLabel>
-                <textarea
-                  ref={inputRef}
-                  className="soft-input min-h-[132px] w-full px-4 py-3 text-sm leading-6 text-slate-700 placeholder:text-slate-400 dark:text-slate-100"
-                  placeholder="พิมพ์ข้อความ... ใช้ @ เพื่อ mention สมาชิก"
-                  value={text}
-                  onChange={(e) => handleTextChange(e.target.value)}
-                />
-
-                {mentionOpen && mentionCandidates.length > 0 ? (
-                  <div className="absolute bottom-[calc(100%+10px)] left-0 z-20 w-full max-w-md overflow-hidden rounded-[22px] border border-border bg-white shadow-[0_18px_40px_rgba(148,163,184,0.18)] dark:bg-slate-900">
-                    {mentionCandidates.map((u, idx) => {
-                      const label = u.name?.trim() ? u.name : u.email;
-                      return (
-                        <button
-                          key={u.id}
-                          type="button"
-                          className={cn(
-                            "block w-full px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800",
-                            idx !== mentionCandidates.length - 1
-                              ? "border-b border-border/70"
-                              : ""
-                          )}
-                          onClick={() => insertMention(u)}
-                        >
-                          <div className="font-bold text-slate-800 dark:text-slate-100">{label}</div>
-                          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            {u.email}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="mt-4 flex flex-col gap-3">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                    <button
-                      type="button"
-                      className="soft-btn inline-flex min-h-11 items-center justify-center rounded-2xl border border-primary/20 bg-[linear-gradient(135deg,rgba(124,156,245,0.14),rgba(121,217,199,0.12))] px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-white dark:text-slate-100"
-                      onClick={() => setPickerOpen((v) => !v)}
-                    >
-                      {pickerOpen ? "ซ่อนรายการ Daily Report" : "แนบ Daily Report"}
-                    </button>
-
-                    {pickerOpen ? (
-                      <select
-                        className="soft-input h-11 min-w-[220px] px-4 text-sm text-slate-700 dark:text-slate-100"
-                        value={reportIdToSend}
-                        onChange={(e) => setReportIdToSend(e.target.value)}
-                      >
-                        {reports.length === 0 ? (
-                          <option value="">ไม่มีรายการ</option>
-                        ) : (
-                          reports.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.date}
-                            </option>
-                          ))
-                        )}
-                      </select>
-                    ) : null}
-                  </div>
-
-                  <button
-                    type="button"
-                    className="soft-btn inline-flex min-h-12 items-center justify-center rounded-[20px] border border-primary/25 bg-[linear-gradient(135deg,rgba(124,156,245,0.96),rgba(121,217,199,0.96))] px-6 text-sm font-bold text-white shadow-[0_16px_34px_rgba(124,156,245,0.24)] disabled:cursor-not-allowed disabled:opacity-50"
-                    onClick={() => sendMessage({ reportId: pickerOpen ? reportIdToSend : null })}
-                    disabled={sendDisabled}
-                  >
-                    {sending ? "กำลังส่ง..." : "ส่งข้อความ"}
-                  </button>
-                </div>
-
-                {pickerOpen && reports.length === 0 ? (
-                  <div className="rounded-[18px] bg-[rgba(243,190,114,0.14)] px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-                    ยังไม่มี Daily Report ให้แนบในโครงการนี้
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
+          ) : null}
         </SectionCard>
       </div>
     </div>
