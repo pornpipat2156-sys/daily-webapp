@@ -132,7 +132,7 @@ export default function AppShell({
       <div className="flex items-start justify-between gap-3 rounded-[22px] bg-[linear-gradient(135deg,rgba(124,156,245,0.18),rgba(121,217,199,0.16),rgba(247,199,217,0.14))] p-4">
         <div className="min-w-0">
           <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-300">
-            Daily Webapp
+            DAILY WEBAPP
           </div>
           <div className="mt-2 text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
             รายงานประจำวัน
