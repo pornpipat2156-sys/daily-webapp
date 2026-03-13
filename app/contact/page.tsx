@@ -950,9 +950,9 @@ function ContactPageInner() {
                             type="button"
                             onClick={() => openReport(msg.reportId!)}
                             className={cn(
-                              "mt-3 inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold transition",
+                              "mt-3 inline-flex items-center justify-center rounded-full px-4 py-2 text-xs font-bold leading-none transition",
                               mine
-                                ? "bg-slate-800 text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                                ? "bg-white text-slate-900 hover:bg-slate-100 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
                                 : "bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
                             )}
                           >
