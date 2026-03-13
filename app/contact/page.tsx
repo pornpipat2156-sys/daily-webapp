@@ -952,8 +952,8 @@ function ContactPageInner() {
                             className={cn(
                               "mt-3 inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold transition",
                               mine
-                                ? "bg-white/15 text-white hover:bg-white/20 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
-                                : "bg-slate-900 text-white hover:opacity-90 dark:bg-slate-100 dark:text-slate-900"
+                                ? "bg-slate-800 text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                                : "bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
                             )}
                           >
                             เปิด Daily Report
@@ -1019,8 +1019,8 @@ function ContactPageInner() {
               <button
                 type="button"
                 onClick={() => setPickerOpen((v) => !v)}
-                className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
-              >
+                className="inline-flex h-11 items-center justify-center rounded-full border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                >
                 {pickerOpen ? "ปิดการแนบ Report" : "แนบ Daily Report"}
               </button>
             </div>
@@ -1033,7 +1033,7 @@ function ContactPageInner() {
                 })
               }
               disabled={sendDisabled}
-              className="inline-flex h-11 min-w-[138px] items-center justify-center rounded-full bg-slate-900 px-5 text-sm font-bold text-white transition hover:translate-y-[-1px] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900"
+              className="inline-flex h-11 min-w-[138px] items-center justify-center rounded-full bg-slate-900 px-5 text-sm font-bold text-white transition hover:translate-y-[-1px] hover:bg-slate-800 hover:shadow-lg disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:opacity-100 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
             >
               {sending ? "กำลังส่ง..." : "ส่งข้อความ"}
             </button>
