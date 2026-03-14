@@ -1,5 +1,6 @@
 // app/api/daily-reports/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
+
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 
@@ -10,6 +11,24 @@ type RouteContext = {
   params: Promise<Record<string, string | string[] | undefined>>;
 };
 
+function pickSupervisors(
+  payload: Record<string, unknown>,
+  projectMeta: unknown
+): unknown[] {
+  const fromPayload = payload?.supervisors;
+  if (Array.isArray(fromPayload)) return fromPayload;
+
+  const projectMetaObj =
+    projectMeta && typeof projectMeta === "object" && !Array.isArray(projectMeta)
+      ? (projectMeta as Record<string, unknown>)
+      : null;
+
+  const fromProjectMeta = projectMetaObj?.supervisors;
+  if (Array.isArray(fromProjectMeta)) return fromProjectMeta;
+
+  return [];
+}
+
 export async function GET(req: NextRequest, context: RouteContext) {
   const user = await getAuthUser(req);
   if (!user) {
@@ -18,7 +37,9 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
   const params = await context.params;
   const rawId = params?.id;
-  const reportId = Array.isArray(rawId) ? String(rawId[0] || "").trim() : String(rawId || "").trim();
+  const reportId = Array.isArray(rawId)
+    ? String(rawId[0] || "").trim()
+    : String(rawId || "").trim();
 
   if (!reportId) {
     return NextResponse.json({ ok: false, message: "missing id" }, { status: 400 });
@@ -67,13 +88,20 @@ export async function GET(req: NextRequest, context: RouteContext) {
     });
 
     if (!report) {
-      return NextResponse.json({ ok: false, message: "report not found" }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, message: "report not found" },
+        { status: 404 }
+      );
     }
 
     const payload =
-      report.payload && typeof report.payload === "object" && !Array.isArray(report.payload)
+      report.payload &&
+      typeof report.payload === "object" &&
+      !Array.isArray(report.payload)
         ? (report.payload as Record<string, unknown>)
         : {};
+
+    const supervisors = pickSupervisors(payload, report.project.meta);
 
     const renderReport = {
       id: report.id,
@@ -82,6 +110,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       projectName: report.project.name,
       projectMeta: report.project.meta ?? null,
       ...payload,
+      supervisors,
       issues: report.issues.map((it) => ({
         ...it,
         createdAt: it.createdAt.toISOString(),
@@ -93,7 +122,6 @@ export async function GET(req: NextRequest, context: RouteContext) {
     };
 
     const mode = req.nextUrl.searchParams.get("mode");
-
     if (mode === "render") {
       return NextResponse.json(renderReport);
     }
