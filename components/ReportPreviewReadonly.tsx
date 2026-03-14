@@ -533,40 +533,222 @@ export function ReportPreviewForm({
   return (
     <>
       <style>{`
-        .previewWrap { width: 100%; display: flex; justify-content: center; }
-        .previewSized { margin: 0; }
-        .previewScaled { transform-origin: top left; will-change: transform; }
-        .a4 { background: #fff; color: #111; border: 2px solid #111; border-radius: 14px; padding: 14px; font-size: 13px; line-height: 1.2; }
-        .box { border: 2px solid #111; border-radius: 12px; overflow: hidden; }
-        .cell { border: 1.5px solid #111; padding: 6px 8px; vertical-align: top; }
-        .cellCenter { border: 1.5px solid #111; padding: 6px 8px; text-align: center; vertical-align: middle; }
-        .titleBar { background: #eadcf6; font-weight: 700; }
-        .sectionBar { background: #dff2df; font-weight: 700; text-align: center; }
-        .subBar { background: #f4e8d4; font-weight: 700; text-align: center; }
-        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        th, td { overflow-wrap: break-word; word-break: normal; }
-        .hMain { font-weight: 800; font-size: 18px; letter-spacing: 0.2px; }
-        .hSub  { font-weight: 600; font-size: 13px; }
-        .mini th, .mini td { border: 1.5px solid #111; padding: 4px 6px; font-size: 10px; line-height: 1.0; }
-        .mini th { text-align: center; vertical-align: middle; font-weight: 700; }
-        .mini td { vertical-align: top; }
-        .mini .c { text-align: center; vertical-align: middle; }
-        .miniFixedRow > th, .miniFixedRow > td { height: 40px; vertical-align: middle; }
-        .wrapText { word-break: break-word; overflow-wrap: anywhere; }
-        .numTab { font-variant-numeric: tabular-nums; }
-        .nowrap { white-space: nowrap; }
-        .issueImg { width: 100%; max-height: 240px; object-fit: contain; display: block; }
-        .issueRowMin { min-height: 260px; }
-        @media (max-width: 640px) {
-          .a4 { font-size: 11px; padding: 10px; }
-          .hMain { font-size: 15px; }
-          .hSub { font-size: 11px; }
-          .cell, .cellCenter { padding: 5px 6px; }
-          .mini th, .mini td { font-size: 9px; padding: 3px 4px; }
-          .nowrap { white-space: normal; }
-          .miniFixedRow > th, .miniFixedRow > td { height: 34px; }
-        }
-      `}</style>
+  .previewWrap {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .previewSized {
+    margin: 0;
+  }
+
+  .previewScaled {
+    transform-origin: top left;
+    will-change: transform;
+  }
+
+  .a4 {
+    width: 100%;
+    max-width: 794px;
+    box-sizing: border-box;
+    background: #fff;
+    color: #111;
+    border: 2px solid #111;
+    border-radius: 14px;
+    padding: 14px;
+    font-size: 13px;
+    line-height: 1.2;
+    overflow: hidden;
+  }
+
+  .a4,
+  .a4 * {
+    box-sizing: border-box;
+  }
+
+  .box {
+    border: 2px solid #111;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .cell {
+    border: 1.5px solid #111;
+    padding: 6px 8px;
+    vertical-align: top;
+  }
+
+  .cellCenter {
+    border: 1.5px solid #111;
+    padding: 6px 8px;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  .titleBar {
+    background: #eadcf6;
+    font-weight: 700;
+  }
+
+  .sectionBar {
+    background: #dff2df;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .subBar {
+    background: #f4e8d4;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  table {
+    width: 100%;
+    max-width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  th,
+  td {
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  .hMain {
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: 0.2px;
+  }
+
+  .hSub {
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .mini th,
+  .mini td {
+    border: 1.5px solid #111;
+    padding: 4px 6px;
+    font-size: 10px;
+    line-height: 1.05;
+  }
+
+  .mini th {
+    text-align: center;
+    vertical-align: middle;
+    font-weight: 700;
+  }
+
+  .mini td {
+    vertical-align: top;
+  }
+
+  .mini .c {
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  .miniFixedRow > th,
+  .miniFixedRow > td {
+    height: 40px;
+    vertical-align: middle;
+  }
+
+  .wrapText {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .numTab {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .nowrap {
+    white-space: nowrap;
+  }
+
+  .issueImg {
+    width: 100%;
+    max-height: 240px;
+    object-fit: contain;
+    display: block;
+  }
+
+  .issueRowMin {
+    min-height: 260px;
+  }
+
+  @media (max-width: 640px) {
+    .a4 {
+      font-size: 11px;
+      padding: 10px;
+    }
+
+    .hMain {
+      font-size: 15px;
+    }
+
+    .hSub {
+      font-size: 11px;
+    }
+
+    .cell,
+    .cellCenter {
+      padding: 5px 6px;
+    }
+
+    .mini th,
+    .mini td {
+      font-size: 9px;
+      padding: 3px 4px;
+    }
+
+    .nowrap {
+      white-space: normal;
+    }
+
+    .miniFixedRow > th,
+    .miniFixedRow > td {
+      height: 34px;
+    }
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  @media print {
+    html,
+    body {
+      width: 210mm;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #fff !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .previewWrap,
+    .previewSized,
+    .previewScaled {
+      width: auto !important;
+      height: auto !important;
+      transform: none !important;
+    }
+
+    .a4 {
+      width: 190mm !important;
+      max-width: 190mm !important;
+      margin: 0 auto !important;
+      border-radius: 0 !important;
+      overflow: hidden !important;
+    }
+  }
+`}</style>
 
       <div ref={wrapRef} className="previewWrap">
         <div
@@ -579,7 +761,11 @@ export function ReportPreviewForm({
           <div
             ref={scaledRef}
             className="previewScaled"
-            style={{ width: A4_WIDTH_PX, transform: `scale(${scale}) translateZ(0)` }}
+            style={{
+              width: A4_WIDTH_PX,
+              maxWidth: A4_WIDTH_PX,
+              transform: `scale(${scale}) translateZ(0)`,
+            }}
           >
             <div className="a4">
               <div className="box">

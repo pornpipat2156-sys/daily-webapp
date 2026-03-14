@@ -302,131 +302,179 @@ export function WeeklyReportForm({ model, loading, error }: Props) {
   return (
     <>
       <style jsx>{`
-        .previewWrap {
-          width: 100%;
-          overflow: hidden;
-          padding: 0;
-        }
+  .previewWrap {
+    width: 100%;
+    overflow: hidden;
+    padding: 0;
+  }
 
-        .previewCenter {
-          width: 100%;
-          display: flex;
-          justify-content: center;
-          align-items: flex-start;
-        }
+  .previewCenter {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+  }
 
-        .previewFrame {
-          position: relative;
-          max-width: 100%;
-        }
+  .previewFrame {
+    position: relative;
+    max-width: 100%;
+    overflow: hidden;
+  }
 
-        .previewScaled {
-          transform-origin: top left;
-          will-change: transform;
-        }
+  .previewScaled {
+    transform-origin: top left;
+    will-change: transform;
+  }
 
-        .a4 {
-          background: #ffffff;
-          color: #111111;
-          border: 2px solid #111111;
-          border-radius: 14px;
-          padding: 14px;
-          font-size: 13px;
-          line-height: 1.2;
-          box-sizing: border-box;
-        }
+  .a4 {
+    width: 100%;
+    max-width: ${A4_WIDTH}px;
+    min-height: ${A4_MIN_HEIGHT}px;
+    background: #ffffff;
+    color: #111111;
+    border: 2px solid #111111;
+    border-radius: 14px;
+    padding: 14px;
+    font-size: 13px;
+    line-height: 1.2;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
 
-        .box {
-          border: 2px solid #111111;
-          border-radius: 12px;
-          overflow: hidden;
-        }
+  .a4,
+  .a4 * {
+    box-sizing: border-box;
+  }
 
-        .cell {
-          border: 1.5px solid #111111;
-          padding: 6px 8px;
-          vertical-align: top;
-        }
+  .box {
+    border: 2px solid #111111;
+    border-radius: 12px;
+    overflow: hidden;
+  }
 
-        .cellCenter {
-          border: 1.5px solid #111111;
-          padding: 6px 8px;
-          text-align: center;
-          vertical-align: middle;
-        }
+  .cell {
+    border: 1.5px solid #111111;
+    padding: 6px 8px;
+    vertical-align: top;
+  }
 
-        .titleBar {
-          background: #eadcf6;
-          font-weight: 700;
-        }
+  .cellCenter {
+    border: 1.5px solid #111111;
+    padding: 6px 8px;
+    text-align: center;
+    vertical-align: middle;
+  }
 
-        .sectionBar {
-          background: #dff2df;
-          font-weight: 700;
-          text-align: center;
-        }
+  .titleBar {
+    background: #eadcf6;
+    font-weight: 700;
+  }
 
-        .subBar {
-          background: #f4e8d4;
-          font-weight: 700;
-          text-align: center;
-        }
+  .sectionBar {
+    background: #dff2df;
+    font-weight: 700;
+    text-align: center;
+  }
 
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          table-layout: fixed;
-        }
+  .subBar {
+    background: #f4e8d4;
+    font-weight: 700;
+    text-align: center;
+  }
 
-        th,
-        td {
-          overflow-wrap: break-word;
-          word-break: break-word;
-        }
+  table {
+    width: 100%;
+    max-width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
 
-        .hMain {
-          font-weight: 800;
-          font-size: 18px;
-          letter-spacing: 0.2px;
-        }
+  th,
+  td {
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
 
-        .hSub {
-          font-weight: 600;
-          font-size: 13px;
-        }
+  .hMain {
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: 0.2px;
+  }
 
-        .mini th,
-        .mini td {
-          border: 1.5px solid #111111;
-          padding: 4px 6px;
-          font-size: 10px;
-          line-height: 1.05;
-        }
+  .hSub {
+    font-weight: 600;
+    font-size: 13px;
+  }
 
-        .mini th {
-          text-align: center;
-          vertical-align: middle;
-          font-weight: 700;
-        }
+  .mini th,
+  .mini td {
+    border: 1.5px solid #111111;
+    padding: 4px 6px;
+    font-size: 10px;
+    line-height: 1.05;
+  }
 
-        .mini td {
-          vertical-align: top;
-        }
+  .mini th {
+    text-align: center;
+    vertical-align: middle;
+    font-weight: 700;
+  }
 
-        .mini .c {
-          text-align: center;
-          vertical-align: middle;
-        }
+  .mini td {
+    vertical-align: top;
+  }
 
-        .wrapText {
-          word-break: break-word;
-          overflow-wrap: anywhere;
-        }
+  .mini .c {
+    text-align: center;
+    vertical-align: middle;
+  }
 
-        .multiline {
-          white-space: pre-wrap;
-        }
-      `}</style>
+  .wrapText {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .multiline {
+    white-space: pre-wrap;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  @media print {
+    html,
+    body {
+      width: 210mm;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #fff !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .previewWrap,
+    .previewCenter,
+    .previewFrame,
+    .previewScaled {
+      width: auto !important;
+      height: auto !important;
+      max-width: none !important;
+      transform: none !important;
+      overflow: visible !important;
+    }
+
+    .a4 {
+      width: 190mm !important;
+      max-width: 190mm !important;
+      min-height: auto !important;
+      margin: 0 auto !important;
+      border-radius: 0 !important;
+      overflow: hidden !important;
+    }
+  }
+`}</style>
 
       <div ref={wrapRef} className="previewWrap">
         <div className="previewCenter">
@@ -441,9 +489,10 @@ export function WeeklyReportForm({ model, loading, error }: Props) {
               ref={scaledRef}
               className="previewScaled"
               style={{
-                width: A4_WIDTH,
-                transform: `scale(${scale}) translateZ(0)`,
-              }}
+                      width: A4_WIDTH,
+                      maxWidth: A4_WIDTH,
+                      transform: `scale(${scale}) translateZ(0)`,
+                      }}
             >
               <div className="a4">
                 <div className="box">
