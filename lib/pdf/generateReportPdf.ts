@@ -1,3 +1,4 @@
+// lib/pdf/generateReportPdf.ts
 import { prisma } from "@/lib/prisma";
 
 export type ReportType = "daily" | "weekly" | "monthly";
@@ -50,9 +51,6 @@ type DailyModel = {
   safetyNote: string;
   tempMaxC?: number | null;
   tempMinC?: number | null;
-  weatherMorning?: string | null;
-  weatherAfternoon?: string | null;
-  weatherEvening?: string | null;
   hasOvertime?: boolean;
   supervisors: Supervisor[];
   dayNo?: number;
@@ -109,6 +107,16 @@ export type PdfLookupResult =
       message: string;
     };
 
+const A4_WIDTH_MM = 210;
+const A4_HEIGHT_MM = 297;
+const PDF_MARGIN_TOP_MM = 2;
+const PDF_MARGIN_RIGHT_MM = 10;
+const PDF_MARGIN_BOTTOM_MM = 1;
+const PDF_MARGIN_LEFT_MM = 10;
+const PRINTABLE_WIDTH_MM = A4_WIDTH_MM - PDF_MARGIN_LEFT_MM - PDF_MARGIN_RIGHT_MM;
+const PRINTABLE_HEIGHT_MM =
+  A4_HEIGHT_MM - PDF_MARGIN_TOP_MM - PDF_MARGIN_BOTTOM_MM;
+
 function str(v: unknown, fallback = "") {
   const s = String(v ?? "").trim();
   return s || fallback;
@@ -120,11 +128,6 @@ function num(v: unknown, fallback = 0) {
 
 function nullableNum(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
-
-function nullableStr(v: unknown): string | null {
-  const s = String(v ?? "").trim();
-  return s || null;
 }
 
 function record(v: unknown): Record<string, unknown> {
@@ -189,7 +192,6 @@ function normalizeSupervisors(raw: unknown): Supervisor[] {
           role: str(o.role),
         };
       }
-
       return {
         name: str(item),
         role: "",
@@ -200,7 +202,6 @@ function normalizeSupervisors(raw: unknown): Supervisor[] {
 
 function normalizeProjectMeta(projectName: string, metaRaw: unknown) {
   const meta = record(metaRaw);
-
   return {
     projectName: str(projectName, "-"),
     contractNo: str(meta.contractNo, "-"),
@@ -241,11 +242,9 @@ function isDailyReportApproved(
   if (!supervisors.length) return false;
 
   const approvedKeys = new Set<string>();
-
   for (const a of approvals) {
     const a1 = norm(a.approverName);
     const a2 = normPersonName(a.approverName);
-
     if (a1) approvedKeys.add(a1);
     if (a2) approvedKeys.add(a2);
   }
@@ -260,7 +259,6 @@ function isDailyReportApproved(
 function safeDateFromString(dateStr: string) {
   const s = str(dateStr);
   if (!s || s === "-") return null;
-
   const parsed = new Date(s);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed;
@@ -299,7 +297,6 @@ export async function getReportExportData(input: {
   if (!projectId) {
     throw new Error("missing projectId");
   }
-
   if (!["daily", "weekly", "monthly"].includes(type)) {
     throw new Error("invalid type");
   }
@@ -311,7 +308,6 @@ export async function getReportExportData(input: {
 
   if (type === "daily") {
     const selectedDateEnd = toEndOfDayUtc(selectedDate);
-
     const report = await prisma.dailyReport.findFirst({
       where: {
         projectId,
@@ -437,7 +433,6 @@ export async function getReportExportData(input: {
         periodIndex = clampPositiveInt(Math.ceil(dayNo / daysPerInstallment), 0);
       }
     }
-
     if (installmentCount > 0 && periodIndex > installmentCount) {
       periodIndex = installmentCount;
     }
@@ -451,7 +446,6 @@ export async function getReportExportData(input: {
     if (!weekIndex && dayNo > 0) {
       weekIndex = clampPositiveInt(Math.ceil(dayNo / 7), 0);
     }
-
     if (totalWeeks > 0 && weekIndex > totalWeeks) {
       weekIndex = totalWeeks;
     }
@@ -502,9 +496,6 @@ export async function getReportExportData(input: {
       safetyNote: str(payload.safetyNote),
       tempMaxC: nullableNum(payload.tempMaxC),
       tempMinC: nullableNum(payload.tempMinC),
-      weatherMorning: nullableStr(payload.weatherMorning),
-      weatherAfternoon: nullableStr(payload.weatherAfternoon),
-      weatherEvening: nullableStr(payload.weatherEvening),
       hasOvertime: Boolean(payload.hasOvertime),
       supervisors,
       dayNo,
@@ -531,7 +522,6 @@ export async function getReportExportData(input: {
 
   if (type === "weekly") {
     const selectedDateEnd = toEndOfDayUtc(selectedDate);
-
     const report = await prisma.weeklyReport.findFirst({
       where: {
         projectId,
@@ -647,10 +637,7 @@ export async function getReportExportData(input: {
     periodLabel: getWeekRangeLabel(report.startDate, report.endDate),
     summaryModel: {
       reportType: "MONTHLY",
-      documentTitle: `Monthly Report - ${getMonthLabel(
-        report.year,
-        report.month
-      )}`,
+      documentTitle: `Monthly Report - ${getMonthLabel(report.year, report.month)}`,
       projectName: str(report.project?.name, "-"),
       periodLabel: getWeekRangeLabel(report.startDate, report.endDate),
       selectedDate: formatDateOnly(selectedDate),
@@ -669,12 +656,10 @@ async function getBrowser() {
   const chromium = chromiumModule.default;
 
   const isVercel = Boolean(process.env.VERCEL);
-  const macPath =
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+  const macPath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
   const linuxAltPath = "/usr/bin/chromium-browser";
   const linuxPath = "/usr/bin/google-chrome";
-  const winPath =
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+  const winPath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 
   const executablePath = isVercel
     ? await chromium.executablePath()
@@ -689,12 +674,10 @@ async function getBrowser() {
   return puppeteer.default.launch({
     headless: true,
     executablePath,
-    args: isVercel
-      ? chromium.args
-      : ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: isVercel ? chromium.args : ["--no-sandbox", "--disable-setuid-sandbox"],
     defaultViewport: {
-      width: 794,
-      height: 1123,
+      width: 1280,
+      height: 1810,
       deviceScaleFactor: 2,
     },
   });
@@ -733,25 +716,31 @@ export async function buildReportPdf(input: {
       throw new Error("preview route ถูก redirect หรือเข้าใช้งานไม่ได้");
     }
 
-    await page.waitForSelector("body", {
-      timeout: 15000,
-    });
+    await page.waitForSelector("body", { timeout: 15000 });
+    await page.waitForNetworkIdle({ idleTime: 800, timeout: 30000 }).catch(
+      () => null
+    );
 
-    await page.waitForNetworkIdle({
-      idleTime: 800,
-      timeout: 30000,
-    }).catch(() => null);
-
-    await page.emulateMediaType("screen");
+    await page.emulateMediaType("print");
 
     await page.addStyleTag({
       content: `
-        html, body {
+        @page {
+          size: A4 portrait;
+          margin: ${PDF_MARGIN_TOP_MM}mm ${PDF_MARGIN_RIGHT_MM}mm ${PDF_MARGIN_BOTTOM_MM}mm ${PDF_MARGIN_LEFT_MM}mm;
+        }
+
+        html,
+        body {
           margin: 0 !important;
           padding: 0 !important;
+          width: ${A4_WIDTH_MM}mm !important;
+          min-width: ${A4_WIDTH_MM}mm !important;
+          max-width: ${A4_WIDTH_MM}mm !important;
           background: #ffffff !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
+          overflow: visible !important;
         }
 
         header,
@@ -773,11 +762,140 @@ export async function buildReportPdf(input: {
         }
 
         [data-pdf-preview-root='1'] {
-          width: 794px !important;
+          width: ${PRINTABLE_WIDTH_MM}mm !important;
+          min-width: ${PRINTABLE_WIDTH_MM}mm !important;
+          max-width: ${PRINTABLE_WIDTH_MM}mm !important;
           margin: 0 auto !important;
           padding: 0 !important;
           background: #ffffff !important;
-          overflow: hidden !important;
+          overflow: visible !important;
+          box-sizing: border-box !important;
+        }
+
+        [data-pdf-preview-root='1'],
+        [data-pdf-preview-root='1'] * {
+          box-sizing: border-box !important;
+        }
+
+        [data-pdf-preview-root='1'] [style*="transform: scale("],
+        [data-pdf-preview-root='1'] [style*="transform:scale("],
+        [data-pdf-preview-root='1'] [style*="scale("] {
+          transform: none !important;
+          transform-origin: top left !important;
+        }
+
+        [data-pdf-preview-root='1'] [style*="width: 794px"],
+        [data-pdf-preview-root='1'] [style*="width:794px"],
+        [data-pdf-preview-root='1'] [style*="max-width: 794px"],
+        [data-pdf-preview-root='1'] [style*="max-width:794px"] {
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+
+        [data-pdf-preview-root='1'] [style*="height: calc("],
+        [data-pdf-preview-root='1'] [style*="height:calc("] {
+          height: auto !important;
+          min-height: 0 !important;
+        }
+
+        [data-pdf-preview-root='1'] .a4,
+        [data-pdf-preview-root='1'] .previewScaled,
+        [data-pdf-preview-root='1'] .previewSized,
+        [data-pdf-preview-root='1'] .previewFrame,
+        [data-pdf-preview-root='1'] .previewCenter,
+        [data-pdf-preview-root='1'] .previewWrap,
+        [data-pdf-preview-root='1'] [data-weekly-export-print-root='1'] {
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          height: auto !important;
+          min-height: 0 !important;
+          overflow: visible !important;
+        }
+
+        [data-pdf-preview-root='1'] img,
+        [data-pdf-preview-root='1'] svg,
+        [data-pdf-preview-root='1'] canvas {
+          max-width: 100% !important;
+          height: auto !important;
+          break-inside: avoid-page;
+          page-break-inside: avoid;
+        }
+
+        [data-pdf-preview-root='1'] table {
+          width: 100% !important;
+          max-width: 100% !important;
+          border-collapse: collapse;
+          table-layout: fixed !important;
+          break-inside: auto;
+          page-break-inside: auto;
+        }
+
+        [data-pdf-preview-root='1'] thead {
+          display: table-header-group;
+        }
+
+        [data-pdf-preview-root='1'] tfoot {
+          display: table-footer-group;
+        }
+
+        [data-pdf-preview-root='1'] tbody {
+          break-inside: auto;
+          page-break-inside: auto;
+        }
+
+        [data-pdf-preview-root='1'] tr {
+          break-inside: avoid-page !important;
+          page-break-inside: avoid !important;
+          page-break-after: auto !important;
+        }
+
+        [data-pdf-preview-root='1'] th,
+        [data-pdf-preview-root='1'] td {
+          break-inside: avoid-page !important;
+          page-break-inside: avoid !important;
+          vertical-align: top;
+          overflow-wrap: anywhere !important;
+          word-break: break-word !important;
+        }
+
+        [data-pdf-preview-root='1'] p,
+        [data-pdf-preview-root='1'] span,
+        [data-pdf-preview-root='1'] div,
+        [data-pdf-preview-root='1'] li {
+          overflow-wrap: anywhere !important;
+          word-break: break-word !important;
+        }
+
+        [data-pdf-preview-root='1'] .pdf-page-break {
+          break-before: page !important;
+          page-break-before: always !important;
+        }
+
+        [data-pdf-preview-root='1'] .pdf-keep-block,
+        [data-pdf-preview-root='1'] .issue-card,
+        [data-pdf-preview-root='1'] .signature-card,
+        [data-pdf-preview-root='1'] .pdf-media-block {
+          break-inside: avoid-page !important;
+          page-break-inside: avoid !important;
+        }
+
+        [data-pdf-preview-root='1'] h1,
+        [data-pdf-preview-root='1'] h2,
+        [data-pdf-preview-root='1'] h3,
+        [data-pdf-preview-root='1'] h4,
+        [data-pdf-preview-root='1'] h5,
+        [data-pdf-preview-root='1'] h6 {
+          break-after: avoid-page;
+          page-break-after: avoid;
+        }
+
+        [data-weekly-export-print-root='1'] {
+          width: 100% !important;
+          max-width: 100% !important;
+          overflow: visible !important;
+          max-height: none !important;
+          height: auto !important;
         }
       `,
     });
